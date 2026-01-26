@@ -1,0 +1,28 @@
+# Example input file for topological charge measurement
+# Use with: ./build/bin/meas_topcharge -i input/topcharge_example.txt
+
+# Configuration directory (where conf.NNNN files are stored)
+config_dir          data/configs/T16_L16_b2.4
+
+# Output directory for results
+output_dir          data/results/T16_L16_b2.4
+
+# Physical parameters
+beta                2.4
+
+# Lattice dimensions
+T                   16
+L                   16
+
+# Configuration range
+start_conf          500
+end_conf            10000
+conf_step           500
+
+# Smearing parameters
+smear_steps         200
+smear_output_interval 20
+smear_alpha         0.5
+
+# Random seed (for reproducibility)
+seed                12345

@@ -1,0 +1,39 @@
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
+!*/
+
+!Makefile
+
+### Above combination will ignore all files without extension ###
+
+# Ignore files with extension `.class` & `.sm`
+*.class
+*.sm
+#.o
+
+# Ignore `bin` dir
+bin/
+# or
+*/bin/*
+
+# Ignore these specific directories
+lattice_SU2/Q/von Vilija/
+lattice_SU2/data/
+lattice_SU2/vilija_instanton/build/
+lattice_SU2_data/
+
+# CMake build directory
+build/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Compiled library
+*.a
