@@ -1,0 +1,10 @@
+config_dir        /home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/Topological_charge_my_implementation/output/configs
+output_dir        /home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/Topological_charge_my_implementation/output/results/
+beta              2.5
+T                 8
+L                 8
+start_conf        10
+end_conf          500
+conf_step         10
+smear_steps       50
+smear_alpha       0.5

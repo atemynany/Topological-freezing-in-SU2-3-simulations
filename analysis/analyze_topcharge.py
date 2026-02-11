@@ -4,23 +4,29 @@
 analyze_topcharge.py
 ==============================================================================
 Statistical analysis of topological charge measurements.
-Computes topological susceptibility, autocorrelation times, and performs
-binning analysis for error estimation.
+Computes mean, standard deviation, and jackknife errors with bias estimation.
 
 Usage:
-    python3 analysis/analyze_topcharge.py --input <data_file> --output <output_file>
+    python3 analysis/analyze_topcharge.py
 
 Author: Alexander de Barros Noll
 Date: January 2026
 ==============================================================================
 """
 
-import argparse
 import os
-import sys
-from pathlib import Path
-
 import numpy as np
+
+from Q_estimator import QEstimator
+
+
+# ==============================================================================
+# Paths
+# ==============================================================================
+
+base_dir = "/home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/Topological_charge_my_implementation"
+output_dir = os.path.join(base_dir, "output")
+topcharge_file = os.path.join(output_dir, "topcharge.dat")
 
 
 # ==============================================================================
@@ -59,232 +65,184 @@ def load_topcharge_data(filename: str) -> dict:
 
 
 # ==============================================================================
-# Statistical Analysis
+# Jackknife Analysis
 # ==============================================================================
 
-def compute_mean_error(values: np.ndarray) -> tuple:
-    """Compute mean and standard error of the mean."""
-    n = len(values)
-    mean = np.mean(values)
-    std = np.std(values, ddof=1)
-    error = std / np.sqrt(n)
-    return mean, error
-
-
-def compute_autocorrelation(values: np.ndarray, max_lag: int = None) -> np.ndarray:
-    """Compute normalized autocorrelation function."""
-    n = len(values)
-    if max_lag is None:
-        max_lag = n // 2
-    
-    values_centered = values - np.mean(values)
-    var = np.var(values, ddof=0)
-    
-    if var < 1e-15:
-        return np.zeros(max_lag)
-    
-    autocorr = np.correlate(values_centered, values_centered, mode='full')[n-1:]
-    autocorr = autocorr[:max_lag] / (var * n)
-    
-    return autocorr
-
-
-def compute_integrated_autocorr_time(autocorr: np.ndarray, c: float = 5.0) -> tuple:
+def jackknife_analysis(values: np.ndarray, func=np.mean) -> dict:
     """
-    Compute integrated autocorrelation time with automatic window selection.
+    Perform jackknife resampling to estimate error and bias.
     
-    Uses the Madras-Sokal automatic windowing procedure:
-    tau_int = 0.5 + sum_{t=1}^{W} rho(t)
-    where W is chosen as the first point where W >= c * tau_int(W)
-    """
-    n = len(autocorr)
-    tau_int = 0.5
+    The jackknife method:
+    1. Compute the estimator on the full sample: theta_full = func(values)
+    2. For each i, compute theta_i = func(values with i-th element removed)
+    3. Jackknife estimate: theta_jack = n * theta_full - (n-1) * mean(theta_i)
+    4. Jackknife error: sigma_jack = sqrt((n-1)/n * sum((theta_i - mean(theta_i))^2))
+    5. Bias estimate: bias = (n-1) * (mean(theta_i) - theta_full)
     
-    for w in range(1, n):
-        tau_int += autocorr[w]
-        
-        if w >= c * tau_int:
-            break
+    Parameters:
+        values: array of measurements
+        func: function to apply (default: np.mean)
     
-    # Error estimate
-    tau_int_error = tau_int * np.sqrt(2 * (2*w + 1) / n)
-    
-    return tau_int, tau_int_error, w
-
-
-def binning_analysis(values: np.ndarray, max_binsize: int = None) -> dict:
-    """
-    Perform binning analysis to estimate true errors accounting for autocorrelation.
-    
-    Returns dictionary with:
-        - bin_sizes: array of bin sizes tested
-        - errors: error estimates for each bin size
-        - effective_samples: effective number of independent samples
+    Returns:
+        dict with: estimate, error, bias, jackknife_samples
     """
     n = len(values)
-    if max_binsize is None:
-        max_binsize = n // 10
     
-    bin_sizes = []
-    errors = []
+    # Full sample estimate
+    theta_full = func(values)
     
-    for binsize in range(1, max_binsize + 1):
-        n_bins = n // binsize
-        if n_bins < 2:
-            break
-        
-        # Compute binned values
-        binned = np.array([np.mean(values[i*binsize:(i+1)*binsize]) 
-                          for i in range(n_bins)])
-        
-        # Error of binned mean
-        mean = np.mean(binned)
-        std = np.std(binned, ddof=1)
-        error = std / np.sqrt(n_bins)
-        
-        bin_sizes.append(binsize)
-        errors.append(error)
+    # Jackknife resamples (leave-one-out)
+    theta_jack = np.zeros(n)
+    for i in range(n):
+        # Create sample with i-th element removed
+        sample_i = np.delete(values, i)
+        theta_jack[i] = func(sample_i)
     
-    bin_sizes = np.array(bin_sizes)
-    errors = np.array(errors)
+    # Mean of jackknife estimates
+    theta_jack_mean = np.mean(theta_jack)
     
-    # Estimate effective number of samples
-    # When errors plateau, that gives the true error
-    if len(errors) > 0:
-        naive_error = errors[0]  # Error without binning
-        plateau_error = np.max(errors)  # Approximate plateau error
-        # Effective samples: n_eff = n * (naive_error / plateau_error)^2
-        if plateau_error > 0:
-            n_eff = n * (naive_error / plateau_error) ** 2
-        else:
-            n_eff = n
-    else:
-        n_eff = n
+    # Jackknife error estimate
+    error = np.sqrt((n - 1) / n * np.sum((theta_jack - theta_jack_mean)**2))
+    
+    # Bias estimate
+    bias = (n - 1) * (theta_jack_mean - theta_full)
+    
+    # Bias-corrected estimate
+    estimate_corrected = theta_full - bias
     
     return {
-        'bin_sizes': bin_sizes,
-        'errors': errors,
-        'effective_samples': n_eff
+        'estimate': theta_full,
+        'estimate_corrected': estimate_corrected,
+        'error': error,
+        'bias': bias,
+        'jackknife_samples': theta_jack
     }
 
 
-def compute_topological_susceptibility(Q_values: np.ndarray, volume: int) -> tuple:
-    """
-    Compute topological susceptibility chi_t = <Q^2> / V
-    
-    Returns: (chi_t, chi_t_error)
-    """
-    Q2_values = Q_values ** 2
-    Q2_mean, Q2_error = compute_mean_error(Q2_values)
-    
-    chi_t = Q2_mean / volume
-    chi_t_error = Q2_error / volume
-    
-    return chi_t, chi_t_error
+def jackknife_Q2(values: np.ndarray) -> dict:
+    """Jackknife analysis for <Q^2> (topological susceptibility numerator)."""
+    return jackknife_analysis(values, func=lambda x: np.mean(x**2))
 
 
 # ==============================================================================
-# Analysis
+# Main Analysis
 # ==============================================================================
-
-def analyze_smearing_level(Q_values: np.ndarray, smear_level: int, volume: int) -> dict:
-    """Perform complete analysis for one smearing level."""
-    results = {
-        'smear_level': smear_level,
-        'n_configs': len(Q_values)
-    }
-    
-    # Basic statistics
-    results['Q_mean'], results['Q_mean_error'] = compute_mean_error(Q_values)
-    results['Q_std'] = np.std(Q_values, ddof=1)
-    results['Q_min'] = np.min(Q_values)
-    results['Q_max'] = np.max(Q_values)
-    
-    # Topological susceptibility
-    results['chi_t'], results['chi_t_error'] = compute_topological_susceptibility(Q_values, volume)
-    
-    # Autocorrelation
-    autocorr = compute_autocorrelation(Q_values)
-    tau_int, tau_int_error, window = compute_integrated_autocorr_time(autocorr)
-    results['tau_int'] = tau_int
-    results['tau_int_error'] = tau_int_error
-    results['tau_window'] = window
-    
-    # Binning analysis
-    binning = binning_analysis(Q_values)
-    results['effective_samples'] = binning['effective_samples']
-    results['binning_error_plateau'] = np.max(binning['errors']) if len(binning['errors']) > 0 else 0
-    
-    # Corrected error (accounting for autocorrelation)
-    results['Q_mean_error_corrected'] = results['Q_mean_error'] * np.sqrt(2 * tau_int)
-    
-    return results
-
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Statistical analysis of topological charge data'
-    )
-    parser.add_argument('--input', '-i', required=True,
-                        help='Input data file from meas_topcharge')
-    parser.add_argument('--output', '-o', required=True,
-                        help='Output file for analysis results')
-    parser.add_argument('--T', type=int, default=16,
-                        help='Temporal lattice extent')
-    parser.add_argument('--L', type=int, default=16,
-                        help='Spatial lattice extent')
-    
-    args = parser.parse_args()
+    print("="*60)
+    print("Topological Charge Analysis")
+    print("="*60)
     
     # Load data
-    if not os.path.exists(args.input):
-        print(f"Error: Input file not found: {args.input}")
-        sys.exit(1)
-    
-    print(f"Loading data from: {args.input}")
-    data = load_topcharge_data(args.input)
+    print(f"\nLoading data from: {topcharge_file}")
+    data = load_topcharge_data(topcharge_file)
     
     if len(data['Q']) == 0:
         print("Error: No data found")
-        sys.exit(1)
+        return
     
-    volume = args.T * args.L ** 3
-    print(f"Lattice volume: {args.T} x {args.L}^3 = {volume}")
+    # Get unique smearing levels
+    smear_levels = np.unique(data['smear_steps'])
+    print(f"Found smearing levels: {smear_levels}")
     
     # Analyze each smearing level
-    smear_levels = np.unique(data['smear_steps'])
-    all_results = []
+    print("\n" + "-"*60)
+    print(f"{'Smear':>6} {'N':>5} {'<Q>':>10} {'std':>10} {'JK error':>10} {'JK bias':>10}")
+    print("-"*60)
     
     for smear in smear_levels:
         mask = data['smear_steps'] == smear
         Q_values = data['Q'][mask]
+        n = len(Q_values)
         
-        if len(Q_values) < 2:
+        if n < 2:
             continue
         
-        results = analyze_smearing_level(Q_values, smear, volume)
-        all_results.append(results)
+        # Basic statistics
+        Q_mean = np.mean(Q_values)
+        Q_std = np.std(Q_values, ddof=1)
         
-        print(f"\nSmearing level {smear}:")
-        print(f"  <Q> = {results['Q_mean']:.4f} +/- {results['Q_mean_error_corrected']:.4f}")
-        print(f"  chi_t = {results['chi_t']:.6f} +/- {results['chi_t_error']:.6f}")
-        print(f"  tau_int = {results['tau_int']:.2f} +/- {results['tau_int_error']:.2f}")
-    
-    # Write results
-    with open(args.output, 'w') as f:
-        f.write("# Topological Charge Analysis Results\n")
-        f.write(f"# Lattice: {args.T} x {args.L}^3\n")
-        f.write(f"# Volume: {volume}\n")
-        f.write("#\n")
-        f.write("# Columns: smear_level  n_configs  Q_mean  Q_mean_err  Q_std  chi_t  chi_t_err  tau_int  tau_int_err\n")
+        # Jackknife analysis for mean
+        jk_mean = jackknife_analysis(Q_values, func=np.mean)
         
-        for r in all_results:
-            f.write(f"{r['smear_level']:5d}  {r['n_configs']:5d}  "
-                    f"{r['Q_mean']:10.6f}  {r['Q_mean_error_corrected']:10.6f}  {r['Q_std']:10.6f}  "
-                    f"{r['chi_t']:12.8f}  {r['chi_t_error']:12.8f}  "
-                    f"{r['tau_int']:8.3f}  {r['tau_int_error']:8.3f}\n")
+        print(f"{smear:>6} {n:>5} {Q_mean:>10.4f} {Q_std:>10.4f} "
+              f"{jk_mean['error']:>10.4f} {jk_mean['bias']:>10.6f}")
     
-    print(f"\nResults written to: {args.output}")
+    print("-"*60)
+    
+    # Detailed analysis for highest smearing level
+    max_smear = smear_levels[-1]
+    mask = data['smear_steps'] == max_smear
+    Q_values = data['Q'][mask]
+    
+    print(f"\n\nDetailed analysis at smearing = {max_smear}:")
+    print("="*60)
+    
+    # Mean
+    jk_mean = jackknife_analysis(Q_values, func=np.mean)
+    print(f"\n<Q>:")
+    print(f"  Estimate:          {jk_mean['estimate']:.6f}")
+    print(f"  Jackknife error:   {jk_mean['error']:.6f}")
+    print(f"  Jackknife bias:    {jk_mean['bias']:.8f}")
+    print(f"  Bias-corrected:    {jk_mean['estimate_corrected']:.6f}")
+    
+    # <Q^2> for susceptibility
+    jk_Q2 = jackknife_Q2(Q_values)
+    print(f"\n<Q²>:")
+    print(f"  Estimate:          {jk_Q2['estimate']:.6f}")
+    print(f"  Jackknife error:   {jk_Q2['error']:.6f}")
+    print(f"  Jackknife bias:    {jk_Q2['bias']:.8f}")
+    print(f"  Bias-corrected:    {jk_Q2['estimate_corrected']:.6f}")
+    
+    # Standard deviation via jackknife
+    jk_std = jackknife_analysis(Q_values, func=lambda x: np.std(x, ddof=1))
+    print(f"\nstd(Q):")
+    print(f"  Estimate:          {jk_std['estimate']:.6f}")
+    print(f"  Jackknife error:   {jk_std['error']:.6f}")
+    print(f"  Jackknife bias:    {jk_std['bias']:.8f}")
+    
+    # ==================================================================
+    # Q Estimator Analysis: Rescaled charge with optimal rescaling
+    # ==================================================================
+    print("\n" + "="*60)
+    print("Q Estimator: Rescaled Charge with Optimal Rescaling")
+    print("="*60)
+    print("\nMethod: Q_rescaled = round(α * Q̂)")
+    print("α minimizes ⟨(α * Q̂ - Q_rescaled)²⟩")
+    
+    # Compute Q estimator using the module
+    est = QEstimator(Q_values)
+    
+    print(f"\nOptimal rescaling factor:")
+    print(f"  α = {est.alpha:.6f}")
+    
+    print(f"\nDeviation from integer:")
+    print(f"  ⟨(αQ̂ - Q_rescaled)²⟩ = {est.result.mean_deviation_squared:.6f}")
+    print(f"  RMS deviation = {est.result.rms_deviation:.6f}")
+    
+    print(f"\nRescaled charge statistics:")
+    print(f"  <Q_rescaled>  = {est.result.Q_mean:.4f}")
+    print(f"  std           = {est.result.Q_std:.4f}")
+    print(f"  <Q_rescaled²> = {est.result.Q2_mean:.4f}")
+    
+    # Distribution of rescaled charges
+    unique_Q, counts = est.result.histogram()
+    print(f"\nRescaled Q distribution:")
+    for q, c in zip(unique_Q, counts):
+        pct = 100.0 * c / len(est.Q_rescaled)
+        print(f"  Q = {q:+2d}: {c:4d} ({pct:5.1f}%)")
+    
+    # Jackknife on rescaled charges
+    Q_int = est.Q_rescaled
+    if len(Q_int) >= 2:
+        jk_Qi = jackknife_analysis(Q_int.astype(float), func=np.mean)
+        jk_Qi2 = jackknife_analysis(Q_int.astype(float), func=lambda x: np.mean(x**2))
+        print(f"\nJackknife analysis on integer charges:")
+        print(f"  <Qi>  = {jk_Qi['estimate']:.4f} ± {jk_Qi['error']:.4f}")
+        print(f"  <Qi²> = {jk_Qi2['estimate']:.4f} ± {jk_Qi2['error']:.4f}")
+    
+    print("\n" + "="*60)
+    print("Done!")
 
 
 if __name__ == '__main__':

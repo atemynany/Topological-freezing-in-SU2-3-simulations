@@ -1,0 +1,41 @@
+# ==============================================================================
+# Instanton Topological Charge Analysis Parameters
+# ==============================================================================
+# Input file for instanton configuration generation and Q measurement
+#
+# Usage:
+#   ./scripts/run_instanton_Q.sh -i input/instanton.txt
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Output directory
+# ------------------------------------------------------------------------------
+output_dir          output/instanton/          # Where to save data and plots
+
+# ------------------------------------------------------------------------------
+# Lattice parameters
+# ------------------------------------------------------------------------------
+T                   16                          # Temporal extent
+L                   16                          # Spatial extent (L^3 x T lattice)
+a                   1.0                         # Lattice spacing (in arbitrary units)
+
+# ------------------------------------------------------------------------------
+# Instanton parameters
+# ------------------------------------------------------------------------------
+rho                 2.0                         # Instanton size (in lattice units)
+
+# ------------------------------------------------------------------------------
+# APE Smearing parameters
+# ------------------------------------------------------------------------------
+smear_steps         20                         # Maximum number of smearing steps
+smear_alpha         0.25                         # APE smearing parameter (α ∈ [0,1])
+
+# ------------------------------------------------------------------------------
+# Output control
+# ------------------------------------------------------------------------------
+output_prefix       instanton_Q                 # Prefix for output files
+                                                # Creates: instanton_Q_instanton.dat
+                                                #          instanton_Q_anti_instanton.dat
+                                                #          instanton_Q_plot.png
+
+# ==============================================================================

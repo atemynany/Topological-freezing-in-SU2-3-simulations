@@ -49,7 +49,8 @@
 
 // Local headers
 #include "topcharge_su2.hh"
-#include "Wilson_loops.hh"
+#include "Plaquette.hh"
+#include "progressbar.hh"
 
 // ==============================================================================
 // Global Variables
@@ -76,9 +77,13 @@ struct SimulationParams {
     int end_conf;                  // Last configuration
     int conf_step;                 // Step between configurations
     int smear_steps;               // Total number of smearing steps
-    int smear_output_interval;     // Output interval for smearing steps
+    int smear_interval;            // Output interval for smearing steps
     double smear_alpha;            // APE smearing parameter
     int seed;                      // Random seed
+    
+    // MC parameters (read but not used here, for unified file)
+    int num_sweeps;
+    int save_interval;
 };
 
 // ==============================================================================
@@ -102,8 +107,20 @@ bool read_input_file(const char *filename, SimulationParams &params) {
     std::string line, key;
     
     // Set defaults
-    params.smear_output_interval = 10;
+    params.config_dir = "output/configs/";
+    params.output_dir = "output/";
+    params.beta = 2.5;
+    params.T = 8;
+    params.L = 8;
+    params.start_conf = 10;
+    params.end_conf = 100;
+    params.conf_step = 10;
+    params.smear_steps = 40;
+    params.smear_interval = 10;
+    params.smear_alpha = 0.5;
     params.seed = 12345;
+    params.num_sweeps = 100;
+    params.save_interval = 10;
     
     while (std::getline(infile, line)) {
         // Skip comments and empty lines
@@ -130,13 +147,23 @@ bool read_input_file(const char *filename, SimulationParams &params) {
             iss >> params.conf_step;
         } else if (key == "smear_steps") {
             iss >> params.smear_steps;
-        } else if (key == "smear_output_interval") {
-            iss >> params.smear_output_interval;
+        } else if (key == "smear_interval") {
+            iss >> params.smear_interval;
         } else if (key == "smear_alpha") {
             iss >> params.smear_alpha;
         } else if (key == "seed") {
             iss >> params.seed;
+        } else if (key == "num_sweeps") {
+            iss >> params.num_sweeps;
+        } else if (key == "save_interval") {
+            iss >> params.save_interval;
         }
+    }
+    
+    // If end_conf not explicitly set, derive from num_sweeps
+    // This allows using unified file without specifying end_conf
+    if (params.end_conf < params.start_conf) {
+        params.end_conf = params.num_sweeps;
     }
     
     infile.close();
@@ -183,7 +210,7 @@ void print_params(const SimulationParams &params) {
     std::cout << "Configurations:          " << params.start_conf << " to " << params.end_conf;
     std::cout << " (step " << params.conf_step << ")" << std::endl;
     std::cout << "Smearing steps:          " << params.smear_steps << std::endl;
-    std::cout << "Smearing output interval:" << params.smear_output_interval << std::endl;
+    std::cout << "Smearing output interval:" << params.smear_interval << std::endl;
     std::cout << "Smearing alpha:          " << params.smear_alpha << std::endl;
     std::cout << "========================================" << std::endl;
 }
@@ -241,11 +268,8 @@ int main(int argc, char *argv[]) {
     // Create output directory if it doesn't exist
     mkdir(params.output_dir.c_str(), 0755);
     
-    // Open output file
-    std::string output_filename = params.output_dir + "/topcharge_" + 
-                                   std::to_string(params.T) + "x" + 
-                                   std::to_string(params.L) + "_b" + 
-                                   std::to_string(params.beta) + ".dat";
+    // Open output file - generic name
+    std::string output_filename = params.output_dir + "topcharge.dat";
     
     std::ofstream outfile(output_filename);
     if (!outfile.is_open()) {
@@ -253,12 +277,8 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
     
-    // Write header
-    outfile << "# SU(2) Topological Charge Measurement" << std::endl;
-    outfile << "# Lattice: " << T << " x " << L << "^3" << std::endl;
-    outfile << "# Beta: " << params.beta << std::endl;
-    outfile << "# Smearing alpha: " << params.smear_alpha << std::endl;
-    outfile << "# Columns: smear_steps  config_number  Q  plaquette" << std::endl;
+    // Write minimal header
+    outfile << "# smear_steps  config_number  Q  plaquette" << std::endl;
     
     // Allocate gauge field
     double *gauge_field = nullptr;
@@ -270,25 +290,30 @@ int main(int argc, char *argv[]) {
     // Loop over configurations
     int n_configs = 0;
     
+    // Calculate total number of configurations
+    int total_configs = (params.end_conf - params.start_conf) / params.conf_step + 1;
+    
     for (int n = params.start_conf; n <= params.end_conf; n += params.conf_step) {
         // Construct configuration filename
         char config_filename[1024];
         snprintf(config_filename, sizeof(config_filename), 
-                 "%s/conf.%04d", params.config_dir.c_str(), n);
+                 "%sconf.%04d", params.config_dir.c_str(), n);
         
-        std::cout << "Processing configuration " << n << " ..." << std::endl;
+        // Update progress bar
+        double progress = static_cast<double>(n_configs) / total_configs;
+        progress_bar(progress);
         
         // Read configuration
         read_gauge_field(gauge_field, config_filename, T, L);
         
         // Loop over smearing steps
-        for (int smear = 0; smear <= params.smear_steps; smear += params.smear_output_interval) {
+        for (int smear = 0; smear <= params.smear_steps; smear += params.smear_interval) {
             // Copy gauge field for smearing
             if (smear == 0) {
                 Gauge_Field_Copy(smeared_gauge_field, gauge_field, T, L);
             } else {
                 // Apply smearing steps
-                for (int s = 0; s < params.smear_output_interval; s++) {
+                for (int s = 0; s < params.smear_interval; s++) {
                     APE_Smearing_all(smeared_gauge_field, T, L, params.smear_alpha);
                 }
             }
@@ -305,14 +330,13 @@ int main(int argc, char *argv[]) {
             outfile << std::setw(6) << n << "  ";
             outfile << std::setw(12) << Q << "  ";
             outfile << std::setw(10) << plaq << std::endl;
-            
-            std::cout << "  smear=" << std::setw(4) << smear 
-                      << "  Q=" << std::setw(10) << std::fixed << std::setprecision(4) << Q
-                      << "  <P>=" << std::setw(8) << plaq << std::endl;
         }
         
         n_configs++;
     }
+    
+    // Clear progress bar
+    progress_bar_clear();
     
     // Cleanup
     outfile.close();

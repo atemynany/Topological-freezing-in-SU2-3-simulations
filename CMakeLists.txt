@@ -83,6 +83,7 @@ add_library(su2_utility STATIC
     _Utility/src/ranlxd.c
     _Utility/src/ranlxs.c
     _Utility/src/smearing_techniques.cc
+    _Utility/src/smearing_techniques_all.cc
 )
 
 target_include_directories(su2_utility
@@ -132,6 +133,24 @@ target_include_directories(meas_topcharge
 )
 
 target_link_libraries(meas_topcharge
+    PRIVATE
+        su2_utility
+        ${MATH_LIBRARY}
+)
+
+# --- Instanton Topological Charge Computation ---
+add_executable(compute_instanton_Q
+    src/compute_instanton_Q.cc
+    src/instanton.cc
+)
+
+target_include_directories(compute_instanton_Q
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/_Utility/include
+)
+
+target_link_libraries(compute_instanton_Q
     PRIVATE
         su2_utility
         ${MATH_LIBRARY}
@@ -228,18 +247,38 @@ if(BUILD_TESTING)
             ${MATH_LIBRARY}
     )
     
+    # --- Test: Plaquette ---
+    add_executable(test_plaquette
+        tests/test_plaquette.cc
+    )
+    
+    target_include_directories(test_plaquette
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/_Utility/include
+    )
+    
+    target_link_libraries(test_plaquette
+        PRIVATE
+            su2_utility
+            Catch2::Catch2WithMain
+            ${MATH_LIBRARY}
+    )
+    
     # Register tests with CTest
-    catch_discover_tests(test_heatbath)
-    catch_discover_tests(test_linear_algebra)
-    catch_discover_tests(test_topcharge)
-    catch_discover_tests(test_smearing)
+    # Using simple test registration to avoid issues with special characters in test names
+    add_test(NAME test_heatbath COMMAND test_heatbath)
+    add_test(NAME test_linear_algebra COMMAND test_linear_algebra)
+    add_test(NAME test_topcharge COMMAND test_topcharge)
+    add_test(NAME test_smearing COMMAND test_smearing)
+    add_test(NAME test_plaquette COMMAND test_plaquette)
 endif()
 
 # ==============================================================================
 # Installation
 # ==============================================================================
 
-install(TARGETS mc_heatbath meas_topcharge
+install(TARGETS mc_heatbath meas_topcharge compute_instanton_Q
     RUNTIME DESTINATION bin
 )
 

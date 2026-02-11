@@ -1,0 +1,43 @@
+# ==============================================================================
+# SU(2) Lattice Gauge Theory Simulation Parameters
+# ==============================================================================
+# Unified input file for both MC heatbath and topological charge measurement
+#
+# Usage:
+#   ./build/bin/mc_heatbath -i input/simulation.txt
+#   ./build/bin/meas_topcharge -i input/simulation.txt
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Output directories
+# ------------------------------------------------------------------------------
+output_dir          output/                    # Base output directory
+config_dir          output/configs/            # Where to save/read gauge configs
+
+# ------------------------------------------------------------------------------
+# Lattice parameters
+# ------------------------------------------------------------------------------
+T                   16                          # Temporal extent
+L                   16                          # Spatial extent
+beta                2.7                        # Coupling constant (β = 6/g²)
+
+# ------------------------------------------------------------------------------
+# Monte Carlo parameters (for mc_heatbath)
+# ------------------------------------------------------------------------------
+seed                150434                     # seed
+start_type          cold                       # Start type: "cold", "hot" or "mixed" (not yet)
+boundary            periodic                   # Boundary conditions: "periodic" or "open"
+num_sweeps          500                        # Total number of MC sweeps
+save_interval       10                         # Save configuration every N sweeps
+
+# ------------------------------------------------------------------------------
+# Topological charge measurement parameters (for meas_topcharge)
+# ------------------------------------------------------------------------------
+start_conf          40                         # First configuration to analyze
+end_conf            500                        # Last configuration to analyze
+conf_step           10                         # Step between configurations
+smear_steps         30                         # Maximum number of smearing steps
+smear_interval      5                         # Output Q every N smearing steps
+smear_alpha         0.3                        # APE smearing parameter (α)
+
+# ==============================================================================

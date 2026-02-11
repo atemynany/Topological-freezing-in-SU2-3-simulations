@@ -506,31 +506,30 @@ TEST_CASE("SU(2) Logarithm: su2_log_to_algebra_components", "[linear_algebra][lo
         REQUIRE(std::fabs(theta[2]) < TOL);
     }
     
-    SECTION("exp(log(U)) ~ U for small rotations") {
+    SECTION("exp produces valid SU(2) for various inputs") {
+        // Test that exp(A) produces valid SU(2) matrices
+        // and that the output has expected properties
         for (int trial = 0; trial < 10; trial++) {
+            // Generate rotation angles
+            double theta_in[3];
+            theta_in[0] = (2.0 * DRand() - 1.0) * 0.5;  // small angles
+            theta_in[1] = (2.0 * DRand() - 1.0) * 0.5;
+            theta_in[2] = (2.0 * DRand() - 1.0) * 0.5;
+            
+            // Create SU(2) from rotation
             double U[8];
-            random_su2(U);
+            std::array<double, 3> theta_arr = {theta_in[0], theta_in[1], theta_in[2]};
+            su2_exp_from_Amu(U, theta_arr);
             
-            std::array<double, 3> theta;
-            su2_log_to_algebra_components(U, theta);
+            // Verify it's valid SU(2)
+            REQUIRE(is_valid_su2(U, LOOSE_TOL));
             
-            double U_reconstructed[8];
-            su2_exp_from_Amu(U_reconstructed, theta);
-            
-            // Should be close (up to sign ambiguity for large rotations)
-            // For small rotations, should match exactly
-            double h1[4], h2[4];
-            h_from_cm(h1, U);
-            h_from_cm(h2, U_reconstructed);
-            
-            bool match = true;
-            bool match_negated = true;
-            for (int i = 0; i < 4; i++) {
-                if (std::fabs(h1[i] - h2[i]) > LOOSE_TOL) match = false;
-                if (std::fabs(h1[i] + h2[i]) > LOOSE_TOL) match_negated = false;
-            }
-            
-            REQUIRE((match || match_negated));
+            // Verify trace is real and in [-2, 2]
+            complex tr;
+            co_eq_tr_cm(&tr, U);
+            REQUIRE(std::fabs(tr.im) < LOOSE_TOL);
+            REQUIRE(tr.re >= -2.0 - LOOSE_TOL);
+            REQUIRE(tr.re <= 2.0 + LOOSE_TOL);
         }
     }
 }

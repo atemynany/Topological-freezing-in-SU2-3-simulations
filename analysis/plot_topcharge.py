@@ -167,7 +167,7 @@ def plot_Q_vs_mctime(data: dict, output_dir: str, smear_level: int = None, title
     configs = data['config'][mask]
     Q_values = data['Q'][mask]
     
-    ax.plot(configs, Q_values, 'o-', color='blue', markersize=6, linewidth=1)
+    ax.plot(configs, Q_values, 'o', color='blue', markersize=6)
     
     # Add horizontal lines at integer values
     Q_range = (np.floor(Q_values.min()) - 1, np.ceil(Q_values.max()) + 1)

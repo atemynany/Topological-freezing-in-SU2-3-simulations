@@ -366,3 +366,255 @@ TEST_CASE("Topological Charge: Reproducibility", "[topcharge][reproducibility]")
     
     Gauge_Field_Free(&gauge_field);
 }
+
+// ==============================================================================
+// Advanced Gauge Invariance Tests
+// ==============================================================================
+
+// Helper: Generate deterministic "random" SU(2) from seed
+static void su2_from_seed(double *U, unsigned seed) {
+    double a = 0.1 * std::sin(1.0 * seed + 0.1);
+    double b = 0.1 * std::sin(2.0 * seed + 0.2);
+    double c = 0.1 * std::sin(3.0 * seed + 0.3);
+    su2_exp_from_Amu(U, std::array<double, 3>{a, b, c});
+    cm_proj(U);
+}
+
+// Apply a full gauge transformation: U_mu(x) -> G(x) U_mu(x) G^dag(x+mu)
+static void apply_gauge_transform_topcharge(double *gf, int L, int T) {
+    int vol = T * L * L * L;
+    
+    std::vector<double> G(static_cast<std::size_t>(vol) * 8, 0.0);
+    for (int site = 0; site < vol; ++site)
+        su2_from_seed(&G[static_cast<std::size_t>(site) * 8], 1234u + site);
+    
+    auto site_index = [&](int t, int x, int y, int z) {
+        return t * L * L * L + x * L * L + y * L + z;
+    };
+    
+    auto forward = [&](int t, int x, int y, int z, int mu) {
+        if (mu == 0) t = (t + 1 + T) % T;
+        if (mu == 1) x = (x + 1 + L) % L;
+        if (mu == 2) y = (y + 1 + L) % L;
+        if (mu == 3) z = (z + 1 + L) % L;
+        return site_index(t, x, y, z);
+    };
+    
+    double tmp1[8], tmp2[8], Gd[8];
+    
+    for (int t = 0; t < T; ++t)
+        for (int x = 0; x < L; ++x)
+            for (int y = 0; y < L; ++y)
+                for (int z = 0; z < L; ++z) {
+                    int s = site_index(t, x, y, z);
+                    for (int mu = 0; mu < 4; ++mu) {
+                        int sp = forward(t, x, y, z, mu);
+                        
+                        double *U = &gf[static_cast<std::size_t>(s) * 4 * 8 + mu * 8];
+                        const double *Gs = &G[static_cast<std::size_t>(s) * 8];
+                        const double *Gsp = &G[static_cast<std::size_t>(sp) * 8];
+                        
+                        cm_eq_cm_dag(Gd, Gsp);
+                        cm_eq_cm_ti_cm(tmp1, Gs, U);
+                        cm_eq_cm_ti_cm(tmp2, tmp1, Gd);
+                        cm_eq_cm(U, tmp2);
+                    }
+                }
+}
+
+// Apply a small gauge transformation
+static void apply_small_gauge_transform(double *gf, int L, int T, double eps) {
+    int vol = T * L * L * L;
+    
+    std::vector<double> G(static_cast<std::size_t>(vol) * 8, 0.0);
+    for (int site = 0; site < vol; ++site) {
+        std::array<double, 3> A = {eps * 0.1 * std::sin(site + 1.0),
+                                   eps * 0.1 * std::cos(site + 2.0),
+                                   eps * 0.1 * std::sin(site + 3.0)};
+        su2_exp_from_Amu(&G[static_cast<std::size_t>(site) * 8], A);
+        cm_proj(&G[static_cast<std::size_t>(site) * 8]);
+    }
+    
+    auto site_index = [&](int t, int x, int y, int z) {
+        return t * L * L * L + x * L * L + y * L + z;
+    };
+    
+    auto forward = [&](int t, int x, int y, int z, int mu) {
+        if (mu == 0) t = (t + 1 + T) % T;
+        if (mu == 1) x = (x + 1 + L) % L;
+        if (mu == 2) y = (y + 1 + L) % L;
+        if (mu == 3) z = (z + 1 + L) % L;
+        return site_index(t, x, y, z);
+    };
+    
+    double tmp1[8], tmp2[8], Gd[8];
+    
+    for (int t = 0; t < T; ++t)
+        for (int x = 0; x < L; ++x)
+            for (int y = 0; y < L; ++y)
+                for (int z = 0; z < L; ++z) {
+                    int s = site_index(t, x, y, z);
+                    for (int mu = 0; mu < 4; ++mu) {
+                        int sp = forward(t, x, y, z, mu);
+                        
+                        double *U = &gf[static_cast<std::size_t>(s) * 4 * 8 + mu * 8];
+                        const double *Gs = &G[static_cast<std::size_t>(s) * 8];
+                        const double *Gsp = &G[static_cast<std::size_t>(sp) * 8];
+                        
+                        cm_eq_cm_dag(Gd, Gsp);
+                        cm_eq_cm_ti_cm(tmp1, Gs, U);
+                        cm_eq_cm_ti_cm(tmp2, tmp1, Gd);
+                        cm_eq_cm(U, tmp2);
+                    }
+                }
+}
+
+// Fill gauge field with identity
+static void fill_identity_topcharge(double *gf, int T, int L) {
+    int vol = T * L * L * L;
+    for (int site = 0; site < vol; ++site)
+        for (int mu = 0; mu < 4; ++mu)
+            cm_eq_id(&gf[site * 4 * 8 + mu * 8]);
+}
+
+TEST_CASE("Topological Charge: Q is gauge invariant (full transform)", "[topcharge][gauge_invariance][full]") {
+    const int L = 4, T = 4;
+    
+    double *gauge_field;
+    double *gauge_field_transformed;
+    Gauge_Field_Alloc(&gauge_field, T, L);
+    Gauge_Field_Alloc(&gauge_field_transformed, T, L);
+    
+    // Create nontrivial configuration
+    fill_identity_topcharge(gauge_field, T, L);
+    int vol = T * L * L * L;
+    for (int site = 0; site < vol; ++site) {
+        double U[8];
+        su2_from_seed(U, 777u + site);
+        // Set mu=1 links to nontrivial values
+        cm_eq_cm(&gauge_field[static_cast<std::size_t>(site) * 4 * 8 + 1 * 8], U);
+    }
+    
+    // Copy and transform
+    Gauge_Field_Copy(gauge_field_transformed, gauge_field, T, L);
+    apply_gauge_transform_topcharge(gauge_field_transformed, L, T);
+    
+    double Q1 = compute_topological_charge(gauge_field, T, L);
+    double Q2 = compute_topological_charge(gauge_field_transformed, T, L);
+    
+    REQUIRE(std::fabs(Q1 - Q2) < LOOSE_TOL);
+    
+    Gauge_Field_Free(&gauge_field);
+    Gauge_Field_Free(&gauge_field_transformed);
+}
+
+TEST_CASE("Topological Charge: Q is gauge invariant (small transform)", "[topcharge][gauge_invariance][small]") {
+    const int L = 4, T = 4;
+    
+    double *gauge_field;
+    double *gauge_field_transformed;
+    Gauge_Field_Alloc(&gauge_field, T, L);
+    Gauge_Field_Alloc(&gauge_field_transformed, T, L);
+    
+    fill_identity_topcharge(gauge_field, T, L);
+    int vol = T * L * L * L;
+    for (int site = 0; site < vol; ++site) {
+        double U[8];
+        su2_from_seed(U, 1000u + site);
+        cm_eq_cm(&gauge_field[static_cast<std::size_t>(site) * 4 * 8 + 1 * 8], U);
+    }
+    
+    Gauge_Field_Copy(gauge_field_transformed, gauge_field, T, L);
+    apply_small_gauge_transform(gauge_field_transformed, L, T, 1e-3);
+    
+    double Q1 = compute_topological_charge(gauge_field, T, L);
+    double Q2 = compute_topological_charge(gauge_field_transformed, T, L);
+    
+    REQUIRE(std::fabs(Q1 - Q2) < LOOSE_TOL);
+    
+    Gauge_Field_Free(&gauge_field);
+    Gauge_Field_Free(&gauge_field_transformed);
+}
+
+// ==============================================================================
+// Abelian Background Tests
+// ==============================================================================
+
+static void build_abelian_F12(double *gf, int L, int T, double theta) {
+    fill_identity_topcharge(gf, T, L);
+    
+    for (int t = 0; t < T; ++t)
+        for (int x = 0; x < L; ++x)
+            for (int y = 0; y < L; ++y)
+                for (int z = 0; z < L; ++z) {
+                    double U1[8];
+                    su2_exp_from_Amu(U1, std::array<double, 3>{0.0, 0.0, theta * static_cast<double>(y)});
+                    int site = t * L * L * L + x * L * L + y * L + z;
+                    cm_eq_cm(&gf[static_cast<std::size_t>(site) * 4 * 8 + 1 * 8], U1);
+                }
+}
+
+TEST_CASE("Topological Charge: Abelian F12-only gives Q=0", "[topcharge][abelian]") {
+    const int L = 6, T = 4;
+    
+    double *gauge_field;
+    Gauge_Field_Alloc(&gauge_field, T, L);
+    build_abelian_F12(gauge_field, L, T, 0.4);
+    
+    double Q = compute_topological_charge(gauge_field, T, L);
+    
+    // Pure F12 background should give Q=0 (no instanton content)
+    REQUIRE(std::fabs(Q) < LOOSE_TOL);
+    
+    Gauge_Field_Free(&gauge_field);
+}
+
+// ==============================================================================
+// Clover Covariance Tests
+// ==============================================================================
+
+TEST_CASE("Topological Charge: Clover transforms covariantly", "[topcharge][clover][gauge]") {
+    const int L = 4, T = 4;
+    
+    double *gauge_field;
+    double *gauge_field_transformed;
+    Gauge_Field_Alloc(&gauge_field, T, L);
+    Gauge_Field_Alloc(&gauge_field_transformed, T, L);
+    
+    // Create mildly nontrivial configuration
+    fill_identity_topcharge(gauge_field, T, L);
+    int vol = T * L * L * L;
+    for (int site = 0; site < vol; ++site) {
+        double U[8];
+        su2_from_seed(U, 777u + site);
+        cm_eq_cm(&gauge_field[static_cast<std::size_t>(site) * 4 * 8 + 1 * 8], U);
+    }
+    
+    Gauge_Field_Copy(gauge_field_transformed, gauge_field, T, L);
+    apply_gauge_transform_topcharge(gauge_field_transformed, L, T);
+    
+    // Test clover at interior point
+    int t = 1, x = 1, y = 1, z = 1, mu = 0, nu = 1;
+    
+    double C[8], C2[8];
+    compute_clover(C, gauge_field, t, x, y, z, mu, nu, T, L);
+    compute_clover(C2, gauge_field_transformed, t, x, y, z, mu, nu, T, L);
+    
+    // Build G(x) from same deterministic construction
+    int site = t * L * L * L + x * L * L + y * L + z;
+    double G[8], Gd[8], tmp[8], cov[8];
+    su2_from_seed(G, 1234u + site);
+    cm_eq_cm_dag(Gd, G);
+    
+    // cov = G * C * G^dag
+    cm_eq_cm_ti_cm(tmp, G, C);
+    cm_eq_cm_ti_cm(cov, tmp, Gd);
+    
+    // Compare
+    for (int i = 0; i < 8; ++i)
+        REQUIRE(std::fabs(cov[i] - C2[i]) < LOOSE_TOL);
+    
+    Gauge_Field_Free(&gauge_field);
+    Gauge_Field_Free(&gauge_field_transformed);
+}
+
