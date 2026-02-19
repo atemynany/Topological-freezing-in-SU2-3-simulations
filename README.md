@@ -1,4 +1,8 @@
-# SU(2) Lattice Gauge Theory: Topological Charge Simulation
+##### THIS README WAS AUTOMATICALY GENRATED WITH CLAUDE OPUS 4.6 AND MAY HAVE ERRORS SINCE ITS NOT REVIEWED OR CORRECTLY MAINTAINED !!!!!!!! I WILL REWRITE IT AS SOON AS THE PROJECT IS FINISHED!!!!!!! ####
+
+
+
+# SU(2) Lattice Gauge Theory: Topological Charge Simulation 
 
 Numerical simulation of topological charge in SU(2) lattice gauge theory using Monte Carlo methods with heatbath updates and APE smearing.
 
