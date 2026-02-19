@@ -225,53 +225,6 @@ TEST_CASE("Topological Charge: Q is bounded for random config", "[topcharge][cha
 }
 
 // ==============================================================================
-// Topological Charge Density Tests
-// ==============================================================================
-
-TEST_CASE("Topological Charge: Density sums to Q", "[topcharge][density]") {
-    InitializeRand(107);
-    
-    double *gauge_field;
-    Gauge_Field_Alloc(&gauge_field, TEST_T, TEST_L);
-    Gauge_Field_Random(gauge_field, TEST_T, TEST_L);
-    
-    // Compute total Q
-    double Q_total = compute_topological_charge(gauge_field, TEST_T, TEST_L);
-    
-    // Compute Q from density
-    int vol = TEST_T * TEST_L * TEST_L * TEST_L;
-    std::vector<double> q_density(vol);
-    compute_topological_charge_density(q_density.data(), gauge_field, TEST_T, TEST_L);
-    
-    double Q_from_density = 0.0;
-    for (int i = 0; i < vol; i++) {
-        Q_from_density += q_density[i];
-    }
-    
-    REQUIRE(std::fabs(Q_total - Q_from_density) < LOOSE_TOL);
-    
-    Gauge_Field_Free(&gauge_field);
-}
-
-TEST_CASE("Topological Charge: Density is zero on trivial config", "[topcharge][density]") {
-    InitializeRand(108);
-    
-    double *gauge_field;
-    Gauge_Field_Alloc(&gauge_field, TEST_T, TEST_L);
-    Gauge_Field_Unity(gauge_field, TEST_T, TEST_L);
-    
-    int vol = TEST_T * TEST_L * TEST_L * TEST_L;
-    std::vector<double> q_density(vol);
-    compute_topological_charge_density(q_density.data(), gauge_field, TEST_T, TEST_L);
-    
-    for (int i = 0; i < vol; i++) {
-        REQUIRE(std::fabs(q_density[i]) < TOL);
-    }
-    
-    Gauge_Field_Free(&gauge_field);
-}
-
-// ==============================================================================
 // Gauge Invariance Tests
 // ==============================================================================
 

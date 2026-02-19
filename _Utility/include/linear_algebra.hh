@@ -47,7 +47,7 @@ inline void cm_eq_zero(double *A);
 inline void cm_eq_id(double *A);
 
 // A = B.
-inline void cm_eq_cm(double *A, const double *B);
+inline void cm_eq_cm(double * __restrict__ A, const double * __restrict__ B);
 
 // A = A^\dagger.
 inline void cm_dag_eq_cm(double *A);
@@ -68,7 +68,7 @@ inline void cm_proj(double *A);
 inline void cm_fprintf(const double *A, FILE *file);
 
 // A = A + B.
-inline void cm_pl_eq_cm(double *A, const double *B);
+inline void cm_pl_eq_cm(double * __restrict__ A, const double * __restrict__ B);
 
 // A = A + B^\dagger.
 inline void cm_pl_eq_cm_dag(double *A, const double *B);
@@ -83,13 +83,13 @@ inline void cm_ti_eq_re(double *A, double d);
 inline void cm_eq_cm_ti_co(double *A, const double *B, const complex *c);
 
 // A = B * C.
-inline void cm_eq_cm_ti_cm(double *A, const double *B, const double *C);
+inline void cm_eq_cm_ti_cm(double * __restrict__ A, const double * __restrict__ B, const double * __restrict__ C);
 
 // A = B^\dagger * C.
-inline void cm_eq_cm_dag_ti_cm(double *A, const double *B, const double *C);
+inline void cm_eq_cm_dag_ti_cm(double * __restrict__ A, const double * __restrict__ B, const double * __restrict__ C);
 
 // A = B * C^\dagger.
-inline void cm_eq_cm_ti_cm_dag(double *A, const double *B, const double *C);
+inline void cm_eq_cm_ti_cm_dag(double * __restrict__ A, const double * __restrict__ B, const double * __restrict__ C);
 
 // A = B^\dagger * C^\dagger.
 inline void cm_eq_cm_dag_ti_cm_dag(double *A, const double *B, const double *C);
@@ -136,7 +136,7 @@ inline void cm_eq_id(double *A)
 
 // A = B.
 
-inline void cm_eq_cm(double *A, const double *B)
+inline void cm_eq_cm(double * __restrict__ A, const double * __restrict__ B)
 {
   A[0] = B[0];
   A[1] = B[1];
@@ -287,7 +287,7 @@ inline void cm_fprintf(const double *A, FILE *file)
 
 // A = A + B.
 
-inline void cm_pl_eq_cm(double *A, const double *B)
+inline void cm_pl_eq_cm(double * __restrict__ A, const double * __restrict__ B)
 {
   A[0] += B[0];
   A[1] += B[1];
@@ -375,7 +375,7 @@ inline void cm_eq_cm_ti_co(double *A, const double *B, const complex *c)
 
 // A = B * C.
 
-inline void cm_eq_cm_ti_cm(double *A, const double *B, const double *C)
+inline void cm_eq_cm_ti_cm(double * __restrict__ A, const double * __restrict__ B, const double * __restrict__ C)
 {
   // A00 = B00*C00 + B01*C10
   A[0] =
@@ -414,7 +414,7 @@ inline void cm_eq_cm_ti_cm(double *A, const double *B, const double *C)
 
 // A = B^\dagger * C.
 
-inline void cm_eq_cm_dag_ti_cm(double *A, const double *B, const double *C)
+inline void cm_eq_cm_dag_ti_cm(double * __restrict__ A, const double * __restrict__ B, const double * __restrict__ C)
 {
   // A00 = B00*C00 + B01*C10
   A[0] =
@@ -453,7 +453,7 @@ inline void cm_eq_cm_dag_ti_cm(double *A, const double *B, const double *C)
 
 // A = B * C^\dagger.
 
-inline void cm_eq_cm_ti_cm_dag(double *A, const double *B, const double *C)
+inline void cm_eq_cm_ti_cm_dag(double * __restrict__ A, const double * __restrict__ B, const double * __restrict__ C)
 {
   // A00 = B00*C00 + B01*C10
   A[0] =

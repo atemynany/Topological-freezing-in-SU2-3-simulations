@@ -50,9 +50,29 @@ if(ENABLE_WARNINGS)
     endif()
 endif()
 
+# OpenMP support for parallelization
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    message(STATUS "OpenMP found - enabling parallel computation")
+else()
+    message(WARNING "OpenMP not found - parallel loops will run sequentially")
+endif()
+
 # Optimization flags for Release builds
-set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+# -O3: Maximum optimization
+# -march=native: Use CPU-specific instructions (AVX, AVX2, etc.)
+# -ffast-math: Faster floating-point operations (may reduce precision slightly)
+# -funroll-loops: Unroll loops for better pipelining
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set(CMAKE_C_FLAGS_RELEASE "-O3 -march=native -ffast-math -funroll-loops -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -ffast-math -funroll-loops -DNDEBUG")
+elseif(MSVC)
+    set(CMAKE_C_FLAGS_RELEASE "/O2 /arch:AVX2 /fp:fast /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /arch:AVX2 /fp:fast /DNDEBUG")
+else()
+    set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+endif()
 
 # Debug flags
 set(CMAKE_C_FLAGS_DEBUG "-g -O0 -DDEBUG")
@@ -95,6 +115,7 @@ target_include_directories(su2_utility
 target_link_libraries(su2_utility
     PUBLIC
         ${MATH_LIBRARY}
+        $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
 )
 
 # Add alias for cleaner cmake usage
@@ -119,6 +140,7 @@ target_link_libraries(mc_heatbath
     PRIVATE
         su2_utility
         ${MATH_LIBRARY}
+        $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
 )
 
 # --- Topological Charge Measurement ---
@@ -136,6 +158,7 @@ target_link_libraries(meas_topcharge
     PRIVATE
         su2_utility
         ${MATH_LIBRARY}
+        $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
 )
 
 # --- Instanton Topological Charge Computation ---
@@ -154,6 +177,43 @@ target_link_libraries(compute_instanton_Q
     PRIVATE
         su2_utility
         ${MATH_LIBRARY}
+        $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
+)
+
+# --- SU(3) Monte Carlo Heatbath ---
+add_executable(mc_heatbath_su3
+    src/MC_heatbath_su3.cc
+)
+
+target_include_directories(mc_heatbath_su3
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/_Utility/include
+)
+
+target_link_libraries(mc_heatbath_su3
+    PRIVATE
+        su2_utility
+        ${MATH_LIBRARY}
+        $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
+)
+
+# --- SU(3) Topological Charge Measurement ---
+add_executable(meas_topcharge_su3
+    src/meas_topcharge_su3.cc
+)
+
+target_include_directories(meas_topcharge_su3
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/_Utility/include
+)
+
+target_link_libraries(meas_topcharge_su3
+    PRIVATE
+        su2_utility
+        ${MATH_LIBRARY}
+        $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
 )
 
 # ==============================================================================

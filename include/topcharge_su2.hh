@@ -8,10 +8,11 @@
 #include "geometry.hh"
 #include "fields.hh"
 
-inline void compute_plaq_pp(double *result, double *gauge_field,
+inline void compute_plaq_pp(double * __restrict__ result, 
+                            const double * __restrict__ gauge_field,
                             int it, int ix, int iy, int iz,
                             int mu, int nu, int T, int L) {
-    double M1[8], M2[8];
+    alignas(32) double M1[8], M2[8];
     int idx[4] = {it, ix, iy, iz};
     
     int i1 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
@@ -36,10 +37,11 @@ inline void compute_plaq_pp(double *result, double *gauge_field,
     cm_eq_cm_ti_cm_dag(result, M2, gauge_field + i4);
 }
 
-inline void compute_plaq_mp(double *result, double *gauge_field,
+inline void compute_plaq_mp(double * __restrict__ result, 
+                            const double * __restrict__ gauge_field,
                             int it, int ix, int iy, int iz,
                             int mu, int nu, int T, int L) {
-    double M1[8], M2[8];
+    alignas(32) double M1[8], M2[8];
     int idx[4] = {it, ix, iy, iz};
     
     idx[mu] -= 1;
@@ -64,10 +66,11 @@ inline void compute_plaq_mp(double *result, double *gauge_field,
     cm_eq_cm_ti_cm_dag(result, M2, gauge_field + i4);
 }
 
-inline void compute_plaq_mm(double *result, double *gauge_field,
+inline void compute_plaq_mm(double * __restrict__ result, 
+                            const double * __restrict__ gauge_field,
                             int it, int ix, int iy, int iz,
                             int mu, int nu, int T, int L) {
-    double M1[8], M2[8];
+    alignas(32) double M1[8], M2[8];
     int idx[4] = {it, ix, iy, iz};
     
     idx[mu] -= 1;
@@ -91,10 +94,11 @@ inline void compute_plaq_mm(double *result, double *gauge_field,
     cm_eq_cm_ti_cm(result, M2, gauge_field + i4);
 }
 
-inline void compute_plaq_pm(double *result, double *gauge_field,
+inline void compute_plaq_pm(double * __restrict__ result, 
+                            const double * __restrict__ gauge_field,
                             int it, int ix, int iy, int iz,
                             int mu, int nu, int T, int L) {
-    double M1[8], M2[8];
+    alignas(32) double M1[8], M2[8];
     int idx[4] = {it, ix, iy, iz};
     
     int i1 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
@@ -118,10 +122,11 @@ inline void compute_plaq_pm(double *result, double *gauge_field,
     cm_eq_cm_ti_cm(result, M2, gauge_field + i4);
 }
 
-inline void compute_clover(double *clover, double *gauge_field,
+inline void compute_clover(double * __restrict__ clover, 
+                           const double * __restrict__ gauge_field,
                            int it, int ix, int iy, int iz,
                            int mu, int nu, int T, int L) {
-    double P[8], sum[8];
+    alignas(32) double P[8], sum[8];
     cm_eq_zero(sum);
     
     compute_plaq_pp(P, gauge_field, it, ix, iy, iz, mu, nu, T, L);
@@ -139,10 +144,11 @@ inline void compute_clover(double *clover, double *gauge_field,
     cm_eq_cm_ti_re(clover, sum, 0.25);
 }
 
-inline void compute_field_strength(double *F_mu_nu, double *gauge_field,
-                                    int it, int ix, int iy, int iz,
-                                    int mu, int nu, int T, int L) {
-    double C[8], C_dag[8];
+inline void compute_field_strength(double * __restrict__ F_mu_nu, 
+                                   const double * __restrict__ gauge_field,
+                                   int it, int ix, int iy, int iz,
+                                   int mu, int nu, int T, int L) {
+    alignas(32) double C[8], C_dag[8];
     
     compute_clover(C, gauge_field, it, ix, iy, iz, mu, nu, T, L);
     cm_eq_cm_dag(C_dag, C);
@@ -151,11 +157,11 @@ inline void compute_field_strength(double *F_mu_nu, double *gauge_field,
     cm_eq_cm_ti_re(F_mu_nu, C, 0.5);
 }
 
-inline double compute_clover_product(double *gauge_field,
+inline double compute_clover_product(const double * __restrict__ gauge_field,
                                      int it, int ix, int iy, int iz,
                                      int d1, int d2, int d3, int d4,
                                      int T, int L) {
-    double F1[8], F2[8], prod[8];
+    alignas(32) double F1[8], F2[8], prod[8];
     
     compute_field_strength(F1, gauge_field, it, ix, iy, iz, d1, d2, T, L);
     compute_field_strength(F2, gauge_field, it, ix, iy, iz, d3, d4, T, L);
@@ -168,43 +174,55 @@ inline double compute_clover_product(double *gauge_field,
     return tr.re;
 }
 
-inline double compute_topological_charge(double *gauge_field, int T, int L) {
-    double Q = 0.0;
+inline double compute_local_topcharge_density(const double * __restrict__ gauge_field,
+                                              int it, int ix, int iy, int iz,
+                                              int T, int L) {
+    alignas(32) double F01[8], F32[8];
+    alignas(32) double F12[8], F30[8];
+    alignas(32) double F20[8], F31[8];
+    alignas(32) double prod[8];
     
-    for (int it = 0; it < T; it++) {
-        for (int ix = 0; ix < L; ix++) {
-            for (int iy = 0; iy < L; iy++) {
-                for (int iz = 0; iz < L; iz++) {
-                    Q -= compute_clover_product(gauge_field, it, ix, iy, iz, 0, 1, 3, 2, T, L);
-                    Q -= compute_clover_product(gauge_field, it, ix, iy, iz, 1, 2, 3, 0, T, L);
-                    Q -= compute_clover_product(gauge_field, it, ix, iy, iz, 2, 0, 3, 1, T, L);
-                }
-            }
-        }
+    compute_field_strength(F01, gauge_field, it, ix, iy, iz, 0, 1, T, L);
+    compute_field_strength(F32, gauge_field, it, ix, iy, iz, 3, 2, T, L);
+    compute_field_strength(F12, gauge_field, it, ix, iy, iz, 1, 2, T, L);
+    compute_field_strength(F30, gauge_field, it, ix, iy, iz, 3, 0, T, L);
+    compute_field_strength(F20, gauge_field, it, ix, iy, iz, 2, 0, T, L);
+    compute_field_strength(F31, gauge_field, it, ix, iy, iz, 3, 1, T, L);
+    
+    double q_local = 0.0;
+    complex tr;
+    
+    cm_eq_cm_ti_cm(prod, F01, F32);
+    co_eq_tr_cm(&tr, prod);
+    q_local -= tr.re;
+    
+    cm_eq_cm_ti_cm(prod, F12, F30);
+    co_eq_tr_cm(&tr, prod);
+    q_local -= tr.re;
+    
+    cm_eq_cm_ti_cm(prod, F20, F31);
+    co_eq_tr_cm(&tr, prod);
+    q_local -= tr.re;
+    
+    return q_local;
+}
+
+inline double compute_topological_charge(double * __restrict__ gauge_field, int T, int L) {
+    double Q = 0.0;
+    const int total_sites = T * L * L * L;
+    
+    #pragma omp parallel for reduction(+:Q) schedule(static)
+    for (int site = 0; site < total_sites; site++) {
+        const int iz = site % L;
+        const int iy = (site / L) % L;
+        const int ix = (site / (L * L)) % L;
+        const int it = site / (L * L * L);
+        
+        Q += compute_local_topcharge_density(gauge_field, it, ix, iy, iz, T, L);
     }
     
     return Q / (4.0 * M_PI * M_PI);
 }
 
-inline void compute_topological_charge_density(double *q_density, double *gauge_field, int T, int L) {
-    const double norm = 1.0 / (4.0 * M_PI * M_PI);
-    
-    for (int it = 0; it < T; it++) {
-        for (int ix = 0; ix < L; ix++) {
-            for (int iy = 0; iy < L; iy++) {
-                for (int iz = 0; iz < L; iz++) {
-                    int idx = ((it * L + ix) * L + iy) * L + iz;
-                    
-                    double q_local = 0.0;
-                    q_local -= compute_clover_product(gauge_field, it, ix, iy, iz, 0, 1, 3, 2, T, L);
-                    q_local -= compute_clover_product(gauge_field, it, ix, iy, iz, 1, 2, 3, 0, T, L);
-                    q_local -= compute_clover_product(gauge_field, it, ix, iy, iz, 2, 0, 3, 1, T, L);
-                    
-                    q_density[idx] = q_local * norm;
-                }
-            }
-        }
-    }
-}
+#endif // TOPCHARGE_SU2_HH
 
-#endif

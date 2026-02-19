@@ -306,31 +306,24 @@ int main(int argc, char *argv[]) {
         // Read configuration
         read_gauge_field(gauge_field, config_filename, T, L);
         
-        // Loop over smearing steps
-        for (int smear = 0; smear <= params.smear_steps; smear += params.smear_interval) {
-            // Copy gauge field for smearing
-            if (smear == 0) {
-                Gauge_Field_Copy(smeared_gauge_field, gauge_field, T, L);
-            } else {
-                // Apply smearing steps
-                for (int s = 0; s < params.smear_interval; s++) {
-                    APE_Smearing_all(smeared_gauge_field, T, L, params.smear_alpha);
-                }
-            }
-            
-            // Compute topological charge
-            double Q = compute_topological_charge(smeared_gauge_field, T, L);
-            
-            // Compute average plaquette
-            double plaq = Average_Plaquette(smeared_gauge_field, T, L);
-            
-            // Output results
-            outfile << std::fixed << std::setprecision(6);
-            outfile << std::setw(5) << smear << "  ";
-            outfile << std::setw(6) << n << "  ";
-            outfile << std::setw(12) << Q << "  ";
-            outfile << std::setw(10) << plaq << std::endl;
+        // Copy gauge field and apply all smearing steps
+        Gauge_Field_Copy(smeared_gauge_field, gauge_field, T, L);
+        for (int s = 0; s < params.smear_steps; s++) {
+            APE_Smearing_all(smeared_gauge_field, T, L, params.smear_alpha);
         }
+        
+        // Compute topological charge at final smearing
+        double Q = compute_topological_charge(smeared_gauge_field, T, L);
+        
+        // Compute average plaquette
+        double plaq = Average_Plaquette(smeared_gauge_field, T, L);
+        
+        // Output results (only final smearing step)
+        outfile << std::fixed << std::setprecision(6);
+        outfile << std::setw(5) << params.smear_steps << "  ";
+        outfile << std::setw(6) << n << "  ";
+        outfile << std::setw(12) << Q << "  ";
+        outfile << std::setw(10) << plaq << std::endl;
         
         n_configs++;
     }

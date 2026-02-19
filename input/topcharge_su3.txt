@@ -1,0 +1,17 @@
+# SU(3) Topological Charge Measurement Parameters
+
+config_dir          output/configs_su3/
+output_file         output/topcharge_su3.dat
+
+# Lattice
+T                   8
+L                   8
+
+# Configurations to analyze
+start_conf          10
+end_conf            100
+conf_step           10
+
+# Smearing
+smear_steps         30
+smear_alpha         0.45

@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
+#include <vector>
 
 #include "fields.hh"
 #include "geometry.hh"
@@ -22,6 +23,47 @@ int L;
 double *gauge_field;
 bool open_boundary_conditions = false; 
 bool hot_start = false;
+
+// Precomputed neighbor index tables for faster lookup
+std::vector<int> neighbor_plus[4];   
+std::vector<int> neighbor_minus[4];  
+std::vector<int> link_index;
+
+void init_neighbor_tables(int T_size, int L_size) {
+    const int volume = T_size * L_size * L_size * L_size;
+    
+    for (int mu = 0; mu < 4; mu++) {
+        neighbor_plus[mu].resize(volume);
+        neighbor_minus[mu].resize(volume);
+    }
+    link_index.resize(volume * 4);
+    
+    for (int it = 0; it < T_size; it++) {
+        for (int ix = 0; ix < L_size; ix++) {
+            for (int iy = 0; iy < L_size; iy++) {
+                for (int iz = 0; iz < L_size; iz++) {
+                    int site = get_index(it, ix, iy, iz, T_size, L_size);
+                    
+                    int coords[4] = {it, ix, iy, iz};
+                    int sizes[4] = {T_size, L_size, L_size, L_size};
+                    
+                    for (int mu = 0; mu < 4; mu++) {
+                        int c_plus[4] = {coords[0], coords[1], coords[2], coords[3]};
+                        int c_minus[4] = {coords[0], coords[1], coords[2], coords[3]};
+                        
+                        c_plus[mu] = (coords[mu] + 1) % sizes[mu];
+                        c_minus[mu] = (coords[mu] - 1 + sizes[mu]) % sizes[mu];
+                        
+                        neighbor_plus[mu][site] = get_index(c_plus[0], c_plus[1], c_plus[2], c_plus[3], T_size, L_size);
+                        neighbor_minus[mu][site] = get_index(c_minus[0], c_minus[1], c_minus[2], c_minus[3], T_size, L_size);
+                        
+                        link_index[site * 4 + mu] = ggi(site, mu);
+                    }
+                }
+            }
+        }
+    }
+}
 
 struct SimParams {
     std::string output_dir;
@@ -180,6 +222,9 @@ int main(int argc, char **argv)
     
     InitializeRand(params.seed);
     
+    // Precompute neighbor tables for fast index lookup
+    init_neighbor_tables(T, L);
+    
     mkdir(params.output_dir.c_str(), 0755);
     mkdir(params.config_dir.c_str(), 0755);
     
@@ -206,120 +251,111 @@ int main(int argc, char **argv)
     fprintf(plaq_file, "# Sweep  Plaquette\n");
     fprintf(plaq_file, "%5d %+.10e\n", 0, P);
     
-    double SU2_1[8], SU2_2[8];
+    alignas(32) double SU2_1[8], SU2_2[8];
+    const int volume = T * L * L * L;
     
     for (int sweep = 1; sweep <= params.num_sweeps; sweep++) {
         
-        for (int it = 0; it < T; it++) {
-            for (int ix = 0; ix < L; ix++) {
-                for (int iy = 0; iy < L; iy++) {
-                    for (int iz = 0; iz < L; iz++) {
-                        for (int mu = 0; mu < 4; mu++) {
-                            
-                            double S_l[8];
-                            cm_eq_zero(S_l);
-                            
-                            for (int nu = 0; nu < 4; nu++) {
-                                if (nu == mu) continue;
-                                
-                                int idx[4] = {it, ix, iy, iz};
-                                int index1, index2, index3;
-                                
-                                idx[0] = it; idx[1] = ix; idx[2] = iy; idx[3] = iz;
-                                idx[nu] -= 1;
-                                
-                                index1 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
-                                index2 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
-                                idx[mu] += 1;
-                                index3 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
-                                
-                                if (index1 >= 0 && index2 >= 0 && index3 >= 0) {
-                                    cm_eq_cm_ti_cm(SU2_1, gauge_field + index2, gauge_field + index3);
-                                    cm_eq_cm_dag_ti_cm(SU2_2, gauge_field + index1, SU2_1);
-                                    if (open_boundary_conditions && (it == 0 || it == T-1)) {
-                                        cm_ti_eq_re(SU2_2, 0.5);
-                                    }
-                                    cm_pl_eq_cm(S_l, SU2_2);
-                                }
-                                
-                                idx[0] = it; idx[1] = ix; idx[2] = iy; idx[3] = iz;
-                                
-                                index1 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
-                                idx[nu] += 1;
-                                index2 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
-                                idx[mu] += 1;
-                                idx[nu] -= 1;
-                                index3 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
-                                
-                                if (index1 >= 0 && index2 >= 0 && index3 >= 0) {
-                                    cm_eq_cm_ti_cm_dag(SU2_1, gauge_field + index2, gauge_field + index3);
-                                    cm_eq_cm_ti_cm(SU2_2, gauge_field + index1, SU2_1);
-                                    if (open_boundary_conditions && (it == 0 || it == T-1)) {
-                                        cm_ti_eq_re(SU2_2, 0.5);
-                                    }
-                                    cm_pl_eq_cm(S_l, SU2_2);
-                                }
-                            }
-                            
-                            double S_l_sum = 0.0;
-                            for (int j = 0; j < 8; j++) {
-                                S_l_sum += fabs(S_l[j]);
-                            }
-                            if (S_l_sum < 1e-15) continue;
-                            
-                            cm_dag_eq_cm(S_l);
-                            
-                            double k = sqrt(S_l[0]*S_l[6] - S_l[1]*S_l[7] - S_l[2]*S_l[4] + S_l[3]*S_l[5]);
-                            
-                            double beta_k = params.beta * k;
-                            double y_min = exp(-beta_k);
-                            double y_max = exp(+beta_k);
-                            
-                            double a[4];
-                            
-                            while (true) {
-                                double y = y_min + (y_max - y_min) * DRand();
-                                a[0] = log(y) / beta_k;
-                                if (DRand() <= sqrt(1.0 - a[0]*a[0])) break;
-                            }
-                            
-                            double norm;
-                            while (true) {
-                                a[1] = 2.0 * DRand() - 1.0;
-                                a[2] = 2.0 * DRand() - 1.0;
-                                a[3] = 2.0 * DRand() - 1.0;
-                                norm = a[1]*a[1] + a[2]*a[2] + a[3]*a[3];
-                                if (norm >= 1e-10 && norm <= 1.0) break;
-                            }
-                            norm = sqrt((1.0 - a[0]*a[0]) / norm);
-                            a[1] *= norm;
-                            a[2] *= norm;
-                            a[3] *= norm;
-                            
-                            double U_0[8];
-                            cm_eq_cm_dag(U_0, S_l);
-                            cm_ti_eq_re(U_0, 1.0/k);
-                            
-                            double U_0l[8];
-                            cm_from_h(U_0l, a);
-                            
-                            cm_eq_cm_ti_cm(SU2_1, U_0l, U_0);
-                            
-                            double h[4];
-                            h_from_cm(h, SU2_1);
-                            norm = 1.0 / sqrt(h[0]*h[0] + h[1]*h[1] + h[2]*h[2] + h[3]*h[3]);
-                            h[0] *= norm;
-                            h[1] *= norm;
-                            h[2] *= norm;
-                            h[3] *= norm;
-                            cm_from_h(SU2_1, h);
-                            
-                            int link_idx = ggi(get_index(it, ix, iy, iz, T, L), mu);
-                            if (link_idx >= 0) {
-                                cm_eq_cm(gauge_field + link_idx, SU2_1);
-                            }
+        for (int site = 0; site < volume; site++) {
+            const int it = site / (L * L * L);
+            
+            for (int mu = 0; mu < 4; mu++) {
+                
+                alignas(32) double S_l[8];
+                cm_eq_zero(S_l);
+                
+                for (int nu = 0; nu < 4; nu++) {
+                    if (nu == mu) continue;
+                    
+                    // Lower staple: U_nu^dag(x-nu) * U_mu(x-nu) * U_nu(x-nu+mu)
+                    const int site_minus_nu = neighbor_minus[nu][site];
+                    const int idx1 = link_index[site_minus_nu * 4 + nu];
+                    const int idx2 = link_index[site_minus_nu * 4 + mu];
+                    const int site_minus_nu_plus_mu = neighbor_plus[mu][site_minus_nu];
+                    const int idx3 = link_index[site_minus_nu_plus_mu * 4 + nu];
+                    
+                    if (idx1 >= 0 && idx2 >= 0 && idx3 >= 0) {
+                        cm_eq_cm_ti_cm(SU2_1, gauge_field + idx2, gauge_field + idx3);
+                        cm_eq_cm_dag_ti_cm(SU2_2, gauge_field + idx1, SU2_1);
+                        if (open_boundary_conditions && (it == 0 || it == T-1)) {
+                            cm_ti_eq_re(SU2_2, 0.5);
                         }
+                        cm_pl_eq_cm(S_l, SU2_2);
                     }
+                    
+                    // Upper staple: U_nu(x) * U_mu(x+nu) * U_nu^dag(x+mu)
+                    const int idx4 = link_index[site * 4 + nu];
+                    const int site_plus_nu = neighbor_plus[nu][site];
+                    const int idx5 = link_index[site_plus_nu * 4 + mu];
+                    const int site_plus_mu = neighbor_plus[mu][site];
+                    const int idx6 = link_index[site_plus_mu * 4 + nu];
+                    
+                    if (idx4 >= 0 && idx5 >= 0 && idx6 >= 0) {
+                        cm_eq_cm_ti_cm_dag(SU2_1, gauge_field + idx5, gauge_field + idx6);
+                        cm_eq_cm_ti_cm(SU2_2, gauge_field + idx4, SU2_1);
+                        if (open_boundary_conditions && (it == 0 || it == T-1)) {
+                            cm_ti_eq_re(SU2_2, 0.5);
+                        }
+                        cm_pl_eq_cm(S_l, SU2_2);
+                    }
+                }
+                
+                double S_l_sum = 0.0;
+                for (int j = 0; j < 8; j++) {
+                    S_l_sum += fabs(S_l[j]);
+                }
+                if (S_l_sum < 1e-15) continue;
+                
+                cm_dag_eq_cm(S_l);
+                
+                const double k = sqrt(S_l[0]*S_l[6] - S_l[1]*S_l[7] - S_l[2]*S_l[4] + S_l[3]*S_l[5]);
+                
+                const double beta_k = params.beta * k;
+                const double y_min = exp(-beta_k);
+                const double y_max = exp(+beta_k);
+                
+                alignas(32) double a[4];
+                
+                while (true) {
+                    double y = y_min + (y_max - y_min) * DRand();
+                    a[0] = log(y) / beta_k;
+                    if (DRand() <= sqrt(1.0 - a[0]*a[0])) break;
+                }
+                
+                double norm;
+                while (true) {
+                    a[1] = 2.0 * DRand() - 1.0;
+                    a[2] = 2.0 * DRand() - 1.0;
+                    a[3] = 2.0 * DRand() - 1.0;
+                    norm = a[1]*a[1] + a[2]*a[2] + a[3]*a[3];
+                    if (norm >= 1e-10 && norm <= 1.0) break;
+                }
+                norm = sqrt((1.0 - a[0]*a[0]) / norm);
+                a[1] *= norm;
+                a[2] *= norm;
+                a[3] *= norm;
+                
+                alignas(32) double U_0[8];
+                cm_eq_cm_dag(U_0, S_l);
+                cm_ti_eq_re(U_0, 1.0/k);
+                
+                alignas(32) double U_0l[8];
+                cm_from_h(U_0l, a);
+                
+                cm_eq_cm_ti_cm(SU2_1, U_0l, U_0);
+                
+                alignas(32) double h[4];
+                h_from_cm(h, SU2_1);
+                norm = 1.0 / sqrt(h[0]*h[0] + h[1]*h[1] + h[2]*h[2] + h[3]*h[3]);
+                h[0] *= norm;
+                h[1] *= norm;
+                h[2] *= norm;
+                h[3] *= norm;
+                cm_from_h(SU2_1, h);
+                
+                const int current_link_idx = link_index[site * 4 + mu];
+                if (current_link_idx >= 0) {
+                    cm_eq_cm(gauge_field + current_link_idx, SU2_1);
                 }
             }
         }

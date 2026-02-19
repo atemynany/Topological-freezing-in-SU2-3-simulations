@@ -37,7 +37,7 @@ while [[ $# -gt 0 ]]; do
             echo "  -h, --help          Show this help message"
             echo ""
             echo "Environment variables (override input file):"
-            echo "  L, T, RHO, A, NSMEAR, ALPHA, OUTPUT_DIR"
+            echo "  L, T, RHO, A, OUTPUT_DIR"
             exit 0
             ;;
         *)
@@ -71,8 +71,6 @@ parse_input_file() {
             T)              FILE_T="$value" ;;
             rho)            FILE_RHO="$value" ;;
             a)              FILE_A="$value" ;;
-            smear_steps)    FILE_NSMEAR="$value" ;;
-            smear_alpha)    FILE_ALPHA="$value" ;;
             output_dir)     FILE_OUTPUT_DIR="$value" ;;
             output_prefix)  FILE_OUTPUT_PREFIX="$value" ;;
         esac
@@ -88,8 +86,6 @@ DEFAULT_L=16
 DEFAULT_T=16
 DEFAULT_RHO=3.0
 DEFAULT_A=1.0
-DEFAULT_NSMEAR=100
-DEFAULT_ALPHA=0.5
 DEFAULT_OUTPUT_DIR="output/instanton"
 DEFAULT_OUTPUT_PREFIX="instanton_Q"
 
@@ -104,8 +100,6 @@ L=${L:-${FILE_L:-$DEFAULT_L}}
 T=${T:-${FILE_T:-$DEFAULT_T}}
 RHO=${RHO:-${FILE_RHO:-$DEFAULT_RHO}}
 A=${A:-${FILE_A:-$DEFAULT_A}}
-NSMEAR=${NSMEAR:-${FILE_NSMEAR:-$DEFAULT_NSMEAR}}
-ALPHA=${ALPHA:-${FILE_ALPHA:-$DEFAULT_ALPHA}}
 OUTPUT_DIR=${OUTPUT_DIR:-${FILE_OUTPUT_DIR:-$DEFAULT_OUTPUT_DIR}}
 OUTPUT_PREFIX=${OUTPUT_PREFIX:-${FILE_OUTPUT_PREFIX:-$DEFAULT_OUTPUT_PREFIX}}
 
@@ -147,26 +141,8 @@ echo ""
     -T "$T" \
     -rho "$RHO" \
     -a "$A" \
-    -nsmear 0 \
-    -alpha "$ALPHA" \
     -o "$OUTPUT_PREFIX"
 
 echo ""
 echo -e "${GREEN}=== Done! ===${NC}"
-echo "Output files:"
-echo "  Data: $OUTPUT_DIR/${OUTPUT_PREFIX}_instanton.dat"
-echo "  Data: $OUTPUT_DIR/${OUTPUT_PREFIX}_anti_instanton.dat"
-
-# Commented out: Q vs smearing and plotting
-# To enable, set NSMEAR > 0 and uncomment below:
-#
-# "${BUILD_DIR}/bin/compute_instanton_Q" \
-#     -L "$L" -T "$T" -rho "$RHO" -a "$A" \
-#     -nsmear "$NSMEAR" -alpha "$ALPHA" -o "$OUTPUT_PREFIX"
-#
-# source ~/miniconda3/etc/profile.d/conda.sh 2>/dev/null || true
-# conda activate master_thesis 2>/dev/null || true
-# PLOT_SCRIPT="${PROJECT_DIR}/../lattice_su2_Vilija_ansatz/Instanton/plotting_Q_instanton_smearsteps.py"
-# python3 "$PLOT_SCRIPT" "$OUTPUT_DIR/${OUTPUT_PREFIX}_plot.png" \
-#     --inst-file "$OUTPUT_DIR/${OUTPUT_PREFIX}_instanton.dat" \
-#     --anti-file "$OUTPUT_DIR/${OUTPUT_PREFIX}_anti_instanton.dat"
+echo "Output file: $OUTPUT_DIR/${OUTPUT_PREFIX}.dat"
