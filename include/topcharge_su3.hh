@@ -1,8 +1,3 @@
-// topcharge_su3.hh - SU(3) topological charge using clover discretization
-//
-// Q = (1/32π²) Σ_x ε_μνρσ Tr(F_μν(x) F_ρσ(x))
-// F_μν from clover (average of 4 plaquettes)
-//
 #ifndef TOPCHARGE_SU3_HH
 #define TOPCHARGE_SU3_HH
 
@@ -11,7 +6,6 @@
 #include "su3_linear_algebra.hh"
 
 // Geometry: site index and link index for SU(3)
-// These must be set by the calling code
 extern int T_size, L_size;
 extern std::vector<int> neighbor_plus[4];
 extern std::vector<int> neighbor_minus[4];
@@ -30,10 +24,7 @@ inline int su3_link_idx(int site, int mu) {
 }
 
 // P_{++}: U_mu(x) U_nu(x+mu) U_mu^dag(x+nu) U_nu^dag(x)
-inline void su3_plaq_pp(double * __restrict__ result,
-                        const double * __restrict__ gf,
-                        int it, int ix, int iy, int iz,
-                        int mu, int nu) {
+inline void su3_plaq_pp(double *result, const double *gf, int it, int ix, int iy, int iz, int mu, int nu) {
     alignas(32) double M1[18], M2[18];
     int idx[4] = {it, ix, iy, iz};
     int site = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
@@ -57,10 +48,7 @@ inline void su3_plaq_pp(double * __restrict__ result,
 }
 
 // P_{-+}: U_mu^dag(x-mu) U_nu(x-mu) U_mu(x-mu+nu) U_nu^dag(x)
-inline void su3_plaq_mp(double * __restrict__ result,
-                        const double * __restrict__ gf,
-                        int it, int ix, int iy, int iz,
-                        int mu, int nu) {
+inline void su3_plaq_mp(double *result, const double *gf, int it, int ix, int iy, int iz, int mu, int nu) {
     alignas(32) double M1[18], M2[18];
     int idx[4] = {it, ix, iy, iz};
     
@@ -83,10 +71,7 @@ inline void su3_plaq_mp(double * __restrict__ result,
 }
 
 // P_{--}: U_mu^dag(x-mu) U_nu^dag(x-mu-nu) U_mu(x-mu-nu) U_nu(x-nu)
-inline void su3_plaq_mm(double * __restrict__ result,
-                        const double * __restrict__ gf,
-                        int it, int ix, int iy, int iz,
-                        int mu, int nu) {
+inline void su3_plaq_mm(double *result, const double *gf, int it, int ix, int iy, int iz, int mu, int nu) {
     alignas(32) double M1[18], M2[18];
     int idx[4] = {it, ix, iy, iz};
     
@@ -109,10 +94,7 @@ inline void su3_plaq_mm(double * __restrict__ result,
 }
 
 // P_{+-}: U_mu(x) U_nu^dag(x+mu-nu) U_mu^dag(x-nu) U_nu(x-nu)
-inline void su3_plaq_pm(double * __restrict__ result,
-                        const double * __restrict__ gf,
-                        int it, int ix, int iy, int iz,
-                        int mu, int nu) {
+inline void su3_plaq_pm(double *result, const double *gf, int it, int ix, int iy, int iz, int mu, int nu) {
     alignas(32) double M1[18], M2[18];
     int idx[4] = {it, ix, iy, iz};
     int site0 = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
@@ -133,10 +115,7 @@ inline void su3_plaq_pm(double * __restrict__ result,
 }
 
 // Clover: C_μν = (1/4)(P_++ + P_-+ + P_-- + P_+-)
-inline void su3_clover(double * __restrict__ clover,
-                       const double * __restrict__ gf,
-                       int it, int ix, int iy, int iz,
-                       int mu, int nu) {
+inline void su3_clover(double *clover, const double *gf, int it, int ix, int iy, int iz, int mu, int nu) {
     alignas(32) double P[18], sum[18];
     su3_eq_zero(sum);
     
@@ -157,10 +136,7 @@ inline void su3_clover(double * __restrict__ clover,
 }
 
 // Field strength: F_μν = (C - C†) / 2  (anti-hermitian)
-inline void su3_field_strength(double * __restrict__ F,
-                               const double * __restrict__ gf,
-                               int it, int ix, int iy, int iz,
-                               int mu, int nu) {
+inline void su3_field_strength(double *F, const double *gf, int it, int ix, int iy, int iz, int mu, int nu) {
     alignas(32) double C[18], C_dag[18];
     
     su3_clover(C, gf, it, ix, iy, iz, mu, nu);
@@ -174,8 +150,7 @@ inline void su3_field_strength(double * __restrict__ F,
 
 // Local topological charge density (un-normalized)
 // q = -ε_μνρσ Tr(F_μν F_ρσ) = -2[Tr(F_01 F_23) - Tr(F_02 F_13) + Tr(F_03 F_12)]
-inline double su3_local_topcharge_density(const double * __restrict__ gf,
-                                          int it, int ix, int iy, int iz) {
+inline double su3_local_topcharge_density(const double *gf, int it, int ix, int iy, int iz) {
     alignas(32) double F01[18], F23[18];
     alignas(32) double F02[18], F13[18];
     alignas(32) double F03[18], F12[18];

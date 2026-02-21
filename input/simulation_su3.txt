@@ -1,11 +1,12 @@
 # Lattice
 T                   8
 L                   8
-beta                5.0
+beta                7.0
 
 # MC heatbath parameters
 seed                140425
 start_type          cold
+boundary            open
 num_sweeps          500
 save_interval       10
 overrelax_steps     3

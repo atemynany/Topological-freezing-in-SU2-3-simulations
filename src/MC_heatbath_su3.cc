@@ -126,9 +126,13 @@ double su3_average_plaquette(const double *gf, int T, int L) {
     return sum / count;
 }
 
-void compute_staple(double *staple, const double *gf, int site, int mu) {
+// Compute staple sum for link U_mu(x)
+// With open boundaries, apply 0.5 weight at temporal boundaries t=0, t=T-1
+void compute_staple(double *staple, const double *gf, int site, int mu, int it, bool open_bc) {
     su3_eq_zero(staple);
     alignas(32) double T1[18], T2[18];
+    
+    const bool at_boundary = open_bc && (it == 0 || it == T_size - 1);
     
     for (int nu = 0; nu < 4; nu++) {
         if (nu == mu) continue;
@@ -142,6 +146,7 @@ void compute_staple(double *staple, const double *gf, int site, int mu) {
         
         su3_eq_su3_ti_su3(T1, gf + idx_nu, gf + idx_mu_at_nu);
         su3_eq_su3_ti_su3_dag(T2, T1, gf + idx_nu_at_mu);
+        if (at_boundary) su3_ti_eq_re(T2, 0.5);
         su3_pl_eq_su3(staple, T2);
         
         // Lower staple: U_nu^dag(x-nu) * U_mu(x-nu) * U_nu(x-nu+mu)
@@ -153,6 +158,7 @@ void compute_staple(double *staple, const double *gf, int site, int mu) {
         
         su3_eq_su3_dag_ti_su3(T1, gf + idx_nu_at_minus, gf + idx_mu_at_minus);
         su3_eq_su3_ti_su3(T2, T1, gf + idx_nu_at_minus_mu);
+        if (at_boundary) su3_ti_eq_re(T2, 0.5);
         su3_pl_eq_su3(staple, T2);
     }
 }
@@ -189,6 +195,7 @@ struct SimParams {
     double beta;
     int seed;
     std::string start_type;
+    std::string boundary;
     int num_sweeps;
     int save_interval;
     int overrelax_steps;
@@ -208,6 +215,7 @@ bool read_input_file(const char *filename, SimParams &params) {
     params.beta = 6.0;
     params.seed = 12345;
     params.start_type = "cold";
+    params.boundary = "periodic";
     params.num_sweeps = 100;
     params.save_interval = 10;
     params.overrelax_steps = 0;
@@ -225,6 +233,7 @@ bool read_input_file(const char *filename, SimParams &params) {
         else if (key == "beta") iss >> params.beta;
         else if (key == "seed") iss >> params.seed;
         else if (key == "start_type") iss >> params.start_type;
+        else if (key == "boundary") iss >> params.boundary;
         else if (key == "num_sweeps") iss >> params.num_sweeps;
         else if (key == "save_interval") iss >> params.save_interval;
         else if (key == "overrelax_steps") iss >> params.overrelax_steps;
@@ -241,6 +250,7 @@ void print_params(const SimParams &params) {
     std::cout << "Beta:               " << params.beta << "\n";
     std::cout << "Seed:               " << params.seed << "\n";
     std::cout << "Start:              " << params.start_type << "\n";
+    std::cout << "Boundary:           " << params.boundary << "\n";
     std::cout << "Sweeps:             " << params.num_sweeps << "\n";
     std::cout << "Save interval:      " << params.save_interval << "\n";
     std::cout << "Overrelax steps:    " << params.overrelax_steps << "\n";
@@ -271,6 +281,8 @@ int main(int argc, char **argv) {
     InitializeRand(params.seed);
     init_neighbor_tables();
     
+    open_boundary_conditions = (params.boundary == "open");
+    
     mkdir(params.output_dir.c_str(), 0755);
     mkdir(params.config_dir.c_str(), 0755);
     
@@ -293,13 +305,15 @@ int main(int argc, char **argv) {
     fprintf(plaq_file, "%5d %+.10e\n", 0, P);
     
     const int volume = T_size * L_size * L_size * L_size;
+    const int L3 = L_size * L_size * L_size;
     alignas(32) double staple[18];
     
     for (int sweep = 1; sweep <= params.num_sweeps; sweep++) {
         // Heatbath sweep
         for (int site = 0; site < volume; site++) {
+            const int it = site / L3;  // time coordinate
             for (int mu = 0; mu < 4; mu++) {
-                compute_staple(staple, gauge_field_su3, site, mu);
+                compute_staple(staple, gauge_field_su3, site, mu, it, open_boundary_conditions);
                 int idx = link_index_su3[site * 4 + mu];
                 su3_heatbath_link(gauge_field_su3 + idx, staple, params.beta, DRand);
             }
@@ -308,8 +322,9 @@ int main(int argc, char **argv) {
         // Overrelaxation
         for (int ov = 0; ov < params.overrelax_steps; ov++) {
             for (int site = 0; site < volume; site++) {
+                const int it = site / L3;
                 for (int mu = 0; mu < 4; mu++) {
-                    compute_staple(staple, gauge_field_su3, site, mu);
+                    compute_staple(staple, gauge_field_su3, site, mu, it, open_boundary_conditions);
                     int idx = link_index_su3[site * 4 + mu];
                     su3_overrelax_link(gauge_field_su3 + idx, staple);
                 }

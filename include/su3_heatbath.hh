@@ -63,10 +63,7 @@ inline void su2_kennedy_pendleton(double *a, double k, double beta, double (*dra
 }
 
 // Cabibbo-Marinari heatbath - updates U using staple
-inline void su3_heatbath_link(double * __restrict__ U, 
-                               const double * __restrict__ staple,
-                               double beta, 
-                               double (*drand)()) {
+inline void su3_heatbath_link(double *U, const double *staple, double beta, double (*drand)()) {
     alignas(32) double W[18], R[18], T1[18];
     
     // W = U * Staple^dag (the combination we want to maximize trace of)
@@ -131,8 +128,7 @@ inline void su3_heatbath_link(double * __restrict__ U,
 }
 
 // SU(3) overrelaxation
-inline void su3_overrelax_link(double * __restrict__ U,
-                                const double * __restrict__ staple) {
+inline void su3_overrelax_link(double *U, const double *staple) {
     alignas(32) double W[18], T1[18], R[18];
     
     su3_eq_su3_ti_su3_dag(W, U, staple);
