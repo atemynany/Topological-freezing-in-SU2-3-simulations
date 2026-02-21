@@ -33,9 +33,11 @@ test_*
 data/
 configs/
 results/
+output/
 *.dat
 *.bin
 conf.*
+conf_su3.*
 
 # ==============================================================================
 # Plots and outputs
