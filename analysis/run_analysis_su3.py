@@ -14,6 +14,7 @@ import sys
 
 from Q_estimator import QEstimator
 from topological_susceptibility import topological_susceptibility
+from autocorrelation import autocorrelation, AutocorrResult
 
 # ==============================================================================
 # Configuration Parameters
@@ -128,6 +129,16 @@ if os.path.exists(plaq_file):
 
     print(f"      Thermalization at sweep {mc_time[therm_idx]} (index {therm_idx})")
     print(f"      Equilibrium value: {equilibrium_mean:.6f} ± {equilibrium_std:.6f}")
+
+    # Compute integrated autocorrelation time for plaquette
+    try:
+        plaq_autocorr = autocorrelation(plaq_data[therm_idx:], name="plaq_su3")
+        print(f"      tau_int (plaquette): {plaq_autocorr.tau_int:.2f} ± {plaq_autocorr.dtau_int:.2f}")
+        print(f"      Effective samples: {plaq_autocorr.n_eff:.1f}")
+        print(f"      Recommended thinning: {plaq_autocorr.thinning}")
+    except Exception as e:
+        print(f"      Warning: Could not compute plaquette autocorrelation: {e}")
+        plaq_autocorr = None
 
     # Plot thermalization with derivative subplot
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 7), height_ratios=[2, 1], sharex=True)
@@ -386,6 +397,44 @@ print(f"  <Q²> = {Q2_mean:.4f}")
 print(f"  χ_t (lattice) = {chi['chi_t_lattice']:.6e}")
 print(f"  χ_t^(1/4) = {chi['chi_t_fourth_root_MeV']:.1f} MeV")
 print(f"  Reference SU(3): ~175 MeV (Sommer r0 scale)")
+
+# ============================================================================
+# 7. Integrated Autocorrelation Time (tau_int)
+# ============================================================================
+print("-"*60)
+print("Integrated Autocorrelation Time (tau_int):")
+
+# tau_int for topological charge Q
+try:
+    Q_autocorr = autocorrelation(Q, name="Q_su3")
+    print(f"  Topological charge Q:")
+    print(f"    tau_int = {Q_autocorr.tau_int:.2f} ± {Q_autocorr.dtau_int:.2f}")
+    print(f"    N_eff = {Q_autocorr.n_eff:.1f} (out of {len(Q)} measurements)")
+    print(f"    Recommended thinning: {Q_autocorr.thinning}")
+except Exception as e:
+    print(f"  Warning: Could not compute Q autocorrelation: {e}")
+    Q_autocorr = None
+
+# tau_int for rescaled Q
+try:
+    Qres_autocorr = autocorrelation(Q_rescaled, name="Q_rescaled_su3")
+    print(f"  Rescaled charge Q_rescaled:")
+    print(f"    tau_int = {Qres_autocorr.tau_int:.2f} ± {Qres_autocorr.dtau_int:.2f}")
+    print(f"    N_eff = {Qres_autocorr.n_eff:.1f} (out of {len(Q_rescaled)} measurements)")
+    print(f"    Recommended thinning: {Qres_autocorr.thinning}")
+except Exception as e:
+    print(f"  Warning: Could not compute Q_rescaled autocorrelation: {e}")
+    Qres_autocorr = None
+
+# tau_int for Q^2 (relevant for susceptibility)
+try:
+    Q2_autocorr = autocorrelation(Q_rescaled**2, name="Q2_su3")
+    print(f"  Q² (for susceptibility):")
+    print(f"    tau_int = {Q2_autocorr.tau_int:.2f} ± {Q2_autocorr.dtau_int:.2f}")
+    print(f"    N_eff = {Q2_autocorr.n_eff:.1f}")
+except Exception as e:
+    print(f"  Warning: Could not compute Q² autocorrelation: {e}")
+    Q2_autocorr = None
 
 print("="*60)
 print(f"\nFigures saved to: {fig_dir}")
