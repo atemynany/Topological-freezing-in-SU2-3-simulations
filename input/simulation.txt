@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------------------
 T                   16                          # Temporal extent
 L                   16                          # Spatial extent
-beta                2.4                     # Coupling constant (β = 4/g²)
+beta                2.55                     # Coupling constant (β = 4/g²)
 
 # ------------------------------------------------------------------------------
 # Monte Carlo parameters (for mc_heatbath)
