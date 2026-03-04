@@ -1,0 +1,14 @@
+# Topological charge measurement input
+# Generated: Wed 11 Feb 2026 06:27:49 PM CET
+config_dir          /home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/Topological_charge_my_implementation/output/configs/
+output_dir          /home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/Topological_charge_my_implementation/data/results/T16_L16_b2.7
+beta                2.7
+T                   16
+L                   16
+start_conf          10
+end_conf            500
+conf_step           10
+smear_steps         30
+smear_interval      5
+smear_alpha         0.3
+seed                150434

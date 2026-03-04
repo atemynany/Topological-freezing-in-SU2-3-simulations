@@ -26,6 +26,6 @@ overrelax_steps     3                          # Number of overrelaxation steps 
 end_conf            5000                       # Last configuration to analyze
 conf_step           10                         # Step between configurations (same as save_interval)
 smear_steps         20                         # Number of APE smearing steps
-smear_alpha         0.45                       # APE smearing parameter (α)
+smear_alpha         0.3                       # APE smearing parameter (α)
 
 # ==============================================================================

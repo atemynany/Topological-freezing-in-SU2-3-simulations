@@ -1,0 +1,27 @@
+# Auto-generated input file
+# Beta scan: beta=2.56, seed=1772543389
+# Generated: Tue 03 Mar 2026 02:25:20 PM CET
+
+# Lattice
+T                   16
+L                   16
+beta                2.56
+
+# MC parameters
+seed                1772543389
+start_type          cold
+boundary            periodic
+num_sweeps          5000
+save_interval       10
+
+# Topological charge
+start_conf          50
+end_conf            5000
+conf_step           10
+smear_steps         20
+smear_alpha         0.3
+smear_interval      20
+
+# Output directories
+output_dir          /home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/SU23_freezing/data/results/T16_L16_b2.56_seed1772543389/output/
+config_dir          /home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/SU23_freezing/data/results/T16_L16_b2.56_seed1772543389/configs/

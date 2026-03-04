@@ -217,65 +217,6 @@ target_link_libraries(meas_topcharge_su3
 )
 
 # ==============================================================================
-# LIME/ILDG Format Support (Optional - requires c-lime library)
-# ==============================================================================
-
-option(BUILD_LIME_TOOLS "Build LIME format conversion tools (requires c-lime)" OFF)
-
-if(BUILD_LIME_TOOLS)
-    # Try to find c-lime via pkg-config
-    find_package(PkgConfig)
-    if(PkgConfig_FOUND)
-        pkg_check_modules(LIME lime)
-    endif()
-    
-    # Also check common locations
-    if(NOT LIME_FOUND)
-        find_library(LIME_LIBRARY NAMES lime
-            PATHS /usr/local/lib /usr/lib ${LIME_ROOT}/lib
-        )
-        find_path(LIME_INCLUDE_DIR lime.h
-            PATHS /usr/local/include /usr/include ${LIME_ROOT}/include
-        )
-        if(LIME_LIBRARY AND LIME_INCLUDE_DIR)
-            set(LIME_FOUND TRUE)
-            set(LIME_LIBRARIES ${LIME_LIBRARY})
-            set(LIME_INCLUDE_DIRS ${LIME_INCLUDE_DIR})
-        endif()
-    endif()
-    
-    if(LIME_FOUND)
-        message(STATUS "c-lime found: ${LIME_LIBRARIES}")
-        
-        # --- LIME to Raw Format Converter ---
-        add_executable(lime_to_raw
-            src/lime_reader.cc
-        )
-        
-        target_compile_definitions(lime_to_raw PRIVATE LIME_READER_MAIN)
-        
-        target_include_directories(lime_to_raw
-            PRIVATE
-                ${CMAKE_CURRENT_SOURCE_DIR}/include
-                ${LIME_INCLUDE_DIRS}
-        )
-        
-        target_link_libraries(lime_to_raw
-            PRIVATE
-                ${LIME_LIBRARIES}
-                ${MATH_LIBRARY}
-        )
-        
-        # Add to installation
-        install(TARGETS lime_to_raw RUNTIME DESTINATION bin)
-    else()
-        message(WARNING "c-lime not found. lime_to_raw will not be built.")
-        message(STATUS "To install c-lime: https://github.com/usqcd-software/c-lime")
-        message(STATUS "Or run: ./scripts/build_cl2qcd.sh which installs it automatically")
-    endif()
-endif()
-
-# ==============================================================================
 # Testing Configuration (Catch2)
 # ==============================================================================
 

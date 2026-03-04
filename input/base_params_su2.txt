@@ -15,14 +15,14 @@ L                   16                         # Spatial extent
 # ------------------------------------------------------------------------------
 start_type          cold                       # Start type: "cold" or "hot"
 boundary            periodic                   # Boundary conditions: "periodic" or "open"
-num_sweeps          5000                       # Total number of MC sweeps
+num_sweeps          10000                       # Total number of MC sweeps
 save_interval       10                         # Save configuration every N sweeps
 
 # ------------------------------------------------------------------------------
 # Topological charge measurement parameters
 # Note: start_conf is auto-detected from thermalization
 # ------------------------------------------------------------------------------
-end_conf            5000                       # Last configuration to analyze
+end_conf            10000                       # Last configuration to analyze
 conf_step           10                         # Step between configurations (same as save_interval)
 smear_steps         20                         # Number of APE smearing steps
 smear_interval      20                         # Output Q every N smearing steps
