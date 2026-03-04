@@ -34,3 +34,11 @@ Thumbs.db
 *.log
 *.out
 *.err
+
+# Generated input files
+input/beta_scan_su2_periodic.txt
+input/beta_scan_su2_open.txt
+input/base_params_su2_open.txt
+input/beta_scan_su3_periodic.txt
+input/beta_scan_su3_open.txt
+input/base_params_su3_open.txt
