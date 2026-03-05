@@ -1,0 +1,17 @@
+# Run Information
+# Generated: Thu Mar  5 05:18:10 AM CET 2026
+# ==============================================================================
+
+gauge_group         SU2
+beta                2.8
+seed                1772682131
+T                   16
+L                   16
+save_interval       10
+start_conf          50
+run_dir             /home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/SU23_freezing/data/results/T16_L16_b2.8_seed1772682131
+
+# Files
+plaquette_file      /home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/SU23_freezing/data/results/T16_L16_b2.8_seed1772682131/output/plaquette.dat
+topcharge_file      /home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/SU23_freezing/data/results/T16_L16_b2.8_seed1772682131/output/topcharge.dat
+config_dir          /home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/SU23_freezing/data/results/T16_L16_b2.8_seed1772682131/configs
