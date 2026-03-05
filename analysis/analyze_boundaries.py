@@ -180,8 +180,11 @@ def plot_histograms_grid(runs: List[RunData], results: List[AnalysisResult],
         Q_min, Q_max = int(Q.min()) - 1, int(Q.max()) + 1
         bins = np.arange(Q_min - 0.5, Q_max + 1.5, 1)
         
+        # Add label only for first subplot (for legend)
+        hist_label = r'$Q_{\rm re}$' if idx == 0 else None
         counts, bin_edges, _ = ax.hist(Q, bins=bins, density=False,
-            color='steelblue', edgecolor='black', linewidth=0.5, alpha=0.9, rwidth=0.15)
+            color='steelblue', edgecolor='black', linewidth=0.5, alpha=0.9, rwidth=0.15,
+            label=hist_label)
         
         # Gaussian fit
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
@@ -192,7 +195,8 @@ def plot_histograms_grid(runs: List[RunData], results: List[AnalysisResult],
                     p0=[np.mean(Q), sigma0, counts.max()],
                     bounds=([-np.inf, 0.1, 0], [np.inf, np.inf, np.inf]))
                 x_fit = np.linspace(Q_min - 1, Q_max + 1, 100)
-                ax.plot(x_fit, gaussian(x_fit, *popt), 'r-', linewidth=1.5)
+                fit_label = 'Gaussian fit' if idx == 0 else None
+                ax.plot(x_fit, gaussian(x_fit, *popt), 'r-', linewidth=1.5, label=fit_label)
         except:
             pass
         
@@ -206,8 +210,12 @@ def plot_histograms_grid(runs: List[RunData], results: List[AnalysisResult],
         row, col = idx // n_cols, idx % n_cols
         axes[row, col].set_visible(False)
     
+    # Add figure legend
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper right', frameon=False, fontsize=10)
+    
     plt.suptitle(f'{gauge_group.upper()} {boundary.capitalize()} BC', fontsize=13)
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 0.92, 1])
     
     filepath = os.path.join(output_dir, f"histograms_{gauge_group}_{boundary}.png")
     plt.savefig(filepath, dpi=200)
@@ -279,8 +287,8 @@ def plot_tau_int_combined(results_periodic: List[AnalysisResult],
         idx = np.argsort(betas)
         betas, tau_int, dtau_int = betas[idx], tau_int[idx], dtau_int[idx]
         
-        ax.errorbar(betas, tau_int, yerr=dtau_int, fmt=f'{marker}-', markersize=7,
-                    linewidth=1.5, capsize=3, color=color, label=label)
+        ax.errorbar(betas, tau_int, yerr=dtau_int, fmt=marker, markersize=7,
+                    linestyle='none', capsize=3, color=color, label=label)
     
     ax.set_xlabel(r'$\beta$')
     ax.set_ylabel(r'$\tau_{\rm int}(Q^2)$')
