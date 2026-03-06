@@ -208,13 +208,13 @@ def analyze_run(run_data: RunData, gauge_group: str = "su2") -> AnalysisResult:
     # Compute Q statistics with autocorrelation (note: Q_statistics uses rescaled Q)
     stats = compute_Q_statistics(run_data.Q_raw, ensemble=f"b{run_data.beta}")
     
-    # Compute susceptibility from RAW Q values (not rescaled!)
+    # Compute susceptibility from RESCALED Q values (corrected estimate of true Q)
     # χ_t = <Q²> / V  where V = T × L³
     volume = run_data.T * run_data.L ** 3
-    Q_raw = run_data.Q_raw.astype(float)
-    Q2_raw_mean = np.mean(Q_raw ** 2)
-    Q2_raw_std = np.std(Q_raw ** 2) / np.sqrt(len(Q_raw))  # Naive error
-    chi_t_lattice = Q2_raw_mean / volume
+    Q_rescaled = run_data.Q_rescaled.astype(float)  # Use rescaled (integer) Q
+    Q2_mean = np.mean(Q_rescaled ** 2)
+    Q2_std = np.std(Q_rescaled ** 2) / np.sqrt(len(Q_rescaled))  # Naive error
+    chi_t_lattice = Q2_mean / volume
     
     # Compute χ_t^(1/4) * a in MeV*fm (scale-independent quantity)
     # Formula: χ_t^(1/4) * a = (χ_t_lattice)^(1/4) * ℏc
@@ -226,8 +226,7 @@ def analyze_run(run_data: RunData, gauge_group: str = "su2") -> AnalysisResult:
         chi_t_fourth_root_a = 0.0
     
     # Autocorrelation of Q² (more relevant for susceptibility measurement)
-    Q = run_data.Q_rescaled.astype(float)
-    Q2 = Q ** 2
+    Q2 = Q_rescaled ** 2
     
     try:
         # Use Q² for autocorrelation (relevant for χ_t measurement)
@@ -245,8 +244,8 @@ def analyze_run(run_data: RunData, gauge_group: str = "su2") -> AnalysisResult:
         beta=run_data.beta,
         Q_mean=stats.Q_mean,
         Q_error=stats.Q_error,
-        Q2_mean=Q2_raw_mean,  # Use raw Q² for consistency with χ_t
-        Q2_error=Q2_raw_std,
+        Q2_mean=Q2_mean,  # Use rescaled Q² for χ_t
+        Q2_error=Q2_std,
         chi_t_lattice=chi_t_lattice,
         chi_t_fourth_root_a=chi_t_fourth_root_a,
         tau_int=tau_int,
@@ -424,11 +423,6 @@ def plot_susceptibility_vs_beta(results: List[AnalysisResult], output_dir: str,
     betas = betas[idx]
     chi_fourth_a = chi_fourth_a[idx]
     
-    # Filter out intermediate beta values in (2.5, 2.6) range
-    keep_mask = ~((betas > 2.5) & (betas < 2.6))
-    betas = betas[keep_mask]
-    chi_fourth_a = chi_fourth_a[keep_mask]
-    
     # Compute χ_t^(1/4) in MeV using lattice spacing estimate
     if gauge_group == "su2":
         a_beta = np.array([lattice_spacing_su2(b) for b in betas])
@@ -484,12 +478,6 @@ def plot_tau_int_vs_beta(results: List[AnalysisResult], output_dir: str,
     betas = betas[idx]
     tau_int = tau_int[idx]
     dtau_int = dtau_int[idx]
-    
-    # Filter out intermediate beta values in (2.5, 2.6) range
-    keep_mask = ~((betas > 2.5) & (betas < 2.6))
-    betas = betas[keep_mask]
-    tau_int = tau_int[keep_mask]
-    dtau_int = dtau_int[keep_mask]
     
     fig, ax = plt.subplots(figsize=(10, 6))
     
