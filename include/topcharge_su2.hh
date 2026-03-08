@@ -201,5 +201,30 @@ inline double compute_topological_charge(double * __restrict__ gauge_field, int 
     return Q / (4.0 * M_PI * M_PI);
 }
 
+// Topological charge with boundary exclusion for open BC
+inline double compute_topological_charge_open(double * __restrict__ gauge_field, int T, int L, int exclude_boundary) {
+    double Q = 0.0;
+    
+    const int t_min = exclude_boundary;
+    const int t_max = T - exclude_boundary;
+    
+    if (t_min >= t_max) {
+        return compute_topological_charge(gauge_field, T, L);
+    }
+    
+    #pragma omp parallel for reduction(+:Q) schedule(static)
+    for (int it = t_min; it < t_max; it++) {
+        for (int ix = 0; ix < L; ix++) {
+            for (int iy = 0; iy < L; iy++) {
+                for (int iz = 0; iz < L; iz++) {
+                    Q += compute_local_topcharge_density(gauge_field, it, ix, iy, iz, T, L);
+                }
+            }
+        }
+    }
+    
+    return Q / (4.0 * M_PI * M_PI);
+}
+
 #endif // TOPCHARGE_SU2_HH
 

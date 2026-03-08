@@ -184,6 +184,7 @@ create_input_file() {
     local conf_step=$(read_param "conf_step" "$PARAMS_FILE")
     local smear_steps=$(read_param "smear_steps" "$PARAMS_FILE")
     local smear_alpha=$(read_param "smear_alpha" "$PARAMS_FILE")
+    local exclude_boundary_slices=$(read_param "exclude_boundary_slices" "$PARAMS_FILE")
     
     # SU(3) specific
     local overrelax_steps=$(read_param "overrelax_steps" "$PARAMS_FILE")
@@ -220,6 +221,7 @@ end_conf            ${end_conf:-1000}
 conf_step           ${conf_step:-10}
 smear_steps         ${smear_steps:-20}
 smear_alpha         ${smear_alpha:-0.3}
+exclude_boundary_slices ${exclude_boundary_slices:-0}
 EOF
 
     # Add smear_interval for SU(2)
@@ -462,6 +464,18 @@ for BETA in "${BETAS[@]}"; do
     ls -d "$RESULTS_DIR"/T${T_SIZE}_L${L_SIZE}_b${BETA}_* 2>/dev/null || true
 done
 echo ""
-log_info "To analyze results, run:"
-echo "  python3 analysis/run_analysis.py  # for SU(2)"
-echo "  python3 analysis/run_analysis_su3.py  # for SU(3)"
+
+# Run analysis automatically if not dry run
+if [ "$DRY_RUN" = false ]; then
+    log_step "Running analysis..."
+    if command -v conda &> /dev/null && conda run -n "$CONDA_ENV" python3 --version &> /dev/null; then
+        conda run -n "$CONDA_ENV" python3 "$PROJECT_DIR/analysis/analyze_beta_scan.py" --${GAUGE_GROUP} --results-dir "$RESULTS_DIR" || log_warn "Analysis failed (non-fatal)"
+    elif command -v python3 &> /dev/null; then
+        python3 "$PROJECT_DIR/analysis/analyze_beta_scan.py" --${GAUGE_GROUP} --results-dir "$RESULTS_DIR" || log_warn "Analysis failed (non-fatal)"
+    else
+        log_warn "Python not found, skipping analysis"
+    fi
+fi
+
+log_info "To re-run analysis:"
+echo "  python3 analysis/analyze_beta_scan.py --${GAUGE_GROUP} --results-dir $RESULTS_DIR"

@@ -80,6 +80,8 @@ struct SimulationParams {
     int smear_interval;            // Output interval for smearing steps
     double smear_alpha;            // APE smearing parameter
     int seed;                      // Random seed
+    std::string boundary;          // Boundary conditions: "periodic" or "open"
+    int exclude_boundary_slices;   // Time slices to exclude from each boundary (for open BC)
     
     // MC parameters (read but not used here, for unified file)
     int num_sweeps;
@@ -121,6 +123,8 @@ bool read_input_file(const char *filename, SimulationParams &params) {
     params.seed = 12345;
     params.num_sweeps = 100;
     params.save_interval = 10;
+    params.boundary = "periodic";
+    params.exclude_boundary_slices = 0;
     
     while (std::getline(infile, line)) {
         // Skip comments and empty lines
@@ -157,6 +161,10 @@ bool read_input_file(const char *filename, SimulationParams &params) {
             iss >> params.num_sweeps;
         } else if (key == "save_interval") {
             iss >> params.save_interval;
+        } else if (key == "boundary") {
+            iss >> params.boundary;
+        } else if (key == "exclude_boundary_slices") {
+            iss >> params.exclude_boundary_slices;
         }
     }
     
@@ -212,6 +220,10 @@ void print_params(const SimulationParams &params) {
     std::cout << "Smearing steps:          " << params.smear_steps << std::endl;
     std::cout << "Smearing output interval:" << params.smear_interval << std::endl;
     std::cout << "Smearing alpha:          " << params.smear_alpha << std::endl;
+    std::cout << "Boundary conditions:     " << params.boundary << std::endl;
+    if (params.boundary == "open" && params.exclude_boundary_slices > 0) {
+        std::cout << "Exclude boundary slices: " << params.exclude_boundary_slices << " (from each end)" << std::endl;
+    }
     std::cout << "========================================" << std::endl;
 }
 
@@ -313,7 +325,13 @@ int main(int argc, char *argv[]) {
         }
         
         // Compute topological charge at final smearing
-        double Q = compute_topological_charge(smeared_gauge_field, T, L);
+        // Use boundary-excluded version for open BC if exclude_boundary_slices > 0
+        double Q;
+        if (params.boundary == "open" && params.exclude_boundary_slices > 0) {
+            Q = compute_topological_charge_open(smeared_gauge_field, T, L, params.exclude_boundary_slices);
+        } else {
+            Q = compute_topological_charge(smeared_gauge_field, T, L);
+        }
         
         // Compute average plaquette
         double plaq = Average_Plaquette(smeared_gauge_field, T, L);

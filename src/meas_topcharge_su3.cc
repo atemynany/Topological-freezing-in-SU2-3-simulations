@@ -124,6 +124,8 @@ struct MeasParams {
     int start_conf, end_conf, conf_step;
     int smear_steps;
     double smear_alpha;
+    std::string boundary;          // "periodic" or "open"
+    int exclude_boundary_slices;   // Time slices to exclude from each boundary (for open BC)
 };
 
 bool read_input(const char *filename, MeasParams &p) {
@@ -135,6 +137,8 @@ bool read_input(const char *filename, MeasParams &p) {
     p.T = 8; p.L = 8;
     p.start_conf = 10; p.end_conf = 100; p.conf_step = 10;
     p.smear_steps = 20; p.smear_alpha = 0.45;
+    p.boundary = "periodic";
+    p.exclude_boundary_slices = 0;
     
     std::string line, key;
     while (std::getline(f, line)) {
@@ -150,6 +154,8 @@ bool read_input(const char *filename, MeasParams &p) {
         else if (key == "conf_step") iss >> p.conf_step;
         else if (key == "smear_steps") iss >> p.smear_steps;
         else if (key == "smear_alpha") iss >> p.smear_alpha;
+        else if (key == "boundary") iss >> p.boundary;
+        else if (key == "exclude_boundary_slices") iss >> p.exclude_boundary_slices;
     }
     return true;
 }
@@ -183,6 +189,11 @@ int main(int argc, char **argv) {
     std::cout << "SU(3) Topological Charge Measurement\n";
     std::cout << "Lattice: " << T_size << "x" << L_size << "^3\n";
     std::cout << "Smearing: " << params.smear_steps << " steps, alpha=" << params.smear_alpha << "\n";
+    std::cout << "Boundary: " << params.boundary;
+    if (params.boundary == "open" && params.exclude_boundary_slices > 0) {
+        std::cout << " (excluding " << params.exclude_boundary_slices << " slices from each end)";
+    }
+    std::cout << "\n";
     
     for (int conf = params.start_conf; conf <= params.end_conf; conf += params.conf_step) {
         char fname[512];
@@ -195,7 +206,12 @@ int main(int argc, char **argv) {
         
         // Smear and measure
         for (int step = 0; step <= params.smear_steps; step++) {
-            double Q = su3_topological_charge(gf_smeared, T_size, L_size);
+            double Q;
+            if (params.boundary == "open" && params.exclude_boundary_slices > 0) {
+                Q = su3_topological_charge_open(gf_smeared, T_size, L_size, params.exclude_boundary_slices);
+            } else {
+                Q = su3_topological_charge(gf_smeared, T_size, L_size);
+            }
             
             if (step == params.smear_steps) {
                 fprintf(out, "%d %d %.10e\n", conf, step, Q);

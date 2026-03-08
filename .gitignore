@@ -5,11 +5,7 @@ build/
 *.so
 
 # Data & Output (large files)
-data/results/*/configs/
-data/results/*/*.log
-data/results/*/output/
-!data/results/*/input.txt
-!data/results/*/run_info.txt
+data/results/
 output/configs_su2/
 output/configs_su3/
 output/figures_*/

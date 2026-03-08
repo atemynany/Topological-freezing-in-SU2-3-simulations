@@ -394,27 +394,95 @@ def plot_all_histograms_grid(runs: List[RunData], results: List[AnalysisResult],
     print(f"Saved: Q_histograms_all_{gauge_group}.png")
 
 
+def plot_Q_vs_mctime(run_data: RunData, output_dir: str, gauge_group: str = "su2"):
+    """
+    Plot rescaled (integer) topological charge Q vs Monte Carlo time.
+    Shows Q rounded to nearest integer for easier visualization.
+    """
+    fig, ax = plt.subplots(figsize=(12, 5))
+    
+    # Use rescaled Q (already rounded to integers)
+    Q_int = run_data.Q_rescaled
+    mc_indices = np.arange(len(Q_int))
+    
+    # Plot Q vs MC time
+    ax.plot(mc_indices, Q_int, '-', color='steelblue', linewidth=0.8, alpha=0.8)
+    ax.scatter(mc_indices, Q_int, c='steelblue', s=15, alpha=0.6, zorder=3)
+    
+    # Add horizontal lines at integer values for reference
+    Q_min, Q_max = int(Q_int.min()), int(Q_int.max())
+    for q_int in range(Q_min, Q_max + 1):
+        ax.axhline(y=q_int, color='gray', linestyle='--', alpha=0.3, linewidth=0.5)
+    
+    ax.set_xlabel('Monte Carlo Configuration', fontsize=12)
+    ax.set_ylabel(r'$Q_{\rm rescaled}$ (integer)', fontsize=12)
+    ax.set_title(f'{gauge_group.upper()} β={run_data.beta:.2f}: Topological Charge vs MC Time', fontsize=12)
+    ax.grid(True, alpha=0.3)
+    
+    # Set y-axis to integer ticks
+    ax.set_yticks(np.arange(Q_min, Q_max + 1))
+    
+    # Add statistics text
+    Q_mean = np.mean(Q_int)
+    Q_std = np.std(Q_int)
+    n_tunneling = np.sum(np.abs(np.diff(Q_int)) > 0)  # Count topology changes
+    textstr = f'$\\langle Q \\rangle = {Q_mean:.2f}$\n'
+    textstr += f'$\\sigma_Q = {Q_std:.2f}$\n'
+    textstr += f'Topology changes: {n_tunneling}'
+    ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
+            verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+    
+    plt.tight_layout()
+    
+    # Save to figures_su2 or figures_su3
+    filename = f"Q_vs_mctime_b{run_data.beta:.2f}.png"
+    filepath = os.path.join(output_dir, filename)
+    plt.savefig(filepath, dpi=200)
+    plt.close()
+    print(f"  Saved: {filename}")
+
+
 def lattice_spacing_su2(beta: float) -> float:
     """
-    Estimate lattice spacing a(β) for SU(2) in fm.
-    Simple parameterization calibrated so that χ_t^(1/4) ≈ 200 MeV at β=2.3.
-    Uses asymptotic scaling with corrections.
+    Lattice spacing a(β) for SU(2) in fm using gradient flow scale t₀.
+    
+    From arXiv:1811.02800 "Thermodynamics for SU(2) pure gauge theory using gradient flow"
+    Eq: ln(t₀/a²) = 1.285 + 6.409(β − 2.600) − 0.7411(β − 2.600)²
+    Reference: √(8t₀) = 0.3010(43)(20) fm → t₀ = 0.01133 fm²
     """
-    # Reference point: β=2.3, a ≈ 0.13 fm (from χ_t^(1/4) = 200 MeV)
-    beta_ref = 2.3
-    a_ref = 0.13  # fm
+    t0 = (0.3010)**2 / 8  # fm², from √(8t₀) = 0.3010 fm
+    x = beta - 2.600
+    ln_t0_over_a2 = 1.285 + 6.409 * x - 0.7411 * x**2
+    a = np.sqrt(t0 / np.exp(ln_t0_over_a2))
+    return a  # in fm
+
+
+def lattice_spacing_su3(beta: float) -> float:
+    """
+    Lattice spacing a(β) for SU(3) in fm using Necco-Sommer scale r₀.
     
-    # Two-loop beta function coefficient for SU(2)
-    b0 = 11 / (12 * np.pi**2)  # ≈ 0.093
-    
-    # Simple scaling: a(β) = a_ref * exp(-b0 * 4 * (β - β_ref))
-    # Adjusted coefficient to match typical SU(2) lattice spacings
-    return a_ref * np.exp(-1.5 * (beta - beta_ref))
+    From arXiv:hep-lat/0108008 "The Nf=0 heavy quark potential from short to intermediate distances"
+    Eq: ln(a/r₀) = −1.6804 − 1.7331(β − 6) + 0.7849(β − 6)² − 0.4428(β − 6)³
+    Valid for 5.7 ≤ β ≤ 6.92
+    Reference: r₀ = 0.5 fm (Sommer parameter)
+    """
+    r0 = 0.5  # fm
+    x = beta - 6.0
+    ln_a_over_r0 = -1.6804 - 1.7331 * x + 0.7849 * x**2 - 0.4428 * x**3
+    a = r0 * np.exp(ln_a_over_r0)
+    return a  # in fm
+
+
+def beta_to_a(beta: float, gauge_group: str = "su2") -> float:
+    """Convert β to lattice spacing a (fm). Wrapper for secondary axis."""
+    if gauge_group == "su3":
+        return lattice_spacing_su3(beta)
+    return lattice_spacing_su2(beta)
 
 
 def plot_susceptibility_vs_beta(results: List[AnalysisResult], output_dir: str, 
                                  gauge_group: str = "su2"):
-    """Plot topological susceptibility vs beta."""
+    """Plot topological susceptibility vs beta with secondary axis showing a(fm)."""
     betas = np.array([r.beta for r in results])
     chi_fourth_a = np.array([r.chi_t_fourth_root_a for r in results])
     
@@ -423,16 +491,15 @@ def plot_susceptibility_vs_beta(results: List[AnalysisResult], output_dir: str,
     betas = betas[idx]
     chi_fourth_a = chi_fourth_a[idx]
     
-    # Compute χ_t^(1/4) in MeV using lattice spacing estimate
-    if gauge_group == "su2":
-        a_beta = np.array([lattice_spacing_su2(b) for b in betas])
-        chi_fourth_MeV = chi_fourth_a / a_beta
-        ref_value = CHI_T_FOURTH_ROOT_SU2
-    else:
-        # For SU(3), would need different parameterization
-        a_beta = chi_fourth_a / CHI_T_FOURTH_ROOT_SU3  # Use implied a
-        chi_fourth_MeV = chi_fourth_a / a_beta
+    # Compute χ_t^(1/4) in MeV using proper lattice spacing
+    if gauge_group == "su3":
+        a_beta = np.array([lattice_spacing_su3(b) for b in betas])
         ref_value = CHI_T_FOURTH_ROOT_SU3
+    else:
+        a_beta = np.array([lattice_spacing_su2(b) for b in betas])
+        ref_value = CHI_T_FOURTH_ROOT_SU2
+    
+    chi_fourth_MeV = chi_fourth_a / a_beta
     
     fig, ax = plt.subplots(figsize=(10, 6))
     
@@ -448,6 +515,20 @@ def plot_susceptibility_vs_beta(results: List[AnalysisResult], output_dir: str,
     ax.legend(loc='upper right')
     ax.grid(True, alpha=0.3)
     
+    # Add secondary x-axis for lattice spacing a(fm)
+    def beta_to_a_local(b):
+        if gauge_group == "su3":
+            return lattice_spacing_su3(b)
+        return lattice_spacing_su2(b)
+    
+    def a_to_beta_local(a):
+        # Inverse mapping (approximate via interpolation)
+        # For display purposes, use discrete beta values
+        return np.interp(a, a_beta[::-1], betas[::-1])
+    
+    ax2 = ax.secondary_xaxis('top', functions=(beta_to_a_local, a_to_beta_local))
+    ax2.set_xlabel(r'$a$ (fm)', fontsize=12)
+    
     plt.tight_layout()
     
     filepath = os.path.join(output_dir, f"susceptibility_vs_beta_{gauge_group}.png")
@@ -455,11 +536,15 @@ def plot_susceptibility_vs_beta(results: List[AnalysisResult], output_dir: str,
     plt.close()
     print(f"Saved: susceptibility_vs_beta_{gauge_group}.png")
     
-    # Save data to file (using filtered data)
+    # Save data to file
     data_file = os.path.join(output_dir, f"susceptibility_data_{gauge_group}.txt")
     with open(data_file, 'w') as f:
         f.write(f"# Topological susceptibility data for {gauge_group.upper()}\n")
         f.write(f"# Reference: chi_t^(1/4) = {ref_value} MeV\n")
+        if gauge_group == "su2":
+            f.write(f"# Scale setting: arXiv:1811.02800, sqrt(8t0) = 0.3010 fm\n")
+        else:
+            f.write(f"# Scale setting: arXiv:hep-lat/0108008, r0 = 0.5 fm\n")
         f.write("# beta    a(beta) [fm]    chi_t^1/4*a [MeV*fm]    chi_t^1/4 [MeV]\n")
         for i in range(len(betas)):
             f.write(f"{betas[i]:.4f}    {a_beta[i]:.4f}    {chi_fourth_a[i]:8.3f}    {chi_fourth_MeV[i]:8.1f}\n")
@@ -468,7 +553,7 @@ def plot_susceptibility_vs_beta(results: List[AnalysisResult], output_dir: str,
 
 def plot_tau_int_vs_beta(results: List[AnalysisResult], output_dir: str, 
                          gauge_group: str = "su2"):
-    """Plot integrated autocorrelation time vs beta."""
+    """Plot integrated autocorrelation time vs beta with secondary axis showing a(fm)."""
     betas = np.array([r.beta for r in results])
     tau_int = np.array([r.tau_int for r in results])
     dtau_int = np.array([r.dtau_int for r in results])
@@ -478,6 +563,12 @@ def plot_tau_int_vs_beta(results: List[AnalysisResult], output_dir: str,
     betas = betas[idx]
     tau_int = tau_int[idx]
     dtau_int = dtau_int[idx]
+    
+    # Compute lattice spacings for secondary axis
+    if gauge_group == "su3":
+        a_beta = np.array([lattice_spacing_su3(b) for b in betas])
+    else:
+        a_beta = np.array([lattice_spacing_su2(b) for b in betas])
     
     fig, ax = plt.subplots(figsize=(10, 6))
     
@@ -489,7 +580,25 @@ def plot_tau_int_vs_beta(results: List[AnalysisResult], output_dir: str,
     ax.set_title(f'{gauge_group.upper()} Integrated Autocorrelation Time', fontsize=14)
     ax.grid(True, alpha=0.3)
     
+    # Add secondary x-axis for lattice spacing a(fm)
+    def beta_to_a_local(b):
+        if gauge_group == "su3":
+            return lattice_spacing_su3(b)
+        return lattice_spacing_su2(b)
+    
+    def a_to_beta_local(a):
+        # Inverse mapping (approximate via interpolation)
+        return np.interp(a, a_beta[::-1], betas[::-1])
+    
+    ax2 = ax.secondary_xaxis('top', functions=(beta_to_a_local, a_to_beta_local))
+    ax2.set_xlabel(r'$a$ (fm)', fontsize=12)
+    
     plt.tight_layout()
+    
+    filepath = os.path.join(output_dir, f"tau_int_vs_beta_{gauge_group}.png")
+    plt.savefig(filepath, dpi=200)
+    plt.close()
+    print(f"Saved: tau_int_vs_beta_{gauge_group}.png")
     
     filepath = os.path.join(output_dir, f"tau_int_vs_beta_{gauge_group}.png")
     plt.savefig(filepath, dpi=200)
@@ -639,6 +748,9 @@ def main():
         
         # Save individual histogram
         plot_Q_histogram(run_data, result, output_dir, gauge_group)
+        
+        # Save Q vs MC time plot (rescaled to integers)
+        plot_Q_vs_mctime(run_data, output_dir, gauge_group)
     
     if len(runs) == 0:
         print("No valid runs found!")

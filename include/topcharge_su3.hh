@@ -199,4 +199,29 @@ inline double su3_topological_charge(const double * __restrict__ gf, int T, int 
     return Q / (4.0 * M_PI * M_PI);
 }
 
+// SU(3) topological charge with boundary exclusion for open BC
+inline double su3_topological_charge_open(const double * __restrict__ gf, int T, int L, int exclude_boundary) {
+    double Q = 0.0;
+    
+    const int t_min = exclude_boundary;
+    const int t_max = T - exclude_boundary;
+    
+    if (t_min >= t_max) {
+        return su3_topological_charge(gf, T, L);
+    }
+    
+    #pragma omp parallel for reduction(+:Q) schedule(static)
+    for (int it = t_min; it < t_max; it++) {
+        for (int ix = 0; ix < L; ix++) {
+            for (int iy = 0; iy < L; iy++) {
+                for (int iz = 0; iz < L; iz++) {
+                    Q += su3_local_topcharge_density(gf, it, ix, iy, iz);
+                }
+            }
+        }
+    }
+    
+    return Q / (4.0 * M_PI * M_PI);
+}
+
 #endif // TOPCHARGE_SU3_HH

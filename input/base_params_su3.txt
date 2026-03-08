@@ -27,5 +27,6 @@ end_conf            10000                       # Last configuration to analyze
 conf_step           10                         # Step between configurations (same as save_interval)
 smear_steps         20                         # Number of APE smearing steps
 smear_alpha         0.3                       # APE smearing parameter (α)
+exclude_boundary_slices 0                      # Time slices to exclude from each boundary (for open BC)
 
 # ==============================================================================
