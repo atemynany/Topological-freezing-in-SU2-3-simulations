@@ -42,7 +42,7 @@ Results saved to `data/results/` and plots to `output/figures_analysis/`.
 
 ## Output
 
-- `data/results/T{T}_L{L}_b{beta}_seed{seed}/` - Per-run results
+- `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}/` - Per-run results
   - `configs/` - Gauge configurations
   - `output/topcharge.dat` - Q measurements
   - `run_info.txt` - Run metadata

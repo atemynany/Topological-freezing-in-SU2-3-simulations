@@ -328,8 +328,12 @@ for BETA in "${BETAS[@]}"; do
     SEED=$(generate_seed)
     sleep 0.1  # Ensure unique seeds if running fast
     
-    # Create run-specific output directory
-    RUN_NAME="T${T_SIZE}_L${L_SIZE}_b${BETA}_seed${SEED}"
+    # Read boundary from params file for directory naming
+    BOUNDARY=$(read_param "boundary" "$PARAMS_FILE")
+    BOUNDARY=${BOUNDARY:-periodic}
+    
+    # Create run-specific output directory (includes boundary in name)
+    RUN_NAME="T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed${SEED}"
     RUN_DIR="$RESULTS_DIR/$RUN_NAME"
     RUN_OUTPUT_DIR="$RUN_DIR/output"
     RUN_CONFIG_DIR="$RUN_DIR/configs"

@@ -258,9 +258,9 @@ def load_run_data(run_dir: str, gauge_group: str = "su2", min_sweeps: int = 1000
     
     # Parse boundary from directory name (e.g., T16_L16_b2.50_open_seed12345)
     dirname = os.path.basename(run_dir)
-    if '_open_' in dirname:
+    if '_open_' in dirname or dirname.endswith('_open'):
         boundary = 'open'
-    elif '_periodic_' in dirname:
+    elif '_periodic_' in dirname or dirname.endswith('_periodic'):
         boundary = 'periodic'
     else:
         boundary = info.get('boundary', 'periodic')

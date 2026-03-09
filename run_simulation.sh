@@ -30,7 +30,7 @@
 #   ./run_simulation.sh --dry-run          # Preview without executing
 #
 # Output:
-#   Results are saved to data/results/T{T}_L{L}_b{beta}_seed{seed}/
+#   Results are saved to data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}/
 #   Analysis plots go to output/figures_beta_scan_{su2|su3}/
 #
 # Configuration:

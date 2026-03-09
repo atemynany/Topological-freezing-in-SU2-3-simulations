@@ -62,7 +62,7 @@ def main():
     print(f"\n{gauge_group.upper()} Analysis")
     print(f"Output: {output_dir}\n")
     
-    run_dirs = sorted(glob.glob(os.path.join(results_dir, "T*_L*_b*_seed*")))
+    run_dirs = sorted(glob.glob(os.path.join(results_dir, "T*_L*_b*_*_seed*")))
     
     runs_periodic, runs_open = [], []
     results_periodic, results_open = [], []
