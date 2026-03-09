@@ -1,2 +1,0 @@
-# Test beta scan - single value for quick testing
-2.5

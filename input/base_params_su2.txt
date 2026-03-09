@@ -14,7 +14,7 @@ L                   16                         # Spatial extent
 # Monte Carlo parameters
 # ------------------------------------------------------------------------------
 start_type          cold                       # Start type: "cold" or "hot"
-boundary            open                   # Boundary conditions: "periodic" or "open"
+boundary            periodic                   # Boundary conditions: "periodic" or "open"
 num_sweeps          1000                       # Total number of MC sweeps
 save_interval       10                         # Save configuration every N sweeps
 
@@ -27,6 +27,6 @@ conf_step           10                         # Step between configurations (sa
 smear_steps         20                         # Number of APE smearing steps
 smear_interval      20                         # Output Q every N smearing steps
 smear_alpha         0.3                        # APE smearing parameter (α)
-exclude_boundary_slices 2                      # Time slices to exclude from each boundary (for open BC)
+exclude_boundary_slices 0                      # Time slices to exclude from each boundary (for open BC)
 
 # ==============================================================================
