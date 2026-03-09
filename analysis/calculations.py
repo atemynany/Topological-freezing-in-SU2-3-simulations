@@ -256,7 +256,14 @@ def load_run_data(run_dir: str, gauge_group: str = "su2", min_sweeps: int = 1000
     if num_sweeps < min_sweeps:
         return None
     
-    boundary = info.get('boundary', 'periodic')
+    # Parse boundary from directory name (e.g., T16_L16_b2.50_open_seed12345)
+    dirname = os.path.basename(run_dir)
+    if '_open_' in dirname:
+        boundary = 'open'
+    elif '_periodic_' in dirname:
+        boundary = 'periodic'
+    else:
+        boundary = info.get('boundary', 'periodic')
     
     candidates = [
         os.path.join(run_dir, "output", "topcharge.dat"),

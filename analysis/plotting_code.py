@@ -161,6 +161,7 @@ def plot_susceptibility_combined(results_periodic: List[AnalysisResult],
     ref_value = CHI_T_FOURTH_ROOT_SU2 if gauge_group == "su2" else CHI_T_FOURTH_ROOT_SU3
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
     
+    point_counter = 1
     for results, label, marker, color in [
         (results_periodic, 'Periodic', 'o', 'steelblue'),
         (results_open, 'Open', 's', 'darkorange')
@@ -179,9 +180,15 @@ def plot_susceptibility_combined(results_periodic: List[AnalysisResult],
         
         ax.plot(a_values, chi_fourth_MeV, marker, markersize=7, linestyle='none',
                 color=color, label=label)
+        
+        # Add numeric labels to each point
+        for i, (x, y) in enumerate(zip(a_values, chi_fourth_MeV)):
+            ax.annotate(str(point_counter), (x, y), textcoords='offset points',
+                        xytext=(3, 3), fontsize=7, color=color)
+            point_counter += 1
     
     ax.axhline(y=ref_value, color='gray', linestyle='--', linewidth=1, alpha=0.7)
-    ax.invert_xaxis()
+    ax.axhline(y=220, color='gray', linestyle='--', linewidth=1, alpha=0.7)
     
     ax.set_xlabel(r'$a$ (fm)')
     ax.set_ylabel(r'$\chi_t^{1/4}$ (MeV)')
@@ -203,6 +210,7 @@ def plot_tau_int_combined(results_periodic: List[AnalysisResult],
     
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
     
+    point_counter = 1
     for results, label, marker, color in [
         (results_periodic, 'Periodic', 'o', 'steelblue'),
         (results_open, 'Open', 's', 'darkorange')
@@ -220,8 +228,12 @@ def plot_tau_int_combined(results_periodic: List[AnalysisResult],
         
         ax.errorbar(a_values, tau_int, yerr=dtau_int, fmt=marker, markersize=7,
                     linestyle='none', capsize=3, color=color, label=label)
-    
-    ax.invert_xaxis()
+        
+        # Add numeric labels to each point
+        for i, (x, y) in enumerate(zip(a_values, tau_int)):
+            ax.annotate(str(point_counter), (x, y), textcoords='offset points',
+                        xytext=(3, 3), fontsize=7, color=color)
+            point_counter += 1
     
     ax.set_xlabel(r'$a$ (fm)')
     ax.set_ylabel(r'$\tau_{\rm int}(Q^2)$')
