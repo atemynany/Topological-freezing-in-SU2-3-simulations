@@ -385,11 +385,13 @@ for BETA in "${BETAS[@]}"; do
         fi
     fi
     
-    # Run thermalization detection script (using conda environment)
-    START_CONF=$(conda run -n "$CONDA_ENV" python3 "$SCRIPT_DIR/detect_thermalization.py" "$PLAQ_PATH" "$SAVE_INTERVAL" 2>&1 | tail -1)
+    # Run thermalization detection script
+    # Note: stdout = start_conf number, stderr = debug message (shown in terminal)
+    log_info "Running thermalization detection..."
+    START_CONF=$(conda run -n "$CONDA_ENV" python3 "$SCRIPT_DIR/detect_thermalization.py" "$PLAQ_PATH" "$SAVE_INTERVAL")
     
     if ! [[ "$START_CONF" =~ ^[0-9]+$ ]]; then
-        log_warn "Could not detect thermalization, using default start_conf=50"
+        log_warn "Could not detect thermalization (got: '$START_CONF'), using default start_conf=50"
         START_CONF=50
     fi
     
@@ -469,13 +471,13 @@ echo ""
 if [ "$DRY_RUN" = false ]; then
     log_step "Running analysis..."
     if command -v conda &> /dev/null && conda run -n "$CONDA_ENV" python3 --version &> /dev/null; then
-        conda run -n "$CONDA_ENV" python3 "$PROJECT_DIR/analysis/analyze_beta_scan.py" --${GAUGE_GROUP} --results-dir "$RESULTS_DIR" || log_warn "Analysis failed (non-fatal)"
+        conda run -n "$CONDA_ENV" python3 "$PROJECT_DIR/analysis/analysis.py" --${GAUGE_GROUP} --results-dir "$RESULTS_DIR" || log_warn "Analysis failed (non-fatal)"
     elif command -v python3 &> /dev/null; then
-        python3 "$PROJECT_DIR/analysis/analyze_beta_scan.py" --${GAUGE_GROUP} --results-dir "$RESULTS_DIR" || log_warn "Analysis failed (non-fatal)"
+        python3 "$PROJECT_DIR/analysis/analysis.py" --${GAUGE_GROUP} --results-dir "$RESULTS_DIR" || log_warn "Analysis failed (non-fatal)"
     else
         log_warn "Python not found, skipping analysis"
     fi
 fi
 
 log_info "To re-run analysis:"
-echo "  python3 analysis/analyze_beta_scan.py --${GAUGE_GROUP} --results-dir $RESULTS_DIR"
+echo "  python3 analysis/analysis.py --${GAUGE_GROUP} --results-dir $RESULTS_DIR"

@@ -21,7 +21,7 @@ nano input/beta_scan_su2.txt
 
 # 3. Analyze results
 conda activate master_thesis
-python analysis/analyze_beta_scan.py --su2
+python analysis/analysis.py --su2
 ```
 
 Results saved to `data/results/` and plots to `output/figures_analysis/`.
@@ -49,7 +49,7 @@ Results saved to `data/results/` and plots to `output/figures_analysis/`.
 
 ## Analysis
 
-Key outputs from `analyze_beta_scan.py`:
+Key outputs from `analysis.py`:
 - **χ_t^(1/4) vs β** - Susceptibility (should match ~200 MeV for SU(2))
 - **τ_int(Q²) vs β** - Autocorrelation time (increases with β → freezing)
 - **Q histograms** - Distribution narrowing indicates freezing

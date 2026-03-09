@@ -25,14 +25,18 @@ import os
 # Configuration
 # ==============================================================================
 SMOOTHING_WINDOW = 10
-DERIVATIVE_THRESHOLD = 1e-5
+RELATIVE_THRESHOLD = 0.05  # Thermalized when |deriv| < 5% of initial |deriv|
 
 # ==============================================================================
 # Thermalization Detection (reusing existing logic)
 # ==============================================================================
 
-def find_thermalization_point(mc_time, plaq_data, window=SMOOTHING_WINDOW, threshold=DERIVATIVE_THRESHOLD):
-    """Find thermalization point using numerical derivative."""
+def find_thermalization_point(mc_time, plaq_data, window=SMOOTHING_WINDOW, rel_threshold=RELATIVE_THRESHOLD):
+    """Find thermalization point using numerical derivative.
+    
+    Thermalization is detected when the smoothed derivative drops below
+    rel_threshold * max(|derivative|), indicating equilibrium reached.
+    """
     
     # Handle edge case: not enough data
     if len(plaq_data) < 2 * window:
@@ -40,27 +44,40 @@ def find_thermalization_point(mc_time, plaq_data, window=SMOOTHING_WINDOW, thres
     
     kernel = np.ones(window) / window
     plaq_smoothed = np.convolve(plaq_data, kernel, mode='valid')
-    mc_smoothed = mc_time[window//2 : window//2 + len(plaq_smoothed)]
     
-    dt = np.diff(mc_smoothed)
     dP = np.diff(plaq_smoothed)
-    derivative = dP / dt
+    derivative = dP  # dt=1 for consecutive sweeps
     
-    deriv_smoothed = np.convolve(derivative, kernel, mode='valid') if len(derivative) > window else derivative
+    deriv_smoothed = np.convolve(np.abs(derivative), kernel, mode='valid') if len(derivative) > window else np.abs(derivative)
     
-    zero_crossings = np.where(np.abs(deriv_smoothed) < threshold)[0]
+    # Use relative threshold: thermalized when derivative < rel_threshold * max
+    max_deriv = np.max(deriv_smoothed[:min(20, len(deriv_smoothed))])  # Max from early sweeps
+    threshold = rel_threshold * max_deriv
     
-    if len(zero_crossings) < 2:
-        median_deriv = np.median(np.abs(deriv_smoothed))
-        zero_crossings = np.where(np.abs(deriv_smoothed) < median_deriv)[0]
+    # Find first point where derivative stays below threshold
+    below_threshold = deriv_smoothed < threshold
     
-    if len(zero_crossings) >= 2:
-        therm_idx_in_smoothed = zero_crossings[1]
-        therm_idx = therm_idx_in_smoothed + window
-    else:
-        therm_idx = len(plaq_data) // 5
+    # Look for sustained period below threshold (at least 5 consecutive points)
+    therm_idx_smoothed = None
+    consecutive = 0
+    for i, below in enumerate(below_threshold):
+        if below:
+            consecutive += 1
+            if consecutive >= 5 and therm_idx_smoothed is None:
+                therm_idx_smoothed = i - 4  # Start of the sustained period
+                break
+        else:
+            consecutive = 0
     
+    if therm_idx_smoothed is None:
+        # Fallback: use first crossing
+        crossings = np.where(below_threshold)[0]
+        therm_idx_smoothed = crossings[0] if len(crossings) > 0 else len(plaq_data) // 5
+    
+    # Account for offset from two convolutions
+    therm_idx = therm_idx_smoothed + window
     therm_idx = min(therm_idx, len(plaq_data) - 1)
+    
     return therm_idx, derivative, deriv_smoothed
 
 

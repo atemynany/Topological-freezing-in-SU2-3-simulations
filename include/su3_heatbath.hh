@@ -54,12 +54,13 @@ inline void su2_kennedy_pendleton(double *a, double k, double beta, double (*dra
     // Uniform on sphere for (a1, a2, a3)
     double r = sqrt(1.0 - a0 * a0);
     double phi = 2.0 * M_PI * drand();
-    double theta = asin(2.0 * drand() - 1.0);  // CL2QCD formula
+    double cos_theta = 2.0 * drand() - 1.0;  // Uniform in [-1, 1] for full sphere
+    double sin_theta = sqrt(1.0 - cos_theta * cos_theta);
     
     a[0] = a0;
-    a[1] = r * cos(theta) * cos(phi);
-    a[2] = r * cos(theta) * sin(phi);
-    a[3] = r * sin(theta);
+    a[1] = r * sin_theta * cos(phi);
+    a[2] = r * sin_theta * sin(phi);
+    a[3] = r * cos_theta;
 }
 
 // Cabibbo-Marinari heatbath - updates U using staple
