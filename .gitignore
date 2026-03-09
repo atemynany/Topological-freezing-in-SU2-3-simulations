@@ -34,7 +34,5 @@ Thumbs.db
 *.out
 *.err
 
-# Generated input files
-input/beta_scan_*_periodic.txt
-input/beta_scan_*_open.txt
-input/base_params_*_open.txt
+# Input files
+input/
