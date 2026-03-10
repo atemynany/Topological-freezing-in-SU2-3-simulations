@@ -151,9 +151,8 @@ log_step() {
 
 # Generate unique seed from Unix timestamp (10 digits)
 generate_seed() {
-    # Use nanoseconds for uniqueness
-    local seed=$(date +%s%N | cut -c1-10)
-    # Ensure it's a valid integer
+    # Portable seed generation (macOS date does not support %N)
+    local seed=$(python3 -c "import time; print(int(time.time()*1e9))" 2>/dev/null | cut -c1-10 || echo $(($(date +%s) * $$ % 2147483647)))
     echo "$seed"
 }
 
@@ -296,7 +295,7 @@ if [ "$SKIP_BUILD" = false ]; then
         mkdir -p "$PROJECT_DIR/build"
         cd "$PROJECT_DIR/build"
         cmake .. -DCMAKE_BUILD_TYPE=Release > /dev/null 2>&1
-        make -j$(nproc) $HEATBATH_BIN $TOPCHARGE_BIN 2>&1 | tail -3
+        make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) $HEATBATH_BIN $TOPCHARGE_BIN 2>&1 | tail -3
         cd "$PROJECT_DIR"
         log_success "Build complete"
     else

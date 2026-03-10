@@ -27,7 +27,7 @@ if [ ! -f "build/bin/meas_topcharge" ]; then
     echo "Building meas_topcharge..."
     mkdir -p build && cd build
     cmake .. -DCMAKE_BUILD_TYPE=Release > /dev/null
-    make -j$(nproc) meas_topcharge
+    make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) meas_topcharge
     cd ..
 fi
 

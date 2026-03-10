@@ -27,7 +27,7 @@ if [ ! -f "build/bin/mc_heatbath" ]; then
     echo "Building mc_heatbath..."
     mkdir -p build && cd build
     cmake .. -DCMAKE_BUILD_TYPE=Release > /dev/null
-    make -j$(nproc) mc_heatbath
+    make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) mc_heatbath
     cd ..
 fi
 

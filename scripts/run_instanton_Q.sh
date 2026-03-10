@@ -121,7 +121,7 @@ fi
 
 cd "$BUILD_DIR"
 cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc) compute_instanton_Q
+make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) compute_instanton_Q
 
 # Step 2: Create output directory
 echo -e "${YELLOW}[2/4] Setting up output directory...${NC}"
