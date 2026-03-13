@@ -25,6 +25,9 @@ __pycache__/
 *.pyc
 *.egg-info/
 
+# Notebooks
+tests.ipynb
+
 # IDE
 .vscode/
 .idea/
