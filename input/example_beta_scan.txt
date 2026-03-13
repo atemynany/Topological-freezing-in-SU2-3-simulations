@@ -1,0 +1,15 @@
+# ==============================================================================
+# Example Beta Scan Configuration
+# ==============================================================================
+# Copy this file: cp input/example_beta_scan.txt input/beta_scan_su2.txt
+# List beta values to scan, one per line
+# Lines starting with # are comments
+# ==============================================================================
+
+# SU(2) typical range: 2.3 - 2.8
+# Larger beta = finer lattice = more freezing
+2.5
+2.6
+2.7
+
+# SU(3) typical range: 5.8 - 6.4 (use a separate file)

@@ -4,8 +4,14 @@ build/
 *.a
 *.so
 
-# Data & Output (large files)
-data/results/
+# Data (large files)
+data/*
+!data/.gitkeep
+!data/results/
+data/results/*
+!data/results/.gitkeep
+
+# Output (generated files)
 output/configs_su2/
 output/configs_su3/
 output/figures_*/
@@ -34,5 +40,11 @@ Thumbs.db
 *.out
 *.err
 
-# Input files
-input/
+# Input files (user-specific, examples tracked)
+input/*
+!input/.gitkeep
+!input/example_base_params.txt
+!input/example_beta_scan.txt
+
+# Output folder structure (keep dirs, ignore content)
+!output/.gitkeep

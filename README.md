@@ -8,6 +8,30 @@ Monte Carlo simulation of topological charge in SU(2) and SU(3) lattice gauge th
 ./scripts/build.sh release
 ```
 
+### macOS (Apple Silicon)
+
+Uncomment the `CMAKE_OSX_ARCHITECTURES` line in `CMakeLists.txt`:
+```cmake
+set(CMAKE_OSX_ARCHITECTURES "arm64")
+```
+
+If OpenMP is missing on macOS, install via Homebrew:
+```bash
+brew install libomp
+```
+
+Then build normally. The CMake config auto-detects Clang on macOS.
+
+## Setup
+
+Copy the example input files and edit:
+```bash
+cp input/example_base_params.txt input/base_params_su2.txt
+cp input/example_beta_scan.txt input/beta_scan_su2.txt
+nano input/base_params_su2.txt  # adjust parameters
+nano input/beta_scan_su2.txt    # add beta values
+```
+
 ## Main Workflow: Beta Scan
 
 Run simulations across multiple β values and analyze:
@@ -58,3 +82,4 @@ Key outputs from `analysis.py`:
 
 - CMake ≥ 3.16, C++17 compiler
 - Python: numpy, matplotlib, pyerrors (conda env: `master_thesis`)
+- macOS: `brew install libomp` (for OpenMP support)
