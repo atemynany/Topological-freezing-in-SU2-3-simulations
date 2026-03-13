@@ -1,7 +1,8 @@
 #!/bin/bash
 # Test SU(3) plaquette against literature values
 
-cd /home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/SU23_freezing
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$(dirname "$SCRIPT_DIR")"
 
 echo "=== SU(3) Plaquette Validation ==="
 echo "Reference: Montvay & Münster, 'Quantum Fields on a Lattice'"

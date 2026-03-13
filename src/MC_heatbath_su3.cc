@@ -70,7 +70,8 @@ void init_neighbor_tables() {
 
 void su3_gauge_field_alloc(double **gf, int T, int L) {
     const int volume = T * L * L * L;
-    *gf = (double *)aligned_alloc(32, volume * 4 * 18 * sizeof(double));
+    if (posix_memalign((void **)gf, 32, volume * 4 * 18 * sizeof(double)) != 0)
+        *gf = nullptr;
 }
 
 void su3_gauge_field_free(double **gf) {

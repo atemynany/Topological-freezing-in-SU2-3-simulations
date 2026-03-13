@@ -2,12 +2,36 @@
 
 Monte Carlo simulation of topological charge in SU(2) and SU(3) lattice gauge theory to study topological freezing at fine lattice spacings.
 
+Works on **Linux** and **macOS** (including Apple Silicon).
+
+## Requirements
+
+- CMake ≥ 3.16
+- C++17 compiler (GCC, Clang, or Apple Clang)
+- Python 3: numpy, matplotlib, pyerrors
+
+### macOS extras
+
+```bash
+# install Xcode command line tools (gives you clang + make)
+xcode-select --install
+
+# install cmake (via Homebrew)
+brew install cmake
+
+# optional: OpenMP support for parallel loops
+brew install libomp
+```
+
+On macOS without `libomp`, everything still compiles and runs — just without OpenMP parallelization.
+
 ## Build
 
 ```bash
 ./scripts/build.sh release
 ```
 
+<<<<<<< HEAD
 ### macOS (Apple Silicon)
 
 Uncomment the `CMAKE_OSX_ARCHITECTURES` line in `CMakeLists.txt`:
@@ -30,6 +54,22 @@ cp input/example_base_params.txt input/base_params_su2.txt
 cp input/example_beta_scan.txt input/beta_scan_su2.txt
 nano input/base_params_su2.txt  # adjust parameters
 nano input/beta_scan_su2.txt    # add beta values
+=======
+Or manually:
+
+```bash
+mkdir -p build && cd build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake --build . --parallel 4
+```
+
+CMake auto-detects macOS and sets up the right flags. If you installed `libomp` via Homebrew, OpenMP is picked up automatically.
+
+## Run Tests
+
+```bash
+./scripts/run_tests.sh
+>>>>>>> d597f0d39e68b61ec71e0852c34255d51462337f
 ```
 
 ## Main Workflow: Beta Scan
@@ -44,8 +84,16 @@ nano input/beta_scan_su2.txt
 ./scripts/run_beta_scan.sh --su2
 
 # 3. Analyze results
-conda activate master_thesis
-python analysis/analysis.py --su2
+python3 analysis/analysis.py --su2
+```
+
+Or use the all-in-one entry point:
+
+```bash
+./run_simulation.sh --su2          # SU(2) with default betas
+./run_simulation.sh --su3          # SU(3) with default betas
+./run_simulation.sh --su2 --open   # SU(2) with open boundaries
+./run_simulation.sh --dry-run      # preview without running
 ```
 
 Results saved to `data/results/` and plots to `output/figures_analysis/`.
@@ -58,28 +106,44 @@ Results saved to `data/results/` and plots to `output/figures_analysis/`.
 | `mc_heatbath_su3` | SU(3) heatbath config generation |
 | `meas_topcharge` | SU(2) topological charge measurement |
 | `meas_topcharge_su3` | SU(3) topological charge measurement |
+| `compute_instanton_Q` | Instanton topological charge computation |
 
 ## Input Files
 
-- `input/base_params_su2.txt` - Simulation parameters (T, L, sweeps, smearing)
-- `input/beta_scan_su2.txt` - List of β values to scan
+- `input/base_params_su2.txt` — Simulation parameters (T, L, sweeps, smearing)
+- `input/base_params_su3.txt` — SU(3) simulation parameters
+- `input/beta_scan_su2.txt` — List of β values to scan
+- `input/beta_scan_su3.txt` — SU(3) β values
 
 ## Output
 
-- `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}/` - Per-run results
-  - `configs/` - Gauge configurations
-  - `output/topcharge.dat` - Q measurements
-  - `run_info.txt` - Run metadata
+- `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}/` — Per-run results
+  - `configs/` — Gauge configurations
+  - `output/topcharge.dat` — Q measurements
+  - `run_info.txt` — Run metadata
 
 ## Analysis
 
 Key outputs from `analysis.py`:
-- **χ_t^(1/4) vs β** - Susceptibility (should match ~200 MeV for SU(2))
-- **τ_int(Q²) vs β** - Autocorrelation time (increases with β → freezing)
-- **Q histograms** - Distribution narrowing indicates freezing
+- **χ_t^(1/4) vs β** — Susceptibility (should match ~200 MeV for SU(2))
+- **τ_int(Q²) vs β** — Autocorrelation time (increases with β → freezing)
+- **Q histograms** — Distribution narrowing indicates freezing
 
-## Requirements
+## Project Structure
 
+<<<<<<< HEAD
 - CMake ≥ 3.16, C++17 compiler
 - Python: numpy, matplotlib, pyerrors (conda env: `master_thesis`)
 - macOS: `brew install libomp` (for OpenMP support)
+=======
+```
+├── src/                  # C/C++ simulation sources
+├── include/              # Header files
+├── _Utility/             # Core library (fields, RNG, smearing)
+├── tests/                # Catch2 unit tests
+├── scripts/              # Build, run, and analysis scripts
+├── analysis/             # Python analysis and plotting
+├── input/                # Parameter and beta scan files
+└── run_simulation.sh     # Main entry point
+```
+>>>>>>> d597f0d39e68b61ec71e0852c34255d51462337f

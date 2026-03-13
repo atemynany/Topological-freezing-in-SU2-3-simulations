@@ -1,7 +1,7 @@
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-PYTHON="/home/alex/miniconda3/envs/master_thesis/bin/python"
+PYTHON="${PYTHON:-$(which python3)}"
 
 PLAQ_FILE=""
 Q_FILE=""

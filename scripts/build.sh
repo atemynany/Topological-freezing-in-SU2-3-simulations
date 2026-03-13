@@ -56,7 +56,7 @@ cmake -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
 # Build
 echo ""
 echo "Building..."
-cmake --build . --parallel $(nproc 2>/dev/null || echo 4)
+cmake --build . --parallel $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 echo ""
 echo "=============================================="

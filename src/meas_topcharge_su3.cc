@@ -179,9 +179,12 @@ int main(int argc, char **argv) {
     init_neighbor_tables();
     
     const int volume = T_size * L_size * L_size * L_size;
-    double *gf = (double *)aligned_alloc(32, volume * 4 * 18 * sizeof(double));
-    double *gf_smeared = (double *)aligned_alloc(32, volume * 4 * 18 * sizeof(double));
-    double *gf_tmp = (double *)aligned_alloc(32, volume * 4 * 18 * sizeof(double));
+    double *gf = nullptr;
+    double *gf_smeared = nullptr;
+    double *gf_tmp = nullptr;
+    posix_memalign((void **)&gf, 32, volume * 4 * 18 * sizeof(double));
+    posix_memalign((void **)&gf_smeared, 32, volume * 4 * 18 * sizeof(double));
+    posix_memalign((void **)&gf_tmp, 32, volume * 4 * 18 * sizeof(double));
     
     FILE *out = fopen(params.output_file.c_str(), "w");
     fprintf(out, "# conf smear_step Q\n");

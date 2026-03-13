@@ -29,7 +29,7 @@ cd "${BUILD_DIR}"
 if [ ! -f "bin/test_heatbath" ]; then
     echo "Tests not built. Rebuilding with tests enabled..."
     cmake -DBUILD_TESTING=ON "${PROJECT_ROOT}"
-    cmake --build . --parallel $(nproc 2>/dev/null || echo 4)
+    cmake --build . --parallel $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 fi
 
 echo "=============================================="

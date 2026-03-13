@@ -46,7 +46,7 @@
 #include <stdio.h>
 #include <math.h>
 
-#if (defined SSE)
+#if (defined SSE) && (defined __x86_64__ || defined __i386__)
 
 typedef struct
 {

@@ -24,8 +24,13 @@ option(BUILD_TESTING "Build the testing tree" ON)
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(ENABLE_WARNINGS "Enable compiler warnings" ON)
 
-# macOS Apple Silicon support (uncomment if needed)
-# set(CMAKE_OSX_ARCHITECTURES "arm64")
+# macOS platform support
+if(APPLE)
+    option(BUILD_APPLE_SILICON "Build for Apple Silicon (arm64)" OFF)
+    if(BUILD_APPLE_SILICON)
+        set(CMAKE_OSX_ARCHITECTURES "arm64")
+    endif()
+endif()
 
 # ==============================================================================
 # Compiler Configuration
@@ -51,11 +56,36 @@ if(ENABLE_WARNINGS)
 endif()
 
 # OpenMP support for parallelization
+# On macOS, Apple Clang does not ship with OpenMP.
+# Install via: brew install libomp
+if(APPLE)
+    find_program(BREW_FOUND brew)
+    if(BREW_FOUND)
+        execute_process(
+            COMMAND brew --prefix libomp
+            OUTPUT_VARIABLE LIBOMP_PREFIX
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE BREW_LIBOMP_RESULT
+        )
+        if(BREW_LIBOMP_RESULT EQUAL 0 AND EXISTS "${LIBOMP_PREFIX}")
+            set(OpenMP_C_FLAGS "-Xpreprocessor -fopenmp -I${LIBOMP_PREFIX}/include")
+            set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp -I${LIBOMP_PREFIX}/include")
+            set(OpenMP_C_LIB_NAMES "omp")
+            set(OpenMP_CXX_LIB_NAMES "omp")
+            set(OpenMP_omp_LIBRARY "${LIBOMP_PREFIX}/lib/libomp.dylib")
+        endif()
+    endif()
+endif()
+
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
     message(STATUS "OpenMP found - enabling parallel computation")
 else()
     message(WARNING "OpenMP not found - parallel loops will run sequentially")
+    if(APPLE)
+        message(STATUS "  Tip: install OpenMP on macOS with: brew install libomp")
+    endif()
 endif()
 
 # Optimization flags for Release builds
@@ -63,9 +93,16 @@ endif()
 # -march=native: Use CPU-specific instructions (AVX, AVX2, etc.)
 # -ffast-math: Faster floating-point operations (may reduce precision slightly)
 # -funroll-loops: Unroll loops for better pipelining
+# Note: On Apple Silicon, -march=native is accepted but is effectively a no-op.
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    set(CMAKE_C_FLAGS_RELEASE "-O3 -march=native -ffast-math -funroll-loops -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -ffast-math -funroll-loops -DNDEBUG")
+    set(COMMON_RELEASE_FLAGS "-O3 -ffast-math -funroll-loops -DNDEBUG")
+    if(NOT APPLE)
+        set(COMMON_RELEASE_FLAGS "${COMMON_RELEASE_FLAGS} -march=native")
+    elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+        set(COMMON_RELEASE_FLAGS "${COMMON_RELEASE_FLAGS} -march=native")
+    endif()
+    set(CMAKE_C_FLAGS_RELEASE "${COMMON_RELEASE_FLAGS}")
+    set(CMAKE_CXX_FLAGS_RELEASE "${COMMON_RELEASE_FLAGS}")
 elseif(MSVC)
     set(CMAKE_C_FLAGS_RELEASE "/O2 /arch:AVX2 /fp:fast /DNDEBUG")
     set(CMAKE_CXX_FLAGS_RELEASE "/O2 /arch:AVX2 /fp:fast /DNDEBUG")
@@ -90,7 +127,12 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Dependencies
 # ==============================================================================
 
-find_library(MATH_LIBRARY m)
+# On macOS, libm is part of libSystem and doesn't need explicit linking
+if(NOT APPLE)
+    find_library(MATH_LIBRARY m)
+else()
+    set(MATH_LIBRARY "")
+endif()
 
 # ==============================================================================
 # Utility Library (SU2 Core Functions)
@@ -367,6 +409,14 @@ message(STATUS "Build type:        ${CMAKE_BUILD_TYPE}")
 message(STATUS "C compiler:        ${CMAKE_C_COMPILER}")
 message(STATUS "C++ compiler:      ${CMAKE_CXX_COMPILER}")
 message(STATUS "Build testing:     ${BUILD_TESTING}")
-message(STATUS "Build LIME tools:  ${BUILD_LIME_TOOLS}")
 message(STATUS "Install prefix:    ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "System:            ${CMAKE_SYSTEM_NAME} (${CMAKE_SYSTEM_PROCESSOR})")
+if(APPLE)
+    message(STATUS "macOS support:     enabled")
+    if(OpenMP_CXX_FOUND)
+        message(STATUS "OpenMP (macOS):    found via Homebrew")
+    else()
+        message(STATUS "OpenMP (macOS):    not found (install with: brew install libomp)")
+    endif()
+endif()
 message(STATUS "")
