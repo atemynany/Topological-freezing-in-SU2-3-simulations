@@ -93,9 +93,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# macOS ships Bash 3 by default; use a portable uppercase conversion.
-GAUGE_GROUP_UPPER="$(printf '%s' "$GAUGE_GROUP" | tr '[:lower:]' '[:upper:]')"
-
 # ==============================================================================
 # Set Files Based on Gauge Group
 # ==============================================================================
@@ -250,7 +247,7 @@ EOF
 
 echo ""
 echo -e "${GREEN}======================================================${NC}"
-echo -e "${GREEN}     ${GAUGE_GROUP_UPPER} Beta Scan - Lattice QCD Simulation${NC}"
+echo -e "${GREEN}     ${GAUGE_GROUP^^} Beta Scan - Lattice QCD Simulation${NC}"
 echo -e "${GREEN}======================================================${NC}"
 echo ""
 
@@ -270,7 +267,7 @@ SAVE_INTERVAL=$(read_param "save_interval" "$PARAMS_FILE")
 T_SIZE=$(read_param "T" "$PARAMS_FILE")
 L_SIZE=$(read_param "L" "$PARAMS_FILE")
 
-log_info "Gauge group:     ${GAUGE_GROUP_UPPER}"
+log_info "Gauge group:     ${GAUGE_GROUP^^}"
 log_info "Beta file:       $BETA_FILE"
 log_info "Params file:     $PARAMS_FILE"
 log_info "Lattice:         ${T_SIZE}x${L_SIZE}^3"
@@ -438,7 +435,7 @@ for BETA in "${BETAS[@]}"; do
 # Generated: $(date)
 # ==============================================================================
 
-gauge_group         ${GAUGE_GROUP_UPPER}
+gauge_group         ${GAUGE_GROUP^^}
 beta                $BETA
 seed                $SEED
 T                   $T_SIZE
