@@ -31,30 +31,6 @@ On macOS without `libomp`, everything still compiles and runs — just without O
 ./scripts/build.sh release
 ```
 
-<<<<<<< HEAD
-### macOS (Apple Silicon)
-
-Uncomment the `CMAKE_OSX_ARCHITECTURES` line in `CMakeLists.txt`:
-```cmake
-set(CMAKE_OSX_ARCHITECTURES "arm64")
-```
-
-If OpenMP is missing on macOS, install via Homebrew:
-```bash
-brew install libomp
-```
-
-Then build normally. The CMake config auto-detects Clang on macOS.
-
-## Setup
-
-Copy the example input files and edit:
-```bash
-cp input/example_base_params.txt input/base_params_su2.txt
-cp input/example_beta_scan.txt input/beta_scan_su2.txt
-nano input/base_params_su2.txt  # adjust parameters
-nano input/beta_scan_su2.txt    # add beta values
-=======
 Or manually:
 
 ```bash
@@ -69,7 +45,6 @@ CMake auto-detects macOS and sets up the right flags. If you installed `libomp` 
 
 ```bash
 ./scripts/run_tests.sh
->>>>>>> d597f0d39e68b61ec71e0852c34255d51462337f
 ```
 
 ## Main Workflow: Beta Scan
@@ -131,11 +106,6 @@ Key outputs from `analysis.py`:
 
 ## Project Structure
 
-<<<<<<< HEAD
-- CMake ≥ 3.16, C++17 compiler
-- Python: numpy, matplotlib, pyerrors (conda env: `master_thesis`)
-- macOS: `brew install libomp` (for OpenMP support)
-=======
 ```
 ├── src/                  # C/C++ simulation sources
 ├── include/              # Header files
@@ -146,4 +116,3 @@ Key outputs from `analysis.py`:
 ├── input/                # Parameter and beta scan files
 └── run_simulation.sh     # Main entry point
 ```
->>>>>>> d597f0d39e68b61ec71e0852c34255d51462337f

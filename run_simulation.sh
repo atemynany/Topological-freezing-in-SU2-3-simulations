@@ -89,6 +89,15 @@ if [ ! -f "$BETA_FILE" ]; then
     BETA_FILE="input/beta_scan_${GAUGE_GROUP}.txt"
 fi
 
+# Final fallback to example inputs so dry-runs work in a fresh checkout.
+if [ ! -f "$BETA_FILE" ] && [ -f "input/example_beta_scan.txt" ]; then
+    BETA_FILE="input/example_beta_scan.txt"
+fi
+
+if [ ! -f "$PARAMS_FILE" ] && [ -f "input/example_base_params.txt" ]; then
+    PARAMS_FILE="input/example_base_params.txt"
+fi
+
 # Run the beta scan workflow
 exec "$SCRIPT_DIR/scripts/run_beta_scan.sh" \
     "--${GAUGE_GROUP}" \
