@@ -12,7 +12,8 @@ from typing import List
 from calculations import (
     RunData, AnalysisResult, gaussian,
     lattice_spacing_su2, lattice_spacing_su3,
-    CHI_T_FOURTH_ROOT_SU2, CHI_T_FOURTH_ROOT_SU3
+    CHI_T_FOURTH_ROOT_SU2, CHI_T_FOURTH_ROOT_SU3,
+    find_optimal_alpha
 )
 
 plt.rcParams.update({
@@ -27,12 +28,12 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
     n = len(runs)
     if n == 0:
         return
-    
+
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
-    
+
     n_cols = min(3, n)
     n_rows = (n + n_cols - 1) // n_cols
-    
+
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(4*n_cols, 3*n_rows))
     if n == 1:
         axes = np.array([[axes]])
@@ -40,29 +41,35 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
         axes = axes.reshape(1, -1)
     elif n_cols == 1:
         axes = axes.reshape(-1, 1)
-    
+
     sorted_runs = sorted(runs, key=lambda x: x.beta)
-    
+
+    # Global y-range across all runs so panels are comparable
+    global_min = int(min(r.Q_rescaled.min() for r in sorted_runs))
+    global_max = int(max(r.Q_rescaled.max() for r in sorted_runs))
+    pad = 0.5
+
     for idx, run_data in enumerate(sorted_runs):
         row, col = idx // n_cols, idx % n_cols
         ax = axes[row, col]
-        
+
         Q = run_data.Q_rescaled
         mc_time = np.arange(len(Q))
-        
+
         ax.scatter(mc_time, Q, s=3, color='steelblue', alpha=0.7)
-        
-        # Add dashed lines at integer Q values
-        Q_min_int, Q_max_int = int(np.floor(Q.min())), int(np.ceil(Q.max()))
-        for q_int in range(Q_min_int, Q_max_int + 1):
+
+        # Dashed lines at integer Q values across the global range
+        for q_int in range(global_min, global_max + 1):
             ax.axhline(y=q_int, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
-        
+
+        ax.set_ylim(global_min - pad, global_max + pad)
+
         a = lattice_spacing(run_data.beta)
         ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
         ax.set_xlabel('MC time', fontsize=9)
         ax.set_ylabel(r'$Q_{\rm re}$', fontsize=9)
         ax.tick_params(labelsize=8)
-        
+
         # Add panel label (A, B, C...)
         panel_label = chr(ord('A') + idx)
         ax.text(0.02, 0.98, panel_label, transform=ax.transAxes, fontsize=11,
@@ -84,12 +91,12 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
     n = len(runs)
     if n == 0:
         return
-    
+
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
-    
+
     n_cols = min(3, n)
     n_rows = (n + n_cols - 1) // n_cols
-    
+
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(4*n_cols, 3.5*n_rows))
     if n == 1:
         axes = np.array([[axes]])
@@ -97,22 +104,25 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
         axes = axes.reshape(1, -1)
     elif n_cols == 1:
         axes = axes.reshape(-1, 1)
-    
+
     sorted_runs = sorted(runs, key=lambda x: x.beta)
-    
+
+    # Global x-range across all runs so panels are comparable
+    global_min = int(min(r.Q_rescaled.min() for r in sorted_runs)) - 1
+    global_max = int(max(r.Q_rescaled.max() for r in sorted_runs)) + 1
+    bins = np.arange(global_min - 0.5, global_max + 1.5, 1)
+
     for idx, run_data in enumerate(sorted_runs):
         row, col = idx // n_cols, idx % n_cols
         ax = axes[row, col]
-        
+
         Q = run_data.Q_rescaled
-        Q_min, Q_max = int(Q.min()) - 1, int(Q.max()) + 1
-        bins = np.arange(Q_min - 0.5, Q_max + 1.5, 1)
-        
+
         hist_label = r'$Q_{\rm re}$' if idx == 0 else None
         counts, bin_edges, _ = ax.hist(Q, bins=bins, density=False,
             color='steelblue', edgecolor='black', linewidth=0.5, alpha=0.9, rwidth=0.15,
             label=hist_label)
-        
+
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
         try:
             sigma0 = max(np.std(Q), 0.5)
@@ -120,18 +130,20 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
                 popt, _ = curve_fit(gaussian, bin_centers, counts,
                     p0=[np.mean(Q), sigma0, counts.max()],
                     bounds=([-np.inf, 0.1, 0], [np.inf, np.inf, np.inf]))
-                x_fit = np.linspace(Q_min - 1, Q_max + 1, 100)
+                x_fit = np.linspace(global_min - 1, global_max + 1, 200)
                 fit_label = 'Gaussian fit' if idx == 0 else None
                 ax.plot(x_fit, gaussian(x_fit, *popt), 'r-', linewidth=1.5, label=fit_label)
         except:
             pass
-        
+
+        ax.set_xlim(global_min - 0.5, global_max + 0.5)
+
         a = lattice_spacing(run_data.beta)
         ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
         ax.set_xlabel(r'$Q$', fontsize=9)
         ax.set_ylabel(r'$N$', fontsize=9)
         ax.tick_params(labelsize=8)
-        
+
         # Add panel label (A, B, C...)
         panel_label = chr(ord('A') + idx)
         ax.text(0.02, 0.98, panel_label, transform=ax.transAxes, fontsize=11,
@@ -286,3 +298,42 @@ def plot_thermalization_comparison(runs: List[RunData], output_dir: str, gauge_g
     plt.savefig(filepath, dpi=200, bbox_inches='tight')
     plt.close()
     print(f"Saved: {os.path.basename(filepath)}")
+
+
+def plot_therm_topcharge(plaq_file: str, therm_q_file: str, output_dir: str,
+                         run_name: str = "", gauge_group: str = ""):
+    """Thermalization plot: rescaled Q_re vs MC sweep for a single run.
+
+    Plaquette thermalization is handled by plot_thermalization_comparison.
+    Saves one file: therm_topcharge[_<run_name>].png
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    gg_suffix = f"_{gauge_group}" if gauge_group else ""
+    suffix = f"{gg_suffix}_{run_name}" if run_name else gg_suffix
+
+    # --- load raw thermalization topcharge ---
+    try:
+        q_data   = np.loadtxt(therm_q_file, comments='#')
+        q_sweeps = q_data[:, 0].astype(int)
+        q_raw    = q_data[:, 1]
+    except Exception:
+        return  # nothing to plot
+
+    if len(q_raw) == 0:
+        return
+
+    fig, ax = plt.subplots(figsize=(8, 3))
+    ax.scatter(q_sweeps, q_raw, s=3, color='steelblue', alpha=0.8)
+    # draw dashed lines at the nearest integers for visual reference
+    q_min_int = int(np.floor(q_raw.min()))
+    q_max_int = int(np.ceil(q_raw.max()))
+    for q_int in range(q_min_int, q_max_int + 1):
+        ax.axhline(y=q_int, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
+    ax.set_xlabel('MC Sweep')
+    ax.set_ylabel(r'$Q$ (unsmeared)')
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    path = os.path.join(output_dir, f'therm_topcharge{suffix}.png')
+    plt.savefig(path, dpi=200)
+    plt.close()
+    print(f"Saved: {os.path.basename(path)}")

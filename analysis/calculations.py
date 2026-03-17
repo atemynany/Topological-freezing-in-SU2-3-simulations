@@ -14,9 +14,21 @@ import pyerrors as pe
 import os
 import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 from autocorrelation import autocorrelation
+
+# ---------------------------------------------------------------------------
+# Optional Rust extension (built with maturin in rust_analysis/).
+# Falls back to pure Python if not installed.
+# To build: cd rust_analysis && maturin develop --release
+# ---------------------------------------------------------------------------
+try:
+    import qcd_analysis as _rust
+    _HAS_RUST = True
+except ImportError:
+    _rust = None
+    _HAS_RUST = False
 
 # Physical constants
 HBAR_C = 197.3  # MeV * fm
@@ -31,15 +43,22 @@ CHI_T_FOURTH_ROOT_SU3 = 180.0
 # =============================================================================
 
 def find_optimal_alpha(Q_raw: np.ndarray, alpha_min=0.8, alpha_max=1.2, tol=1e-6) -> float:
-    """Find α that minimizes ⟨(αQ̂ - round(αQ̂))²⟩."""
+    """Find α that minimizes ⟨(αQ̂ - round(αQ̂))²⟩.
+
+    Uses the Rust extension (parallel rayon) when available, pure Python otherwise.
+    """
+    if _HAS_RUST:
+        return _rust.find_optimal_alpha(Q_raw.astype(np.float64), alpha_min, alpha_max, tol)
+
+    # Pure-Python fallback
     def objective(alpha):
         scaled = alpha * Q_raw
         return np.mean((scaled - np.round(scaled))**2)
-    
+
     phi = (np.sqrt(5) - 1) / 2
     a, b = alpha_min, alpha_max
     c, d = b - phi*(b-a), a + phi*(b-a)
-    
+
     while abs(b - a) > tol:
         if objective(c) < objective(d):
             b, d = d, c
@@ -47,8 +66,38 @@ def find_optimal_alpha(Q_raw: np.ndarray, alpha_min=0.8, alpha_max=1.2, tol=1e-6
         else:
             a, c = c, d
             d = a + phi*(b-a)
-    
+
     return (a + b) / 2
+
+
+def bootstrap_alpha(Q_raw: np.ndarray, n_boot: int = 500,
+                    alpha_min=0.8, alpha_max=1.2, tol=1e-6) -> Tuple[float, float]:
+    """Bootstrap standard error on the optimal α.
+
+    Returns (alpha_central, alpha_std).
+    Requires the Rust extension; raises RuntimeError if not installed.
+    """
+    if not _HAS_RUST:
+        raise RuntimeError(
+            "bootstrap_alpha requires the Rust extension. "
+            "Build it with: cd rust_analysis && maturin develop --release"
+        )
+    return _rust.bootstrap_alpha(Q_raw.astype(np.float64), n_boot, alpha_min, alpha_max, tol)
+
+
+def bootstrap_Q2(Q_raw: np.ndarray, n_boot: int = 500,
+                 alpha_min=0.8, alpha_max=1.2, tol=1e-6) -> Tuple[float, float]:
+    """Bootstrap standard error on ⟨Q_re²⟩.
+
+    Returns (Q2_central, Q2_std).
+    Requires the Rust extension; raises RuntimeError if not installed.
+    """
+    if not _HAS_RUST:
+        raise RuntimeError(
+            "bootstrap_Q2 requires the Rust extension. "
+            "Build it with: cd rust_analysis && maturin develop --release"
+        )
+    return _rust.bootstrap_Q2(Q_raw.astype(np.float64), n_boot, alpha_min, alpha_max, tol)
 
 
 @dataclass
@@ -117,10 +166,21 @@ class QStats:
 
 
 def jackknife_error(data: np.ndarray) -> float:
-    """Compute jackknife error estimate (ignores autocorrelation)."""
+    """Compute jackknife error estimate (ignores autocorrelation).
+
+    O(N) implementation via the delete-one mean identity.
+    Uses Rust when available (parallel); otherwise pure Python O(N).
+    """
+    if _HAS_RUST:
+        return _rust.jackknife_error(data.astype(np.float64))
+
+    # Pure-Python O(N) fallback (avoids the original O(N²) loop)
     n = len(data)
-    theta_jack = np.array([np.mean(np.delete(data, i)) for i in range(n)])
-    return np.sqrt((n - 1) / n * np.sum((theta_jack - theta_jack.mean())**2))
+    if n < 2:
+        return 0.0
+    total = data.sum()
+    jack = (total - data) / (n - 1)
+    return float(np.sqrt((n - 1) / n * np.sum((jack - jack.mean()) ** 2)))
 
 
 def compute_Q_statistics(Q_raw: np.ndarray, ensemble: str = "ens", S: float = 1.5) -> QStats:
@@ -153,20 +213,31 @@ def compute_Q_statistics(Q_raw: np.ndarray, ensemble: str = "ens", S: float = 1.
 
 
 def load_topcharge(filepath: str, smear: int = None) -> np.ndarray:
-    """Load topological charge from file."""
+    """Load topological charge from file.
+
+    Handles two column formats automatically:
+      SU2 (4 cols): smear_step  conf  Q  plaquette
+      SU3 (3 cols): conf  smear_step  Q
+    """
     configs, Q_vals, smears = [], [], []
     with open(filepath, 'r') as f:
         for line in f:
             if line.startswith('#'): continue
             parts = line.split()
-            if len(parts) >= 4:
-                try:
+            try:
+                if len(parts) == 3:
+                    # SU3 format: conf smear_step Q
+                    c, s, q = int(parts[0]), int(parts[1]), float(parts[2])
+                elif len(parts) >= 4:
+                    # SU2 format: smear_step conf Q [plaquette ...]
                     s, c, q = int(parts[0]), int(parts[1]), float(parts[2])
-                    if smear is None or s == smear:
-                        smears.append(s)
-                        configs.append(c)
-                        Q_vals.append(q)
-                except: pass
+                else:
+                    continue
+                if smear is None or s == smear:
+                    smears.append(s)
+                    configs.append(c)
+                    Q_vals.append(q)
+            except: pass
     if smear is None and smears:
         max_smear = max(smears)
         configs = [c for s, c in zip(smears, configs) if s == max_smear]

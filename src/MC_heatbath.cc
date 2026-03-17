@@ -17,6 +17,7 @@
 
 #include "Plaquette.hh"
 #include "progressbar.hh"
+#include "topcharge_su2.hh"
 
 int T;
 int L;
@@ -250,6 +251,15 @@ int main(int argc, char **argv)
     
     fprintf(plaq_file, "# Sweep  Plaquette\n");
     fprintf(plaq_file, "%5d %+.10e\n", 0, P);
+
+    std::string therm_q_filename = params.output_dir + "therm_topcharge.dat";
+    FILE *therm_q_file = fopen(therm_q_filename.c_str(), "w");
+    if (therm_q_file == nullptr) {
+        std::cerr << "Error: Cannot open therm topcharge file: " << therm_q_filename << std::endl;
+        fclose(plaq_file);
+        return EXIT_FAILURE;
+    }
+    fprintf(therm_q_file, "# Sweep  Q_int\n");
     
     alignas(32) double SU2_1[8], SU2_2[8];
     const int volume = T * L * L * L;
@@ -363,6 +373,10 @@ int main(int argc, char **argv)
         P = Average_Plaquette(gauge_field, T, L);
         fprintf(plaq_file, "%5d %+.10e\n", sweep, P);
         fflush(plaq_file);
+
+        double Q_therm = compute_topological_charge(gauge_field, T, L);
+        fprintf(therm_q_file, "%5d %+.6f\n", sweep, Q_therm);
+        fflush(therm_q_file);
         
         double progress = static_cast<double>(sweep) / params.num_sweeps;
         progress_bar(progress);
@@ -382,14 +396,16 @@ int main(int argc, char **argv)
     
     progress_bar_clear();
     std::cout << "Completed " << params.num_sweeps << " sweeps, final <P> = " << P << std::endl;
-    
+
     fclose(plaq_file);
-    
+    fclose(therm_q_file);
+
     Gauge_Field_Free(&gauge_field);
     
     std::cout << "========================================" << std::endl;
     std::cout << "Simulation complete." << std::endl;
     std::cout << "Plaquette history: " << plaq_filename << std::endl;
+    std::cout << "Therm topcharge:   " << therm_q_filename << std::endl;
     std::cout << "Configurations:    " << params.config_dir << std::endl;
     std::cout << "========================================" << std::endl;
     

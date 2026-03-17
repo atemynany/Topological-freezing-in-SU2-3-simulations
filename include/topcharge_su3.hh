@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <vector>
 #include "su3_linear_algebra.hh"
 
 // Geometry: site index and link index for SU(3)

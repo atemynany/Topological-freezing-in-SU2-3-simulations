@@ -1,0 +1,19 @@
+[package]
+name = "qcd_analysis"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "qcd_analysis"
+crate-type = ["cdylib"]
+
+[dependencies]
+# pyo3 0.28 confirmed working with Python 3.14; numpy crate removed (Vec<f64> used instead)
+pyo3   = { version = "0.28", features = ["extension-module"] }
+rayon  = "1"
+rand   = { version = "0.8", features = ["small_rng"] }
+
+[profile.release]
+opt-level     = 3
+lto           = true
+codegen-units = 1

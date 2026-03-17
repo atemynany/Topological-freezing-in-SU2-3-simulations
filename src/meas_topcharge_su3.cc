@@ -13,6 +13,7 @@
 #include "su3_heatbath.hh"
 #include "topcharge_su3.hh"
 #include "smearing_techniques.hh"
+#include "progressbar.hh"
 
 int T_size, L_size;
 std::vector<int> neighbor_plus[4];
@@ -198,16 +199,16 @@ int main(int argc, char **argv) {
     }
     std::cout << "\n";
     
+    const int total_confs = (params.end_conf - params.start_conf) / params.conf_step + 1;
+    int conf_count = 0;
+
     for (int conf = params.start_conf; conf <= params.end_conf; conf += params.conf_step) {
         char fname[512];
         snprintf(fname, sizeof(fname), "%sconf_su3.%04d", params.config_dir.c_str(), conf);
-        
+
         read_su3_config(gf, fname, T_size, L_size);
-        
-        // Copy to smeared buffer
         memcpy(gf_smeared, gf, volume * 4 * 18 * sizeof(double));
-        
-        // Smear and measure
+
         for (int step = 0; step <= params.smear_steps; step++) {
             double Q;
             if (params.boundary == "open" && params.exclude_boundary_slices > 0) {
@@ -215,22 +216,26 @@ int main(int argc, char **argv) {
             } else {
                 Q = su3_topological_charge(gf_smeared, T_size, L_size);
             }
-            
+
             if (step == params.smear_steps) {
                 fprintf(out, "%d %d %.10e\n", conf, step, Q);
-                std::cout << "conf " << conf << " smear " << step << " Q=" << Q << "\n";
+                fflush(out);
             }
-            
+
             if (step < params.smear_steps) {
                 su3_ape_smear(gf_tmp, gf_smeared, T_size, L_size, params.smear_alpha);
                 std::swap(gf_smeared, gf_tmp);
             }
         }
+
+        conf_count++;
+        progress_bar(static_cast<double>(conf_count) / total_confs);
     }
-    
+
+    progress_bar_clear();
     fclose(out);
     free(gf); free(gf_smeared); free(gf_tmp);
-    
+
     std::cout << "Output: " << params.output_file << "\n";
     return 0;
 }

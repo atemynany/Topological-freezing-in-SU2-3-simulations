@@ -4,6 +4,10 @@ build/
 *.a
 *.so
 
+# Rust extension build artifacts
+rust_analysis/target/
+rust_analysis/Cargo.lock
+
 # Data (large files)
 data/*
 !data/.gitkeep

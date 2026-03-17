@@ -14,6 +14,7 @@
 #include "su3_heatbath.hh"
 #include "ranlux.hh"
 #include "progressbar.hh"
+#include "topcharge_su3.hh"
 
 int T_size, L_size;
 double *gauge_field_su3;
@@ -304,6 +305,15 @@ int main(int argc, char **argv) {
     FILE *plaq_file = fopen(plaq_filename.c_str(), "w");
     fprintf(plaq_file, "# Sweep  Plaquette\n");
     fprintf(plaq_file, "%5d %+.10e\n", 0, P);
+
+    std::string therm_q_filename = params.output_dir + "therm_topcharge_su3.dat";
+    FILE *therm_q_file = fopen(therm_q_filename.c_str(), "w");
+    if (therm_q_file == nullptr) {
+        std::cerr << "Error: Cannot open therm topcharge file: " << therm_q_filename << std::endl;
+        fclose(plaq_file);
+        return EXIT_FAILURE;
+    }
+    fprintf(therm_q_file, "# Sweep  Q_int\n");
     
     const int volume = T_size * L_size * L_size * L_size;
     const int L3 = L_size * L_size * L_size;
@@ -335,6 +345,10 @@ int main(int argc, char **argv) {
         P = su3_average_plaquette(gauge_field_su3, T_size, L_size);
         fprintf(plaq_file, "%5d %+.10e\n", sweep, P);
         fflush(plaq_file);
+
+        double Q_therm = su3_topological_charge(gauge_field_su3, T_size, L_size);
+        fprintf(therm_q_file, "%5d %+.6f\n", sweep, Q_therm);
+        fflush(therm_q_file);
         
         progress_bar(static_cast<double>(sweep) / params.num_sweeps);
         
@@ -351,6 +365,7 @@ int main(int argc, char **argv) {
     std::cout << "Final <P> = " << P << std::endl;
     
     fclose(plaq_file);
+    fclose(therm_q_file);
     su3_gauge_field_free(&gauge_field_su3);
     
     std::cout << "========================================\n";
