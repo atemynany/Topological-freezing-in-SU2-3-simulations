@@ -394,14 +394,12 @@ def load_run_data(run_dir: str, gauge_group: str = "su2", min_sweeps: int = 1000
 def analyze_run(run_data: RunData) -> AnalysisResult:
     """Perform full analysis on a single run."""
     volume = run_data.T * run_data.L ** 3
-    Q_raw = run_data.Q_raw.astype(float)
-    Q2_raw_mean = np.mean(Q_raw ** 2)
-    chi_t_lattice = Q2_raw_mean / volume
-    
-    chi_t_fourth_root_a = (chi_t_lattice ** 0.25) * HBAR_C if chi_t_lattice > 0 else 0.0
-    
-    Q = run_data.Q_rescaled.astype(float)
+    Q = run_data.Q_rescaled.astype(float)   # integer-rounded charge, consistent everywhere
     Q2 = Q ** 2
+    Q2_mean = np.mean(Q2)
+    chi_t_lattice = Q2_mean / volume
+
+    chi_t_fourth_root_a = (chi_t_lattice ** 0.25) * HBAR_C if chi_t_lattice > 0 else 0.0
     
     try:
         autocorr = autocorrelation(Q2, name=f"Q2_b{run_data.beta}")
@@ -412,7 +410,7 @@ def analyze_run(run_data: RunData) -> AnalysisResult:
     
     return AnalysisResult(
         beta=run_data.beta, boundary=run_data.boundary,
-        Q_mean=np.mean(Q), Q2_mean=Q2_raw_mean,
+        Q_mean=np.mean(Q), Q2_mean=Q2_mean,
         chi_t_lattice=chi_t_lattice, chi_t_fourth_root_a=chi_t_fourth_root_a,
         tau_int=tau_int, dtau_int=dtau_int,
         alpha=run_data.alpha, n_conf=len(Q_raw)
