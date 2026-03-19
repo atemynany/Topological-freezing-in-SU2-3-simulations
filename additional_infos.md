@@ -99,3 +99,78 @@ mc_heatbath_su3  →  therm_topcharge_su3.dat  (raw, qualitative)
 meas_topcharge_su3  →  topcharge_su3.dat     (smeared, physics)
 ```
 Smearing must be applied to the gauge field before computing Q — it cannot be applied to Q values retroactively, because smearing is a non-local operation on the SU(3) link matrices.
+
+---
+
+## 4. Scale Setting Utilities (`scale_set.ipynb`)
+
+Three utility functions added to the notebook for interactive use:
+
+### `beta_from_a_su2(a_fm)`
+Analytically inverts `lattice_spacing_su2` by solving the quadratic in `delta_beta = beta - 2.6`:
+
+```
+ln(t0/a²) = 1.285 + 6.409·x - 0.7411·x²   →   quadratic formula
+```
+
+Picks the root closest to the physical regime (beta ~ 2–3).
+
+### `beta_from_a_su3(a_fm)`
+Inverts `lattice_spacing_su3` via `numpy.roots` on the cubic in `delta_beta = beta - 6.0`:
+
+```
+ln(a/r0) = -1.6804 - 1.7331·x + 0.7849·x² - 0.4428·x³
+```
+
+Picks the real root closest to x = 0 (physical regime beta ~ 5.5–6.5).
+
+### `adjust_lattice(T_ref, L_ref, a_ref_fm, a_new_fm, open_bc, n_exclude)`
+Given a reference volume at `a_ref`, computes integer `(T_new, L_new)` at `a_new` that preserve physical volume:
+
+- **Spatial**: `L_new = round(L_ref * a_ref / a_new)` (no boundary effect)
+- **Periodic temporal**: `T_new = round(T_ref * a_ref / a_new)`
+- **Open BC temporal**: physical extent is `T_eff = (T - 2*n_exclude) * a`, so `T_new = round(T_eff_ref * a_ref/a_new) + 2*n_exclude`. `n_exclude` must match `exclude_boundary_slices` in the input file.
+
+---
+
+## 5. Timeslice Topological Charge Density
+
+### C++ output (`meas_topcharge_su2.cc`)
+
+After computing the total Q for each config, `meas_topcharge` now also writes `topcharge_timeslice.dat` in the same output directory:
+
+```
+# smear_steps  config_number  t  q_t
+```
+
+`q_t` is the charge density summed over all spatial sites at timeslice `t`, normalized by `4π²`:
+
+```
+q(t) = (1/4π²) · Σ_{x,y,z} q_local(t,x,y,z)
+```
+
+For open BC, only timeslices `t ∈ [exclude_boundary_slices, T - exclude_boundary_slices)` are written. **No new input parameters required** — the existing `boundary` and `exclude_boundary_slices` fields control this automatically.
+
+### Python analysis (`analysis/timeslice_analysis.py`)
+
+Full pipeline: load → bin → Gamma method errors → plot.
+
+**Key design choice — temporal binning**: because the spatial volume is small, individual timeslice measurements are very noisy. The `n_bin` parameter sums over `n_bin` consecutive slices per bin. Typical values: `n_bin=2` or `3`. Match `n_exclude` in the call to `analyse_timeslices` with `exclude_boundary_slices` in the input file.
+
+**Error estimation**: `pyerrors` Gamma method applied independently to each time bin across MC configurations. Properly accounts for MC autocorrelation (large `tau_int` near freezing). Same `S=1.5` default as the rest of the analysis.
+
+**CLI usage**:
+```bash
+python analysis/timeslice_analysis.py \
+    data/results/T16_L4_b2.50_open_seed12345/output/topcharge_timeslice.dat \
+    --a 0.093 --n-bin 2 --open-bc --n-exclude 2 --output output/figures_analysis/timeslice.pdf
+```
+
+**Programmatic usage**:
+```python
+from analysis.timeslice_analysis import analyse_timeslices, plot_timeslice_density
+
+res = analyse_timeslices("topcharge_timeslice.dat", lattice_spacing_fm=0.093,
+                         n_bin=2, open_bc=True, n_exclude=2)
+plot_timeslice_density(res, open_bc=True)
+```

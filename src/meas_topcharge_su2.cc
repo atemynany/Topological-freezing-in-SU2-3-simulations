@@ -282,15 +282,24 @@ int main(int argc, char *argv[]) {
     
     // Open output file - generic name
     std::string output_filename = params.output_dir + "topcharge.dat";
-    
+
     std::ofstream outfile(output_filename);
     if (!outfile.is_open()) {
         std::cerr << "Error: Cannot open output file: " << output_filename << std::endl;
         return EXIT_FAILURE;
     }
-    
+
     // Write minimal header
     outfile << "# smear_steps  config_number  Q  plaquette" << std::endl;
+
+    // Open timeslice output file
+    std::string timeslice_filename = params.output_dir + "topcharge_timeslice.dat";
+    std::ofstream timeslice_file(timeslice_filename);
+    if (!timeslice_file.is_open()) {
+        std::cerr << "Error: Cannot open timeslice output file: " << timeslice_filename << std::endl;
+        return EXIT_FAILURE;
+    }
+    timeslice_file << "# smear_steps  config_number  t  q_t" << std::endl;
     
     // Allocate gauge field
     double *gauge_field = nullptr;
@@ -342,7 +351,33 @@ int main(int argc, char *argv[]) {
         outfile << std::setw(6) << n << "  ";
         outfile << std::setw(12) << Q << "  ";
         outfile << std::setw(10) << plaq << std::endl;
-        
+
+        // Compute and output topological charge density per timeslice q(t)
+        // q(t) = (1/4pi^2) * sum_{x,y,z} q_local(t,x,y,z)
+        {
+            const int t_min = (params.boundary == "open" && params.exclude_boundary_slices > 0)
+                              ? params.exclude_boundary_slices : 0;
+            const int t_max = (params.boundary == "open" && params.exclude_boundary_slices > 0)
+                              ? params.T - params.exclude_boundary_slices : params.T;
+
+            timeslice_file << std::fixed << std::setprecision(8);
+            for (int it = t_min; it < t_max; it++) {
+                double q_t = 0.0;
+                for (int ix = 0; ix < params.L; ix++) {
+                    for (int iy = 0; iy < params.L; iy++) {
+                        for (int iz = 0; iz < params.L; iz++) {
+                            q_t += compute_local_topcharge_density(smeared_gauge_field, it, ix, iy, iz, params.T, params.L);
+                        }
+                    }
+                }
+                q_t /= (4.0 * M_PI * M_PI);
+                timeslice_file << std::setw(5)  << params.smear_steps << "  "
+                               << std::setw(6)  << n << "  "
+                               << std::setw(4)  << it << "  "
+                               << std::setw(14) << q_t << "\n";
+            }
+        }
+
         n_configs++;
     }
     
@@ -351,6 +386,7 @@ int main(int argc, char *argv[]) {
     
     // Cleanup
     outfile.close();
+    timeslice_file.close();
     Gauge_Field_Free(&gauge_field);
     Gauge_Field_Free(&smeared_gauge_field);
     

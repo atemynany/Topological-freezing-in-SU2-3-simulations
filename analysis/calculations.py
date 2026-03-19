@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from autocorrelation import autocorrelation
+from analysis.autocorrelation import autocorrelation
 
 # ---------------------------------------------------------------------------
 # Optional Rust extension (built with maturin in rust_analysis/).

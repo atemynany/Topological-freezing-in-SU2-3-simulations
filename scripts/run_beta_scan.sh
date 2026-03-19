@@ -367,22 +367,7 @@ for BETA in "${BETAS[@]}"; do
     ./build/bin/$HEATBATH_BIN -i "$TEMP_INPUT" 2>&1 | tee "$RUN_DIR/heatbath.log"
     
     log_success "Heatbath complete"
-
-    # -------------------------------------------------------------------------
-    # Step 1b: Plot thermalization (plaquette + Q)
-    # -------------------------------------------------------------------------
-    log_step "Generating thermalization plot..."
-    SU3_FLAG=""
-    if [ "$GAUGE_GROUP" = "su3" ]; then SU3_FLAG="--su3"; fi
-    if command -v conda &> /dev/null && conda run -n "$CONDA_ENV" python3 --version &> /dev/null 2>&1; then
-        conda run -n "$CONDA_ENV" python3 "$SCRIPT_DIR/plot_therm.py" "$RUN_DIR" $SU3_FLAG \
-            || log_warn "Thermalization plot failed (non-fatal)"
-    elif command -v python3 &> /dev/null; then
-        python3 "$SCRIPT_DIR/plot_therm.py" "$RUN_DIR" $SU3_FLAG \
-            || log_warn "Thermalization plot failed (non-fatal)"
-    fi
-    log_info "Thermalization plots: $RUN_OUTPUT_DIR/therm_plaquette.png  |  therm_topcharge.png"
-
+    
     # -------------------------------------------------------------------------
     # Step 2: Detect thermalization
     # -------------------------------------------------------------------------
@@ -462,7 +447,6 @@ run_dir             $RUN_DIR
 # Files
 plaquette_file      $RUN_OUTPUT_DIR/$PLAQ_FILE
 topcharge_file      $RUN_OUTPUT_DIR/$TOPCHARGE_FILE
-therm_topcharge_file $RUN_OUTPUT_DIR/therm_topcharge$([ "$GAUGE_GROUP" = "su3" ] && echo "_su3").dat
 config_dir          $RUN_CONFIG_DIR
 EOF
     
