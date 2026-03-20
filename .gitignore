@@ -30,7 +30,7 @@ __pycache__/
 *.egg-info/
 
 # Notebooks
-tests.ipynb
+*.ipynb
 
 # IDE
 .vscode/
