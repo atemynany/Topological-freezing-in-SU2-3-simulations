@@ -214,7 +214,7 @@ def plot_timeslice_density(results: dict,
     err  = results["errors"]
     a    = results["a_fm"]
 
-    ax.errorbar(t, mean, yerr=err, fmt='o-', capsize=3,
+    ax.errorbar(t, mean, yerr=err, fmt='o', capsize=3,
                 label=label or f"a={a:.3f} fm, n_bin={results['n_bin']}",
                 color=color)
     ax.axhline(0, color='grey', lw=0.8, ls='--')
@@ -226,10 +226,62 @@ def plot_timeslice_density(results: dict,
         ax.axvspan(t_max, t_max + t_excl, alpha=0.10, color='grey')
 
     ax.set_xlabel("t [fm]")
-    ax.set_ylabel(r"$q(t) = Q(t)/4\pi^2$")
-    ax.set_title("Topological charge density per time slice")
+    ax.set_ylabel(r"$q(t)$")
     ax.legend()
     return ax
+
+
+def _smooth(y: np.ndarray, window: int = None) -> np.ndarray:
+    """Rolling mean for a guiding line. Window defaults to ~10% of length, min 3."""
+    w = max(3, len(y) // 10) if window is None else window
+    kernel = np.ones(w) / w
+    return np.convolve(y, kernel, mode='same')
+
+
+def plot_timeslice_mctime(filepath: str, n_bin: int = 1, smear: int = None) -> plt.Figure:
+    """Plot q(t) vs MC time for all (binned) time slices on one figure.
+
+    Each binned slice is a separate coloured line. A low-alpha smoothed line
+    is drawn as a guide to the eye below the scatter points.
+
+    Parameters
+    ----------
+    filepath : path to topcharge_timeslice.dat
+    n_bin    : number of adjacent time slices to sum (must match timeslice_density)
+    smear    : smearing level to select (None = max)
+    """
+    t_values, q_matrix = load_timeslice_data(filepath, smear=smear)
+    t_centres, q_binned = bin_timeslices(t_values, q_matrix, n_bin=n_bin)
+    n_configs, n_bins = q_binned.shape
+    mc_time = np.arange(n_configs)
+
+    cmap = plt.cm.tab20 if n_bins <= 20 else plt.cm.turbo
+    colors = [cmap(i / max(1, n_bins - 1)) for i in range(n_bins)]
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+
+    for j, tc in enumerate(t_centres):
+        col = colors[j]
+        label = f"$t={int(tc)}$" if n_bin == 1 else f"$t\\in[{t_values[j*n_bin]},{t_values[min(j*n_bin+n_bin-1, len(t_values)-1)]}]$"
+        y = q_binned[:, j]
+        ax.scatter(mc_time, y, s=4, color=col, alpha=0.8, zorder=3)
+        ax.plot(mc_time, y, lw=0.8, color=col, alpha=0.3, zorder=2, label=label)
+
+    ax.axhline(0, color='grey', lw=0.6, ls='--')
+    ax.set_xlabel("MC time")
+    ax.set_ylabel(r"$q(t)$")
+
+    legend = ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1), borderaxespad=0,
+                       fontsize=8, frameon=False,
+                       ncol=max(1, n_bins // 8))
+    # Make legend lines fully opaque
+    for handle in legend.legend_handles:
+        handle.set_alpha(1.0)
+        handle.set_linewidth(2.0)
+
+    fig.tight_layout()
+    fig.subplots_adjust(right=0.82)
+    return fig
 
 
 # ---------------------------------------------------------------------------

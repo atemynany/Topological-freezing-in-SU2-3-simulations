@@ -5,6 +5,7 @@
 #include <cstring>
 #include <iostream>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -188,6 +189,19 @@ int main(int argc, char **argv) {
     
     FILE *out = fopen(params.output_file.c_str(), "w");
     fprintf(out, "# conf smear_step Q\n");
+
+    // Timeslice output: same directory as output_file, fixed name
+    std::string ts_filename = params.output_file;
+    size_t slash = ts_filename.rfind('/');
+    ts_filename = (slash != std::string::npos)
+                  ? ts_filename.substr(0, slash + 1) + "topcharge_timeslice.dat"
+                  : "topcharge_timeslice.dat";
+    std::ofstream timeslice_file(ts_filename);
+    if (!timeslice_file.is_open()) {
+        std::cerr << "Error: Cannot open timeslice output file: " << ts_filename << std::endl;
+        return EXIT_FAILURE;
+    }
+    timeslice_file << "# smear_steps  config_number  t  q_t" << std::endl;
     
     std::cout << "SU(3) Topological Charge Measurement\n";
     std::cout << "Lattice: " << T_size << "x" << L_size << "^3\n";
@@ -219,6 +233,28 @@ int main(int argc, char **argv) {
             if (step == params.smear_steps) {
                 fprintf(out, "%d %d %.10e\n", conf, step, Q);
                 std::cout << "conf " << conf << " smear " << step << " Q=" << Q << "\n";
+
+                // Topological charge density per time slice: q(t) = (1/4π²) Σ_{x,y,z} q_local(t,x,y,z)
+                const int t_min = (params.boundary == "open" && params.exclude_boundary_slices > 0)
+                                  ? params.exclude_boundary_slices : 0;
+                const int t_max = (params.boundary == "open" && params.exclude_boundary_slices > 0)
+                                  ? params.T - params.exclude_boundary_slices : params.T;
+                timeslice_file << std::fixed << std::setprecision(8);
+                for (int it = t_min; it < t_max; it++) {
+                    double q_t = 0.0;
+                    for (int ix = 0; ix < params.L; ix++) {
+                        for (int iy = 0; iy < params.L; iy++) {
+                            for (int iz = 0; iz < params.L; iz++) {
+                                q_t += su3_local_topcharge_density(gf_smeared, it, ix, iy, iz);
+                            }
+                        }
+                    }
+                    q_t /= (4.0 * M_PI * M_PI);
+                    timeslice_file << std::setw(5)  << params.smear_steps << "  "
+                                   << std::setw(6)  << conf << "  "
+                                   << std::setw(4)  << it << "  "
+                                   << std::setw(14) << q_t << "\n";
+                }
             }
             
             if (step < params.smear_steps) {
@@ -229,6 +265,7 @@ int main(int argc, char **argv) {
     }
     
     fclose(out);
+    timeslice_file.close();
     free(gf); free(gf_smeared); free(gf_tmp);
     
     std::cout << "Output: " << params.output_file << "\n";

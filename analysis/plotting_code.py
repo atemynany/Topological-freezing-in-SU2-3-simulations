@@ -23,6 +23,12 @@ plt.rcParams.update({
 })
 
 
+def _smooth(y: np.ndarray, window: int = None) -> np.ndarray:
+    """Rolling mean for a guiding line. Window defaults to ~10% of length, min 3."""
+    w = max(3, len(y) // 10) if window is None else window
+    return np.convolve(y, np.ones(w) / w, mode='same')
+
+
 def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str, boundary: str):
     """Plot Q vs MC time grid for one boundary type."""
     n = len(runs)
@@ -56,7 +62,8 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
         Q = run_data.Q_rescaled
         mc_time = np.arange(len(Q))
 
-        ax.scatter(mc_time, Q, s=3, color='steelblue', alpha=0.7)
+        ax.plot(mc_time, Q.astype(float), color='steelblue', lw=0.8, alpha=0.25, zorder=2)
+        ax.scatter(mc_time, Q, s=3, color='steelblue', alpha=0.8, zorder=3)
 
         # Dashed lines at integer Q values across the global range
         for q_int in range(global_min, global_max + 1):
@@ -65,7 +72,6 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
         ax.set_ylim(global_min - pad, global_max + pad)
 
         a = lattice_spacing(run_data.beta)
-        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
         ax.set_xlabel('MC time', fontsize=9)
         ax.set_ylabel(r'$Q_{\rm re}$', fontsize=9)
         ax.tick_params(labelsize=8)
@@ -323,8 +329,8 @@ def plot_therm_topcharge(plaq_file: str, therm_q_file: str, output_dir: str,
         return
 
     fig, ax = plt.subplots(figsize=(8, 3))
-    ax.scatter(q_sweeps, q_raw, s=3, color='steelblue', alpha=0.8)
-    # draw dashed lines at the nearest integers for visual reference
+    ax.plot(q_sweeps, q_raw, color='steelblue', lw=0.8, alpha=0.25, zorder=2)
+    ax.scatter(q_sweeps, q_raw, s=3, color='steelblue', alpha=0.8, zorder=3)
     q_min_int = int(np.floor(q_raw.min()))
     q_max_int = int(np.ceil(q_raw.max()))
     for q_int in range(q_min_int, q_max_int + 1):

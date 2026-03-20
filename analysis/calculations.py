@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from analysis.autocorrelation import autocorrelation
+from autocorrelation import autocorrelation
 
 # ---------------------------------------------------------------------------
 # Optional Rust extension (built with maturin in rust_analysis/).
@@ -413,7 +413,7 @@ def analyze_run(run_data: RunData) -> AnalysisResult:
         Q_mean=np.mean(Q), Q2_mean=Q2_mean,
         chi_t_lattice=chi_t_lattice, chi_t_fourth_root_a=chi_t_fourth_root_a,
         tau_int=tau_int, dtau_int=dtau_int,
-        alpha=run_data.alpha, n_conf=len(Q_raw)
+        alpha=run_data.alpha, n_conf=len(Q)
     )
 
 

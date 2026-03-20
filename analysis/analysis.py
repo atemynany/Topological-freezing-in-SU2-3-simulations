@@ -23,6 +23,7 @@ from plotting_code import (
     plot_susceptibility_combined, plot_tau_int_combined,
     plot_thermalization_comparison
 )
+from timeslice_analysis import analyse_timeslices, plot_timeslice_density, plot_timeslice_mctime
 
 
 def print_table(results: List[AnalysisResult], gauge_group: str):
@@ -104,7 +105,45 @@ def main():
     all_runs = runs_periodic + runs_open
     if all_runs:
         plot_thermalization_comparison(all_runs, output_dir, gauge_group)
-    
+
+    # Timeslice charge density plots (one per run that has the data file)
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+    for run_data in all_runs:
+        ts_file = os.path.join(run_data.run_dir, "output", "topcharge_timeslice.dat")
+        if not os.path.isfile(ts_file):
+            continue
+        a_fm = lattice_spacing(run_data.beta)
+        open_bc = run_data.boundary == "open"
+        n_bin = 2
+        try:
+            res = analyse_timeslices(
+                ts_file,
+                lattice_spacing_fm=a_fm,
+                n_bin=n_bin,
+                open_bc=open_bc,
+                ensemble=f"b{run_data.beta}_{run_data.boundary}",
+            )
+        except Exception as e:
+            print(f"  [warn] timeslice analysis failed for {run_data.run_dir}: {e}")
+            continue
+        fig, ax = plt.subplots(figsize=(8, 4))
+        label = f"β={run_data.beta}, {run_data.boundary}, a={a_fm:.3f} fm"
+        plot_timeslice_density(res, ax=ax, label=label, open_bc=open_bc)
+        plt.tight_layout()
+        fname = f"timeslice_density_{gauge_group}_b{run_data.beta}_{run_data.boundary}.png"
+        plt.savefig(os.path.join(output_dir, fname), dpi=150)
+        plt.close(fig)
+        print(f"Saved: {fname}")
+
+        fig2 = plot_timeslice_mctime(ts_file, n_bin=n_bin)
+        fname2 = f"timeslice_mctime_{gauge_group}_b{run_data.beta}_{run_data.boundary}.png"
+        fig2.savefig(os.path.join(output_dir, fname2), dpi=150)
+        plt.close(fig2)
+        print(f"Saved: {fname2}")
+
     print(f"\nDone! Plots in: {output_dir}")
 
 
