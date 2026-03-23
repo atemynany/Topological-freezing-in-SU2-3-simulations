@@ -35,7 +35,7 @@ HBAR_C = 197.3  # MeV * fm
 
 # Reference values for topological susceptibility (fourth root, in MeV)
 CHI_T_FOURTH_ROOT_SU2 = 200.0
-CHI_T_FOURTH_ROOT_SU3 = 180.0
+CHI_T_FOURTH_ROOT_SU3 = 191.0
 
 
 # =============================================================================
