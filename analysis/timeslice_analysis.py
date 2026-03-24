@@ -285,6 +285,278 @@ def plot_timeslice_mctime(filepath: str, n_bin: int = 1, smear: int = None) -> p
 
 
 # ---------------------------------------------------------------------------
+# Grid plots (one panel per run, matching histogram / Q_vs_mctime style)
+# ---------------------------------------------------------------------------
+
+def plot_timeslice_density_grid(ts_results: list, runs: list, output_dir: str,
+                                 gauge_group: str, boundary: str):
+    """Grid of timeslice density plots, one panel per run.
+    Single-column layout. Shared y-scale (largest measurement). x-axis in lattice units (Xa)."""
+    from calculations import lattice_spacing_su2, lattice_spacing_su3
+    import os
+
+    pairs = [(res, run) for res, run in zip(ts_results, runs) if res is not None]
+    n = len(pairs)
+    if n == 0:
+        return
+
+    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+
+    # Global y-range: largest |mean ± err| across all panels
+    y_max = max(np.max(np.abs(res["means"]) + res["errors"]) for res, _ in pairs)
+    y_lim = (-y_max * 1.15, y_max * 1.15)
+
+    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    axes = np.array(axes).flatten()
+
+    for idx, (res, run_data) in enumerate(pairs):
+        ax = axes[idx]
+        open_bc = run_data.boundary == "open"
+        a = lattice_spacing(run_data.beta)
+
+        t_latt = res["t_centres_latt"]
+        means  = res["means"]
+        errors = res["errors"]
+
+        # Symmetric x: centre at the middle of the full lattice, label = distance from centre
+        t_center = run_data.T / 2.0 - 0.5   # e.g. 7.5 for T=16
+        x_plot   = t_latt - t_center          # e.g. [-5, -3, -1, 1, 3, 5]
+
+        def _dist_label(d):
+            n = int(round(abs(d)))
+            return "a" if n == 1 else f"{n}a"
+        tick_labels = [_dist_label(d) for d in x_plot]
+
+        h_data, = ax.plot([], [], 'o', color='steelblue', label=r'$q(t)$ mean $\pm\sigma$')
+        ax.errorbar(x_plot, means, yerr=errors, fmt='o', capsize=3,
+                    color='steelblue', zorder=3)
+        ax.axhline(0, color='grey', lw=0.8, ls='--')
+
+        # Grey boundary regions: from lattice edge to first/last measured point
+        x_edge = run_data.T / 2.0  # half-width of the full lattice
+        h_excl = None
+        if open_bc:
+            ax.axvspan(-x_edge, x_plot[0], alpha=0.10, color='grey')
+            ax.axvspan(x_plot[-1], x_edge, alpha=0.10, color='grey')
+            if idx == 0:
+                import matplotlib.patches as mpatches
+                h_excl = mpatches.Patch(color='grey', alpha=0.3, label='boundary excluded')
+        ax.set_xlim(-x_edge, x_edge)
+
+        ax.set_xticks(x_plot)
+        ax.set_xticklabels(tick_labels, fontsize=7)
+        ax.set_ylim(y_lim)
+        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_xlabel('distance from centre', fontsize=9)
+        ax.set_ylabel(r'$q(t)$', fontsize=9)
+        ax.tick_params(labelsize=8)
+        ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
+                fontsize=11, va='top', ha='left')
+
+        if idx == 0:
+            legend_handles = [h_data] + ([h_excl] if h_excl is not None else [])
+
+    # Shared legend outside top-right of first panel
+    axes[0].legend(legend_handles, [h.get_label() for h in legend_handles],
+                   loc='upper left', bbox_to_anchor=(1.02, 1.0),
+                   fontsize=7, frameon=False)
+
+    plt.tight_layout()
+    out = os.path.join(output_dir, f"timeslice_density_{gauge_group}_{boundary}.png")
+    plt.savefig(out, dpi=200)
+    plt.close()
+    print(f"Saved: {os.path.basename(out)}")
+
+
+def plot_timeslice_density_comparison(
+        ts_results_periodic: list, runs_periodic: list,
+        ts_results_open: list, runs_open: list,
+        output_dir: str, gauge_group: str):
+    """Overlay open (square) and periodic (triangle) boundary density in one panel per beta.
+
+    One panel per unique beta value. Open BC uses squares, periodic uses triangles.
+    Points are offset slightly in x so error bars don't overlap.
+    Grey excluded regions shown for open BC only. Shared y-scale across panels.
+    """
+    from calculations import lattice_spacing_su2, lattice_spacing_su3
+    import matplotlib.patches as mpatches
+    import os
+
+    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+
+    # Index by beta for each BC
+    periodic_by_beta = {r.beta: (res, r) for res, r in zip(ts_results_periodic, runs_periodic)
+                        if res is not None}
+    open_by_beta     = {r.beta: (res, r) for res, r in zip(ts_results_open, runs_open)
+                        if res is not None}
+
+    all_betas = sorted(set(periodic_by_beta) | set(open_by_beta))
+    if not all_betas:
+        return
+
+    # Global y-range across all datasets
+    all_vals = []
+    for d in (periodic_by_beta, open_by_beta):
+        for res, _ in d.values():
+            all_vals.append(np.max(np.abs(res["means"]) + res["errors"]))
+    y_max = max(all_vals)
+    y_lim = (-y_max * 1.15, y_max * 1.15)
+
+    n = len(all_betas)
+    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    axes = np.array(axes).flatten()
+
+    x_offset = 0.25  # lattice units offset between BC types
+
+    for idx, beta in enumerate(all_betas):
+        ax = axes[idx]
+        a = lattice_spacing(beta)
+        ax.axhline(0, color='grey', lw=0.8, ls='--')
+
+        legend_handles = []
+
+        # Determine x centering from whichever result is available
+        _, ref_run = (open_by_beta if beta in open_by_beta else periodic_by_beta)[beta]
+        t_center = ref_run.T / 2.0 - 0.5
+        x_edge   = ref_run.T / 2.0
+
+        def _dist_label(d):
+            n_val = int(round(abs(d)))
+            return "a" if n_val == 1 else f"{n_val}a"
+
+        # Open BC — squares, offset right
+        if beta in open_by_beta:
+            res, _ = open_by_beta[beta]
+            t_latt = res["t_centres_latt"]
+            x_plot = t_latt - t_center + x_offset
+            h, = ax.plot([], [], 's', color='steelblue', label='open BC')
+            ax.errorbar(x_plot, res["means"], yerr=res["errors"],
+                        fmt='s', capsize=3, color='steelblue', zorder=3)
+            ax.axvspan(-x_edge, (t_latt[0] - t_center), alpha=0.10, color='grey')
+            ax.axvspan((t_latt[-1] - t_center), x_edge,  alpha=0.10, color='grey')
+            legend_handles.append(h)
+            tick_vals = t_latt - t_center  # base positions for ticks
+            tick_labels = [_dist_label(d) for d in tick_vals]
+
+        # Periodic BC — triangles, offset left
+        if beta in periodic_by_beta:
+            res, _ = periodic_by_beta[beta]
+            t_latt = res["t_centres_latt"]
+            x_plot = t_latt - t_center - x_offset
+            h, = ax.plot([], [], '^', color='tomato', label='periodic BC')
+            ax.errorbar(x_plot, res["means"], yerr=res["errors"],
+                        fmt='^', capsize=3, color='tomato', zorder=3)
+            legend_handles.append(h)
+            tick_vals = t_latt - t_center
+            tick_labels = [_dist_label(d) for d in tick_vals]
+
+        if beta in open_by_beta:
+            h_excl = mpatches.Patch(color='grey', alpha=0.3, label='boundary excluded')
+            legend_handles.append(h_excl)
+
+        ax.set_xlim(-x_edge, x_edge)
+        ax.set_xticks(tick_vals)
+        ax.set_xticklabels(tick_labels, fontsize=7)
+        ax.set_ylim(y_lim)
+        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_xlabel('distance from centre', fontsize=9)
+        ax.set_ylabel(r'$q(t)$', fontsize=9)
+        ax.tick_params(labelsize=8)
+        ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
+                fontsize=11, va='top', ha='left')
+
+        if idx == 0:
+            first_handles = legend_handles
+
+    axes[0].legend(first_handles, [h.get_label() for h in first_handles],
+                   loc='upper left', bbox_to_anchor=(1.02, 1.0),
+                   fontsize=7, frameon=False)
+
+    plt.tight_layout()
+    out = os.path.join(output_dir, f"timeslice_density_comparison_{gauge_group}.png")
+    plt.savefig(out, dpi=200, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {os.path.basename(out)}")
+
+
+def plot_timeslice_mctime_grid(ts_files: list, runs: list, n_bin: int,
+                                output_dir: str, gauge_group: str, boundary: str):
+    """Grid of q(t) vs MC time, one panel per run. A,B,C labels + a title.
+    Each binned time slice is a separate coloured line; one shared legend."""
+    from calculations import lattice_spacing_su2, lattice_spacing_su3
+    import os
+
+    valid = [(f, r) for f, r in zip(ts_files, runs) if f is not None]
+    n = len(valid)
+    if n == 0:
+        return
+
+    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+
+    # Pre-compute consistent colormap from first file
+    t_values_ref, _ = load_timeslice_data(valid[0][0])
+    t_centres_ref, _ = bin_timeslices(t_values_ref, np.zeros((1, len(t_values_ref))), n_bin)
+    n_bins = len(t_centres_ref)
+    cmap = plt.cm.tab20 if n_bins <= 20 else plt.cm.turbo
+    colors = [cmap(i / max(1, n_bins - 1)) for i in range(n_bins)]
+
+    def bin_label(j):
+        lo = t_values_ref[j * n_bin]
+        hi = t_values_ref[min(j * n_bin + n_bin - 1, len(t_values_ref) - 1)]
+        return f"$t={int(lo)}$" if n_bin == 1 else f"$t\\in[{lo},{hi}]$"
+
+    # Pre-load all data to compute global y-range
+    all_q_binned = []
+    for ts_file, _ in valid:
+        t_v, q_m = load_timeslice_data(ts_file)
+        _, q_b = bin_timeslices(t_v, q_m, n_bin)
+        all_q_binned.append(q_b)
+    global_abs = max(np.abs(q_b).max() for q_b in all_q_binned)
+    y_lim = (-global_abs * 1.15, global_abs * 1.15)
+
+    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    axes = np.array(axes).flatten()
+
+    legend_handles = []
+    for idx, ((ts_file, run_data), q_binned) in enumerate(zip(valid, all_q_binned)):
+        ax = axes[idx]
+        mc_time = np.arange(q_binned.shape[0])
+
+        for j in range(n_bins):
+            y = q_binned[:, j]
+            col_color = colors[j]
+            h, = ax.plot(mc_time, y, lw=0.8, color=col_color, alpha=0.3, zorder=2,
+                         label=bin_label(j))
+            ax.scatter(mc_time, y, s=3, color=col_color, alpha=0.8, zorder=3)
+            if idx == 0:
+                legend_handles.append(h)
+
+        ax.axhline(0, color='grey', lw=0.6, ls='--')
+        ax.set_ylim(y_lim)
+        a = lattice_spacing(run_data.beta)
+        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_xlabel('MC time', fontsize=9)
+        ax.set_ylabel(r'$q(t)$', fontsize=9)
+        ax.tick_params(labelsize=8)
+        ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
+                fontsize=11, va='top', ha='left')
+
+    # Shared legend outside the top axes panel, no gap
+    leg = axes[0].legend(legend_handles, [h.get_label() for h in legend_handles],
+                         loc='upper left', bbox_to_anchor=(1.02, 1.0),
+                         fontsize=7, frameon=False, ncol=max(1, n_bins // 8))
+    for h in leg.legend_handles:
+        h.set_alpha(1.0)
+        h.set_linewidth(2.0)
+
+    plt.tight_layout()
+    out = os.path.join(output_dir, f"timeslice_mctime_{gauge_group}_{boundary}.png")
+    plt.savefig(out, dpi=200, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {os.path.basename(out)}")
+
+
+# ---------------------------------------------------------------------------
 # CLI convenience
 # ---------------------------------------------------------------------------
 

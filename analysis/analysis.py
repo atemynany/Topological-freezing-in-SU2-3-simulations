@@ -21,9 +21,12 @@ from calculations import (
 from plotting_code import (
     plot_Q_vs_mctime_grid, plot_histograms_grid,
     plot_susceptibility_combined, plot_tau_int_combined,
-    plot_thermalization_comparison
+    plot_thermalization_comparison, plot_therm_topcharge_grid
 )
-from timeslice_analysis import analyse_timeslices, plot_timeslice_density, plot_timeslice_mctime
+from timeslice_analysis import (
+    analyse_timeslices,
+    plot_timeslice_density_grid, plot_timeslice_mctime_grid,
+)
 
 
 def print_table(results: List[AnalysisResult], gauge_group: str):
@@ -101,48 +104,46 @@ def main():
     plot_susceptibility_combined(results_periodic, results_open, output_dir, gauge_group)
     plot_tau_int_combined(results_periodic, results_open, output_dir, gauge_group)
     
-    # Thermalization comparison plot (all runs)
+    # Thermalization comparison plot (plaquette, all runs)
     all_runs = runs_periodic + runs_open
     if all_runs:
         plot_thermalization_comparison(all_runs, output_dir, gauge_group)
 
-    # Timeslice charge density plots (one per run that has the data file)
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    # Therm topcharge grid (one panel per run)
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
-    for run_data in all_runs:
-        ts_file = os.path.join(run_data.run_dir, "output", "topcharge_timeslice.dat")
-        if not os.path.isfile(ts_file):
-            continue
-        a_fm = lattice_spacing(run_data.beta)
-        open_bc = run_data.boundary == "open"
-        n_bin = 2
-        try:
-            res = analyse_timeslices(
-                ts_file,
-                lattice_spacing_fm=a_fm,
-                n_bin=n_bin,
-                open_bc=open_bc,
-                ensemble=f"b{run_data.beta}_{run_data.boundary}",
-            )
-        except Exception as e:
-            print(f"  [warn] timeslice analysis failed for {run_data.run_dir}: {e}")
-            continue
-        fig, ax = plt.subplots(figsize=(8, 4))
-        label = f"β={run_data.beta}, {run_data.boundary}, a={a_fm:.3f} fm"
-        plot_timeslice_density(res, ax=ax, label=label, open_bc=open_bc)
-        plt.tight_layout()
-        fname = f"timeslice_density_{gauge_group}_b{run_data.beta}_{run_data.boundary}.png"
-        plt.savefig(os.path.join(output_dir, fname), dpi=150)
-        plt.close(fig)
-        print(f"Saved: {fname}")
+    n_bin = 2
+    if runs_periodic:
+        plot_therm_topcharge_grid(runs_periodic, output_dir, gauge_group, "periodic")
+    if runs_open:
+        plot_therm_topcharge_grid(runs_open, output_dir, gauge_group, "open")
 
-        fig2 = plot_timeslice_mctime(ts_file, n_bin=n_bin)
-        fname2 = f"timeslice_mctime_{gauge_group}_b{run_data.beta}_{run_data.boundary}.png"
-        fig2.savefig(os.path.join(output_dir, fname2), dpi=150)
-        plt.close(fig2)
-        print(f"Saved: {fname2}")
+    # Timeslice grid plots — collect results per boundary group
+    for runs_group, boundary in [(runs_periodic, "periodic"), (runs_open, "open")]:
+        ts_files, ts_results, ts_runs = [], [], []
+        for run_data in sorted(runs_group, key=lambda x: x.beta):
+            ts_file = os.path.join(run_data.run_dir, "output", "topcharge_timeslice.dat")
+            if not os.path.isfile(ts_file):
+                continue
+            a_fm = lattice_spacing(run_data.beta)
+            open_bc = run_data.boundary == "open"
+            try:
+                res = analyse_timeslices(
+                    ts_file,
+                    lattice_spacing_fm=a_fm,
+                    n_bin=n_bin,
+                    open_bc=open_bc,
+                    ensemble=f"b{run_data.beta}_{run_data.boundary}",
+                )
+            except Exception as e:
+                print(f"  [warn] timeslice analysis failed for {run_data.run_dir}: {e}")
+                continue
+            ts_files.append(ts_file)
+            ts_results.append(res)
+            ts_runs.append(run_data)
+
+        if ts_runs:
+            plot_timeslice_density_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
+            plot_timeslice_mctime_grid(ts_files, ts_runs, n_bin, output_dir, gauge_group, boundary)
 
     print(f"\nDone! Plots in: {output_dir}")
 

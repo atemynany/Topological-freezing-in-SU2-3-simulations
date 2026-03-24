@@ -37,16 +37,11 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
 
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
 
-    n_cols = min(3, n)
-    n_rows = (n + n_cols - 1) // n_cols
+    n_cols = 1
+    n_rows = n
 
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4*n_cols, 3*n_rows))
-    if n == 1:
-        axes = np.array([[axes]])
-    elif n_rows == 1:
-        axes = axes.reshape(1, -1)
-    elif n_cols == 1:
-        axes = axes.reshape(-1, 1)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7, 3 * n_rows))
+    axes = np.array(axes).reshape(-1, 1)
 
     sorted_runs = sorted(runs, key=lambda x: x.beta)
 
@@ -56,8 +51,7 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
     pad = 0.5
 
     for idx, run_data in enumerate(sorted_runs):
-        row, col = idx // n_cols, idx % n_cols
-        ax = axes[row, col]
+        ax = axes[idx, 0]
 
         Q = run_data.Q_rescaled
         mc_time = np.arange(len(Q))
@@ -65,25 +59,18 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
         ax.plot(mc_time, Q.astype(float), color='steelblue', lw=0.8, alpha=0.25, zorder=2)
         ax.scatter(mc_time, Q, s=3, color='steelblue', alpha=0.8, zorder=3)
 
-        # Dashed lines at integer Q values across the global range
         for q_int in range(global_min, global_max + 1):
             ax.axhline(y=q_int, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
 
         ax.set_ylim(global_min - pad, global_max + pad)
 
         a = lattice_spacing(run_data.beta)
+        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
         ax.set_xlabel('MC time', fontsize=9)
         ax.set_ylabel(r'$Q_{\rm re}$', fontsize=9)
         ax.tick_params(labelsize=8)
-
-        # Add panel label (A, B, C...)
-        panel_label = chr(ord('A') + idx)
-        ax.text(0.02, 0.98, panel_label, transform=ax.transAxes, fontsize=11,
-                va='top', ha='left')
-    
-    for idx in range(n, n_rows * n_cols):
-        row, col = idx // n_cols, idx % n_cols
-        axes[row, col].set_visible(False)
+        ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
+                fontsize=11, va='top', ha='left')
     
     plt.tight_layout()
     filepath = os.path.join(output_dir, f"Q_vs_mctime_{gauge_group}_{boundary}.png")
@@ -302,6 +289,57 @@ def plot_thermalization_comparison(runs: List[RunData], output_dir: str, gauge_g
     plt.tight_layout()
     filepath = os.path.join(output_dir, f"thermalization_comparison_{gauge_group}.png")
     plt.savefig(filepath, dpi=200, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {os.path.basename(filepath)}")
+
+
+def plot_therm_topcharge_grid(runs: List[RunData], output_dir: str, gauge_group: str, boundary: str):
+    """Grid of thermalization Q vs MC sweep, one panel per run. A,B,C labels + a title."""
+    therm_fname = "therm_topcharge_su3.dat" if gauge_group == "su3" else "therm_topcharge.dat"
+    runs_with_data = [r for r in sorted(runs, key=lambda x: x.beta)
+                      if os.path.isfile(os.path.join(r.run_dir, "output", therm_fname))]
+    n = len(runs_with_data)
+    if n == 0:
+        return
+
+    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+
+    # Global y-range across all runs
+    all_q = []
+    for run_data in runs_with_data:
+        fp = os.path.join(run_data.run_dir, "output", therm_fname)
+        d = np.loadtxt(fp, comments='#')
+        all_q.append(d[:, 1])
+    global_min = int(np.floor(min(q.min() for q in all_q)))
+    global_max = int(np.ceil(max(q.max() for q in all_q)))
+
+    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    axes = np.array(axes).flatten()
+
+    for idx, (run_data, q_raw) in enumerate(zip(runs_with_data, all_q)):
+        ax = axes[idx]
+
+        q_data = np.loadtxt(os.path.join(run_data.run_dir, "output", therm_fname), comments='#')
+        q_sweeps = q_data[:, 0].astype(int)
+
+        ax.plot(q_sweeps, q_raw, color='steelblue', lw=0.8, alpha=0.25, zorder=2)
+        ax.scatter(q_sweeps, q_raw, s=3, color='steelblue', alpha=0.8, zorder=3)
+
+        for q_int in range(global_min, global_max + 1):
+            ax.axhline(y=q_int, color='gray', ls='--', lw=0.5, alpha=0.5)
+
+        ax.set_ylim(global_min - 0.5, global_max + 0.5)
+        a = lattice_spacing(run_data.beta)
+        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_xlabel('MC Sweep', fontsize=9)
+        ax.set_ylabel(r'$Q$', fontsize=9)
+        ax.tick_params(labelsize=8)
+        ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
+                fontsize=11, va='top', ha='left')
+
+    plt.tight_layout()
+    filepath = os.path.join(output_dir, f"therm_topcharge_{gauge_group}_{boundary}.png")
+    plt.savefig(filepath, dpi=200)
     plt.close()
     print(f"Saved: {os.path.basename(filepath)}")
 
