@@ -349,7 +349,14 @@ def load_run_data(run_dir: str, gauge_group: str = "su2", min_sweeps: int = 1000
     if len(Q_raw) < 50:
         return None
     
-    estimator = QEstimator(Q_raw)
+    if boundary == 'open':
+        # For open boundaries, keep alpha optimization but do not round to integers.
+        alpha = find_optimal_alpha(Q_raw)
+        q_rescaled = alpha * Q_raw
+    else:
+        estimator = QEstimator(Q_raw)
+        q_rescaled = estimator.Q_rescaled
+        alpha = estimator.alpha
     
     match = re.search(r'_b([\d.]+)_', os.path.basename(run_dir))
     beta_from_dir = float(match.group(1)) if match else 0
@@ -386,7 +393,7 @@ def load_run_data(run_dir: str, gauge_group: str = "su2", min_sweeps: int = 1000
     
     return RunData(
         beta=beta, seed=seed, run_dir=run_dir, T=T, L=L,
-        boundary=boundary, Q_raw=Q_raw, Q_rescaled=estimator.Q_rescaled, alpha=estimator.alpha,
+        boundary=boundary, Q_raw=Q_raw, Q_rescaled=q_rescaled, alpha=alpha,
         plaq_data=plaq_data, mc_time=mc_time, start_conf=start_conf
     )
 
@@ -394,7 +401,7 @@ def load_run_data(run_dir: str, gauge_group: str = "su2", min_sweeps: int = 1000
 def analyze_run(run_data: RunData) -> AnalysisResult:
     """Perform full analysis on a single run."""
     volume = run_data.T * run_data.L ** 3
-    Q = run_data.Q_rescaled.astype(float)   # integer-rounded charge, consistent everywhere
+    Q = run_data.Q_rescaled.astype(float)
     Q2 = Q ** 2
     Q2_mean = np.mean(Q2)
     chi_t_lattice = Q2_mean / volume
