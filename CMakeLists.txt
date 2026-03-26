@@ -374,6 +374,27 @@ if(BUILD_TESTING)
     add_test(NAME test_topcharge COMMAND test_topcharge)
     add_test(NAME test_smearing COMMAND test_smearing)
     add_test(NAME test_plaquette COMMAND test_plaquette)
+
+    # --- Test: Checkerboard parallelization ---
+    add_executable(test_checkerboard
+        tests/test_checkerboard.cc
+    )
+
+    target_include_directories(test_checkerboard
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/_Utility/include
+    )
+
+    target_link_libraries(test_checkerboard
+        PRIVATE
+            su2_utility
+            Catch2::Catch2WithMain
+            ${MATH_LIBRARY}
+            $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
+    )
+
+    add_test(NAME test_checkerboard COMMAND test_checkerboard)
 endif()
 
 # ==============================================================================

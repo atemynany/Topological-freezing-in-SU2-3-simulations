@@ -58,10 +58,10 @@ typedef struct
    vec_t c1,c2;
 } dble_vec_t __attribute__ ((aligned (16)));
 
-static int init=0,pr,prm,ir,jr,is,is_old,next[96];
-static vec_t one,one_bit,carry;
+static _Thread_local int init=0,pr,prm,ir,jr,is,is_old,next[96];
+static _Thread_local vec_t one,one_bit,carry;
 
-static union
+static _Thread_local union
 {
    dble_vec_t vec[12];
    float num[96];
@@ -371,11 +371,12 @@ typedef struct
    vec_t c1,c2;
 } dble_vec_t;
 
-static int init=0,pr,prm,ir,jr,is,is_old,next[96];
-static double one_bit;
-static vec_t carry;
+// thread-local state for OpenMP checkerboard parallelization
+static _Thread_local int init=0,pr,prm,ir,jr,is,is_old,next[96];
+static _Thread_local double one_bit;
+static _Thread_local vec_t carry;
 
-static union
+static _Thread_local union
 {
    dble_vec_t vec[12];
    int num[96];
