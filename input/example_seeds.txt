@@ -1,0 +1,5 @@
+# Seeds for independent ensembles
+# One seed per line (must be >= 1)
+12345
+67890
+24680

@@ -52,6 +52,7 @@ input/*
 !input/.gitkeep
 !input/example_base_params.txt
 !input/example_beta_scan.txt
+!input/example_seeds.txt
 
 # Output folder structure (keep dirs, ignore content)
 !output/.gitkeep
