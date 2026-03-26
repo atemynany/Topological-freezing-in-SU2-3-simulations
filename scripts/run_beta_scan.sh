@@ -149,6 +149,10 @@ log_step() {
     echo -e "${MAGENTA}[STEP]${NC} $1"
 }
 
+has_working_conda_env() {
+    command -v conda &> /dev/null && conda run -n "$CONDA_ENV" python3 --version &> /dev/null
+}
+
 # Generate unique seed from Unix timestamp (10 digits)
 generate_seed() {
     # Portable seed generation (macOS date does not support %N)
@@ -245,9 +249,11 @@ EOF
 # Validation
 # ==============================================================================
 
+GAUGE_GROUP_UPPER=$(echo "$GAUGE_GROUP" | tr '[:lower:]' '[:upper:]')
+
 echo ""
 echo -e "${GREEN}======================================================${NC}"
-echo -e "${GREEN}     ${GAUGE_GROUP^^} Beta Scan - Lattice QCD Simulation${NC}"
+echo -e "${GREEN}     ${GAUGE_GROUP_UPPER} Beta Scan - Lattice QCD Simulation${NC}"
 echo -e "${GREEN}======================================================${NC}"
 echo ""
 
@@ -267,7 +273,7 @@ SAVE_INTERVAL=$(read_param "save_interval" "$PARAMS_FILE")
 T_SIZE=$(read_param "T" "$PARAMS_FILE")
 L_SIZE=$(read_param "L" "$PARAMS_FILE")
 
-log_info "Gauge group:     ${GAUGE_GROUP^^}"
+log_info "Gauge group:     ${GAUGE_GROUP_UPPER}"
 log_info "Beta file:       $BETA_FILE"
 log_info "Params file:     $PARAMS_FILE"
 log_info "Lattice:         ${T_SIZE}x${L_SIZE}^3"
@@ -391,7 +397,27 @@ for BETA in "${BETAS[@]}"; do
     # Run thermalization detection script
     # Note: stdout = start_conf number, stderr = debug message (shown in terminal)
     log_info "Running thermalization detection..."
-    START_CONF=$(conda run -n "$CONDA_ENV" python3 "$SCRIPT_DIR/detect_thermalization.py" "$PLAQ_PATH" "$SAVE_INTERVAL")
+    START_CONF=""
+
+    if has_working_conda_env; then
+        if START_CONF=$(conda run -n "$CONDA_ENV" python3 "$SCRIPT_DIR/detect_thermalization.py" "$PLAQ_PATH" "$SAVE_INTERVAL" 2>"$RUN_DIR/thermalization.err"); then
+            :
+        else
+            log_warn "Thermalization detection failed in conda env '$CONDA_ENV'; trying system python3"
+            START_CONF=""
+        fi
+    else
+        log_warn "Conda env '$CONDA_ENV' not available; trying system python3"
+    fi
+
+    if [ -z "$START_CONF" ] && command -v python3 &> /dev/null; then
+        if START_CONF=$(python3 "$SCRIPT_DIR/detect_thermalization.py" "$PLAQ_PATH" "$SAVE_INTERVAL" 2>"$RUN_DIR/thermalization.err"); then
+            :
+        else
+            log_warn "Thermalization detection failed with system python3; using default start_conf=50"
+            START_CONF=""
+        fi
+    fi
     
     if ! [[ "$START_CONF" =~ ^[0-9]+$ ]]; then
         log_warn "Could not detect thermalization (got: '$START_CONF'), using default start_conf=50"
@@ -435,7 +461,7 @@ for BETA in "${BETAS[@]}"; do
 # Generated: $(date)
 # ==============================================================================
 
-gauge_group         ${GAUGE_GROUP^^}
+    gauge_group         ${GAUGE_GROUP_UPPER}
 beta                $BETA
 seed                $SEED
 T                   $T_SIZE

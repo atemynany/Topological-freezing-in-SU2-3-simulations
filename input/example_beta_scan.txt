@@ -9,7 +9,5 @@
 # SU(2) typical range: 2.3 - 2.8
 # Larger beta = finer lattice = more freezing
 2.5
-2.6
-2.7
 
 # SU(3) typical range: 5.8 - 6.4 (use a separate file)
