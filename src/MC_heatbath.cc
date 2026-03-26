@@ -66,6 +66,26 @@ void init_neighbor_tables(int T_size, int L_size) {
     }
 }
 
+// checkerboard site lists for parallel sweeps
+std::vector<int> even_sites;
+std::vector<int> odd_sites;
+
+void init_checkerboard(int T_size, int L_size) {
+    const int volume = T_size * L_size * L_size * L_size;
+    even_sites.reserve(volume / 2);
+    odd_sites.reserve(volume / 2);
+    for (int site = 0; site < volume; site++) {
+        int iz = site % L_size;
+        int iy = (site / L_size) % L_size;
+        int ix = (site / (L_size * L_size)) % L_size;
+        int it = site / (L_size * L_size * L_size);
+        if ((it + ix + iy + iz) % 2 == 0)
+            even_sites.push_back(site);
+        else
+            odd_sites.push_back(site);
+    }
+}
+
 struct SimParams {
     std::string output_dir;
     std::string config_dir;
@@ -225,7 +245,8 @@ int main(int argc, char **argv)
     
     // Precompute neighbor tables for fast index lookup
     init_neighbor_tables(T, L);
-    
+    init_checkerboard(T, L);
+
     mkdir(params.output_dir.c_str(), 0755);
     mkdir(params.config_dir.c_str(), 0755);
     
