@@ -26,6 +26,8 @@ from plotting_code import (
 from timeslice_analysis import (
     analyse_timeslices,
     plot_timeslice_density_grid, plot_timeslice_mctime_grid,
+    plot_timeslice_susceptibility_grid, plot_timeslice_tauint_grid,
+    plot_timeslice_susceptibility_cropped, plot_timeslice_tauint_cropped,
 )
 
 
@@ -111,7 +113,7 @@ def main():
 
     # Therm topcharge grid (one panel per run)
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
-    n_bin = 2
+    n_bin = 1
     if runs_periodic:
         plot_therm_topcharge_grid(runs_periodic, output_dir, gauge_group, "periodic")
     if runs_open:
@@ -144,6 +146,10 @@ def main():
         if ts_runs:
             plot_timeslice_density_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
             plot_timeslice_mctime_grid(ts_files, ts_runs, n_bin, output_dir, gauge_group, boundary)
+            plot_timeslice_susceptibility_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
+            plot_timeslice_tauint_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
+            plot_timeslice_susceptibility_cropped(ts_results, ts_runs, output_dir, gauge_group, boundary)
+            plot_timeslice_tauint_cropped(ts_results, ts_runs, output_dir, gauge_group, boundary)
 
     print(f"\nDone! Plots in: {output_dir}")
 

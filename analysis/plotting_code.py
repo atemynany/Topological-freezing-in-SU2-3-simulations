@@ -5,6 +5,8 @@ Plotting functions for SU(2)/SU(3) topological charge analysis.
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+from matplotlib.lines import Line2D
 from scipy.optimize import curve_fit
 import os
 from typing import List
@@ -21,6 +23,42 @@ plt.rcParams.update({
     'axes.labelsize': 12,
     'figure.dpi': 150,
 })
+
+
+def _apply_axis_style(ax, x_integer: bool = False, y_integer: bool = False,
+                      x_nbins: int = 6, y_nbins: int = 6):
+    """Apply a uniform axis style across all plots."""
+    ax.grid(True, alpha=0.25, linewidth=0.6)
+    ax.tick_params(labelsize=8)
+    ax.minorticks_off()
+    if x_integer:
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=x_nbins, integer=True, min_n_ticks=4))
+    else:
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=x_nbins, min_n_ticks=4))
+    if y_integer:
+        ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=y_nbins, integer=True, min_n_ticks=4))
+    else:
+        ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=y_nbins, min_n_ticks=4))
+
+
+def _legend_outside(ax, handles=None, labels=None, ncol: int = 1, fontsize: int = 8):
+    """Place a minimal legend outside the plotting area."""
+    if handles is None or labels is None:
+        handles, labels = ax.get_legend_handles_labels()
+    if not handles:
+        return None
+    return ax.legend(
+        handles,
+        labels,
+        loc='upper left',
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0,
+        frameon=False,
+        fontsize=fontsize,
+        ncol=ncol,
+        handlelength=1.4,
+        labelspacing=0.3,
+    )
 
 
 def _smooth(y: np.ndarray, window: int = None) -> np.ndarray:
@@ -68,7 +106,7 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
         ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
         ax.set_xlabel('MC time', fontsize=9)
         ax.set_ylabel(r'$Q_{\rm re}$', fontsize=9)
-        ax.tick_params(labelsize=8)
+        _apply_axis_style(ax, x_integer=True, y_integer=True)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
     
@@ -111,7 +149,7 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
 
         Q = run_data.Q_rescaled
 
-        hist_label = r'$Q_{\rm re}$' if idx == 0 else None
+        hist_label = 'Data' if idx == 0 else None
         counts, bin_edges, _ = ax.hist(Q, bins=bins, density=False,
             color='steelblue', edgecolor='black', linewidth=0.5, alpha=0.9, rwidth=0.15,
             label=hist_label)
@@ -124,7 +162,7 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
                     p0=[np.mean(Q), sigma0, counts.max()],
                     bounds=([-np.inf, 0.1, 0], [np.inf, np.inf, np.inf]))
                 x_fit = np.linspace(global_min - 1, global_max + 1, 200)
-                fit_label = 'Gaussian fit' if idx == 0 else None
+                fit_label = 'Gaussian' if idx == 0 else None
                 ax.plot(x_fit, gaussian(x_fit, *popt), 'r-', linewidth=1.5, label=fit_label)
         except:
             pass
@@ -135,7 +173,7 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
         ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
         ax.set_xlabel(r'$Q$', fontsize=9)
         ax.set_ylabel(r'$N$', fontsize=9)
-        ax.tick_params(labelsize=8)
+        _apply_axis_style(ax, x_integer=True, y_integer=True)
 
         # Add panel label (A, B, C...)
         panel_label = chr(ord('A') + idx)
@@ -148,9 +186,10 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
     
     handles, labels = axes[0, 0].get_legend_handles_labels()
     if handles:
-        fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.78, 0.98), frameon=False, fontsize=10)
+        fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.82, 0.98), frameon=False,
+                   fontsize=8, handlelength=1.4, labelspacing=0.3)
     
-    plt.tight_layout(rect=[0, 0, 0.77, 1])
+    plt.tight_layout(rect=[0, 0, 0.80, 1])
     filepath = os.path.join(output_dir, f"histograms_{gauge_group}_{boundary}.png")
     plt.savefig(filepath, dpi=200)
     plt.close()
@@ -197,12 +236,12 @@ def plot_susceptibility_combined(results_periodic: List[AnalysisResult],
     
     ax.set_xlabel(r'$a$ (fm)')
     ax.set_ylabel(r'$\chi_t^{1/4}$ (MeV)')
-    ax.legend(frameon=False)
-    ax.grid(True, alpha=0.3)
+    _apply_axis_style(ax)
+    _legend_outside(ax, fontsize=8)
     
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 0.84, 1])
     filepath = os.path.join(output_dir, f"susceptibility_{gauge_group}.png")
-    plt.savefig(filepath, dpi=200)
+    plt.savefig(filepath, dpi=200, bbox_inches='tight')
     plt.close()
     print(f"Saved: {os.path.basename(filepath)}")
 
@@ -242,12 +281,12 @@ def plot_tau_int_combined(results_periodic: List[AnalysisResult],
     
     ax.set_xlabel(r'$a$ (fm)')
     ax.set_ylabel(r'$\tau_{\rm int}(Q^2)$')
-    ax.legend(frameon=False)
-    ax.grid(True, alpha=0.3)
+    _apply_axis_style(ax)
+    _legend_outside(ax, fontsize=8)
     
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 0.84, 1])
     filepath = os.path.join(output_dir, f"tau_int_{gauge_group}.png")
-    plt.savefig(filepath, dpi=200)
+    plt.savefig(filepath, dpi=200, bbox_inches='tight')
     plt.close()
     print(f"Saved: {os.path.basename(filepath)}")
 
@@ -270,10 +309,8 @@ def plot_thermalization_comparison(runs: List[RunData], output_dir: str, gauge_g
     for idx, run in enumerate(runs_sorted):
         color = colors[idx]
         a = lattice_spacing(run.beta)
-        label = f'$a = {a:.4f}$ fm ({run.boundary[:4]})'
-        
         # Plot plaquette vs MC time
-        ax.plot(run.mc_time, run.plaq_data, '-', color=color, linewidth=0.8, alpha=0.8, label=label)
+        ax.plot(run.mc_time, run.plaq_data, '-', color=color, linewidth=0.8, alpha=0.8)
         
         # Mark thermalization point
         if run.start_conf > 0 and run.start_conf < run.mc_time[-1]:
@@ -283,10 +320,16 @@ def plot_thermalization_comparison(runs: List[RunData], output_dir: str, gauge_g
     
     ax.set_xlabel('MC Sweeps')
     ax.set_ylabel(r'$\langle P_{\mu\nu} \rangle$')
-    ax.legend(loc='center left', bbox_to_anchor=(1.02, 0.5), fontsize=8, frameon=False)
-    ax.grid(True, alpha=0.3)
+    _apply_axis_style(ax, x_integer=True)
+    legend_handles = [
+        Line2D([0], [0], color='steelblue', lw=1.2, label='Plaquette'),
+        Line2D([0], [0], color='black', lw=1.0, ls='--', marker='o', markersize=4,
+               label='start conf'),
+    ]
+    _legend_outside(ax, handles=legend_handles,
+                    labels=[h.get_label() for h in legend_handles], fontsize=8)
     
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 0.84, 1])
     filepath = os.path.join(output_dir, f"thermalization_comparison_{gauge_group}.png")
     plt.savefig(filepath, dpi=200, bbox_inches='tight')
     plt.close()
@@ -333,7 +376,7 @@ def plot_therm_topcharge_grid(runs: List[RunData], output_dir: str, gauge_group:
         ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
         ax.set_xlabel('MC Sweep', fontsize=9)
         ax.set_ylabel(r'$Q$', fontsize=9)
-        ax.tick_params(labelsize=8)
+        _apply_axis_style(ax, x_integer=True, y_integer=True)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
 
@@ -375,7 +418,7 @@ def plot_therm_topcharge(plaq_file: str, therm_q_file: str, output_dir: str,
         ax.axhline(y=q_int, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
     ax.set_xlabel('MC Sweep')
     ax.set_ylabel(r'$Q$ (unsmeared)')
-    ax.grid(True, alpha=0.3)
+    _apply_axis_style(ax, x_integer=True, y_integer=True)
     plt.tight_layout()
     path = os.path.join(output_dir, f'therm_topcharge{suffix}.png')
     plt.savefig(path, dpi=200)

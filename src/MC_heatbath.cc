@@ -23,6 +23,7 @@ extern "C" {
 #include "ranlxd.h"
 }
 
+#include "smearing_techniques.hh"
 #include "Plaquette.hh"
 #include "progressbar.hh"
 #include "topcharge_su2.hh"
@@ -107,6 +108,8 @@ struct SimParams {
     std::string boundary;
     int num_sweeps;
     int save_interval;
+    int smear_steps;
+    double smear_alpha;
 };
 
 bool read_input_file(const char *filename, SimParams &params) {
@@ -126,6 +129,8 @@ bool read_input_file(const char *filename, SimParams &params) {
     params.boundary = "periodic";
     params.num_sweeps = 100;
     params.save_interval = 10;
+    params.smear_steps = 40;
+    params.smear_alpha = 0.5;
     
     std::string line, key;
     
@@ -155,6 +160,10 @@ bool read_input_file(const char *filename, SimParams &params) {
             iss >> params.num_sweeps;
         } else if (key == "save_interval") {
             iss >> params.save_interval;
+        } else if (key == "smear_steps") {
+            iss >> params.smear_steps;
+        } else if (key == "smear_alpha") {
+            iss >> params.smear_alpha;
         }
     }
     
@@ -203,6 +212,8 @@ void print_params(const SimParams &params) {
     std::cout << "Boundary conditions: " << params.boundary << std::endl;
     std::cout << "Number of sweeps:    " << params.num_sweeps << std::endl;
     std::cout << "Save interval:       " << params.save_interval << std::endl;
+    std::cout << "Smearing steps (Q):  " << params.smear_steps << std::endl;
+    std::cout << "Smearing alpha (Q):  " << params.smear_alpha << std::endl;
     std::cout << "========================================" << std::endl;
 }
 
@@ -259,7 +270,9 @@ int main(int argc, char **argv)
     mkdir(params.config_dir.c_str(), 0755);
     
     Gauge_Field_Alloc(&gauge_field, T, L);
-    
+    double *smeared_field = nullptr;
+    Gauge_Field_Alloc(&smeared_field, T, L);
+
     if (hot_start) {
         std::cout << "Initializing hot start..." << std::endl;
         Gauge_Field_Random(gauge_field, T, L);
@@ -419,7 +432,11 @@ int main(int argc, char **argv)
         fprintf(plaq_file, "%5d %+.10e\n", sweep, P);
         fflush(plaq_file);
 
-        double Q_therm = compute_topological_charge(gauge_field, T, L);
+        Gauge_Field_Copy(smeared_field, gauge_field, T, L);
+        for (int s = 0; s < params.smear_steps; s++) {
+            APE_Smearing_all(smeared_field, T, L, params.smear_alpha);
+        }
+        double Q_therm = compute_topological_charge(smeared_field, T, L);
         fprintf(therm_q_file, "%5d %+.6f\n", sweep, Q_therm);
         fflush(therm_q_file);
         
@@ -446,6 +463,7 @@ int main(int argc, char **argv)
     fclose(therm_q_file);
 
     Gauge_Field_Free(&gauge_field);
+    Gauge_Field_Free(&smeared_field);
     
     std::cout << "========================================" << std::endl;
     std::cout << "Simulation complete." << std::endl;
