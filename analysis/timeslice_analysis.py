@@ -23,7 +23,8 @@ from autocorrelation import autocorrelation
 
 
 def _apply_axis_style(ax, x_integer: bool = False, y_integer: bool = False,
-                      x_nbins: int = 6, y_nbins: int = 6):
+                      x_nbins: int = 6, y_nbins: int = 6,
+                      drop_last_x_tick: bool = False):
     """Apply uniform axis style: grid, tick size, integer locator, and x-axis endpoints."""
     ax.grid(True, alpha=0.25, linewidth=0.6)
     ax.tick_params(labelsize=8)
@@ -50,7 +51,10 @@ def _apply_axis_style(ax, x_integer: bool = False, y_integer: bool = False,
     for ep in [x_lo, x_hi]:
         if ep not in ticks:
             ticks.append(ep)
-    ax.set_xticks(sorted(ticks))
+    ticks = sorted(ticks)
+    if drop_last_x_tick and x_hi in ticks:
+        ticks = [t for t in ticks if t != x_hi]
+    ax.set_xticks(ticks)
 
 
 # ---------------------------------------------------------------------------
@@ -289,7 +293,7 @@ def plot_timeslice_density(results: dict,
     ax.set_ylabel(r"$q(t)$")
     ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
               frameon=False, fontsize=8)
-    _apply_axis_style(ax)
+    _apply_axis_style(ax, drop_last_x_tick=open_bc)
     return ax
 
 
@@ -403,7 +407,7 @@ def plot_timeslice_density_grid(ts_results: list, runs: list, output_dir: str,
         ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
         ax.set_xlabel('$t/a$', fontsize=9)
         ax.set_ylabel(r'$q(t)$', fontsize=9)
-        _apply_axis_style(ax, x_integer=True)
+        _apply_axis_style(ax, x_integer=True, drop_last_x_tick=open_bc)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
 
@@ -503,7 +507,7 @@ def plot_timeslice_density_comparison(
         ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
         ax.set_xlabel('$t/a$', fontsize=9)
         ax.set_ylabel(r'$q(t)$', fontsize=9)
-        ax.tick_params(labelsize=8)
+        _apply_axis_style(ax, x_integer=True, drop_last_x_tick=(beta in open_by_beta))
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
 
@@ -582,7 +586,7 @@ def plot_timeslice_mctime_grid(ts_files: list, runs: list, n_bin: int,
         ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
         ax.set_xlabel('MC time', fontsize=9)
         ax.set_ylabel(r'$q(t)$', fontsize=9)
-        _apply_axis_style(ax, x_integer=True)
+        _apply_axis_style(ax, x_integer=True, drop_last_x_tick=open_bc)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
 
@@ -655,7 +659,7 @@ def plot_timeslice_susceptibility_grid(ts_results: list, runs: list, output_dir:
         ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
         ax.set_xlabel('$t/a$', fontsize=9)
         ax.set_ylabel(r'$\tilde{\chi}(t)^{1/4}$ [MeV]', fontsize=9)
-        _apply_axis_style(ax, x_integer=True)
+        _apply_axis_style(ax, x_integer=True, drop_last_x_tick=open_bc)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
 
