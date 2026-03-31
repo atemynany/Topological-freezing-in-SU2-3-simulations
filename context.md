@@ -108,7 +108,7 @@ Implemented in `src/MC_heatbath_su3.cc`. Uses the **Cabibbo-Marinari** decomposi
 
 Both programs:
 - Write the plaquette at every sweep to `plaquette[_su3].dat`
-- Write Q at every sweep to `therm_topcharge.dat` as a thermalization monitor (SU(2): unsmeared; SU(3): APE-smeared)
+- Write APE-smeared Q at every sweep to `therm_topcharge.dat` as a thermalization monitor (controlled by `smear_steps` and `smear_alpha` input params)
 - Save gauge configurations every `save_interval` sweeps
 - Validate all input parameters at startup
 
@@ -132,7 +132,7 @@ The smearing does **not** modify the stored configurations — it operates on an
 Thermalization is detected automatically by `scripts/detect_thermalization.py` using a sliding-window test on the plaquette. The detected `start_conf` is written to `run_info.txt` and used as the starting configuration for the topological charge measurement.
 
 Two thermalization plots are produced per run (saved to `output/figures_analysis/`):
-- **`therm_topcharge_su2/3_<run>.png`**: Q vs MC sweep for thermalization monitoring. SU(2) uses unsmeared Q (noisy, not integer-quantized); SU(3) uses APE-smeared Q (better quantized). Not alpha-rescaled.
+- **`therm_topcharge_su2/3_<run>.png`**: APE-smeared Q vs MC sweep for thermalization monitoring. Not alpha-rescaled.
 - **`thermalization_comparison_su2/3.png`**: plaquette vs MC sweep for all β values overlaid, with detected thermalization points marked.
 
 ---
@@ -158,7 +158,7 @@ Two thermalization plots are produced per run (saved to `output/figures_analysis
 |------|---------|-------|
 | `topcharge.dat` (SU2) | `smear_step conf Q plaquette` | 4 columns |
 | `topcharge_su3.dat` | `conf smear_step Q` | 3 columns |
-| `therm_topcharge.dat` | `sweep Q` | every sweep; SU(2) unsmeared, SU(3) APE-smeared |
+| `therm_topcharge.dat` | `sweep Q` | APE-smeared, every sweep |
 | `plaquette[_su3].dat` | `sweep plaquette` | every sweep |
 
 ---

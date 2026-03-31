@@ -77,7 +77,7 @@ Results saved to `data/results/` and plots to `output/figures_analysis/`.
 
 | Binary | Purpose |
 |--------|---------|
-| `mc_heatbath` | SU(2) heatbath config generation (+ unsmeared therm Q) |
+| `mc_heatbath` | SU(2) heatbath config generation (+ smeared therm Q) |
 | `mc_heatbath_su3` | SU(3) heatbath config generation (OpenMP checkerboard, smeared therm Q) |
 | `meas_topcharge` | SU(2) topological charge measurement |
 | `meas_topcharge_su3` | SU(3) topological charge measurement |

@@ -74,7 +74,7 @@ The SU(3) heatbath (`MC_heatbath_su3.cc`) uses checkerboard (even/odd) site deco
 
 ### Thermalization topcharge
 
-Both heatbath programs output `therm_topcharge.dat` (Q measured every sweep). SU(2) measures unsmeared Q; SU(3) applies APE smearing (`smear_steps`, `smear_alpha` params) before measuring Q for better signal.
+Both heatbath programs output `therm_topcharge.dat` (Q measured every sweep on an APE-smeared copy of the gauge field). Smearing params `smear_steps` (default 40) and `smear_alpha` (default 0.5) are configurable via input file.
 
 ### Data layout
 

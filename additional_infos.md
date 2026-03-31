@@ -79,26 +79,23 @@ exclude_boundary_slices 0    # set > 0 for open BC runs (typically 1–2)
 
 ## 3. Thermalization vs Production Q — Why They Differ
 
-The thermalization plot (`therm_topcharge[_su3].dat`) shows the **unsmeared** topological charge measured at every MC sweep. The production analysis uses the **APE-smeared** Q from saved configurations.
-
-These are fundamentally different estimators:
+Both heatbath programs now measure Q on an **APE-smeared copy** of the gauge field at every sweep (`therm_topcharge.dat`). The smearing parameters (`smear_steps`, default 40; `smear_alpha`, default 0.5) are configurable via the input file. The production analysis uses separately APE-smeared Q from saved configurations.
 
 | | Thermalization Q | Production Q |
 |---|---|---|
-| Smearing | None | 20 APE steps |
+| Smearing | `smear_steps` APE steps (default 40) | Configurable APE steps |
 | Measured | Every sweep | Every `save_interval` sweeps |
-| Integer-quantized | No (UV noise dominates) | Yes (after smearing) |
-| Alpha rescaling | Not applied (meaningless without quantization) | Applied (α ≈ 0.9) |
-| Purpose | Qualitative thermalization monitor | Physics (χ_t, τ_int) |
+| Integer-quantized | Approximately | Yes (after smearing) |
+| Alpha rescaling | Not applied | Applied (α ≈ 0.9) |
+| Purpose | Thermalization monitor | Physics (χ_t, τ_int) |
 
-Without smearing, the SU(3) clover topological charge is dominated by UV lattice noise and is not close to an integer. Smearing removes this noise and reveals the physical topological sector. This is why the two plots show different ranges and why alpha rescaling is only applied in the production analysis.
+The smearing is applied to a temporary in-memory copy — the stored gauge field is unchanged. Smearing must be applied to the gauge field before computing Q — it cannot be applied to Q values retroactively, because smearing is a non-local operation on the SU(N) link matrices.
 
-**The correct workflow:**
+**The workflow:**
 ```
-mc_heatbath_su3  →  therm_topcharge_su3.dat  (raw, qualitative)
-meas_topcharge_su3  →  topcharge_su3.dat     (smeared, physics)
+mc_heatbath[_su3]  →  therm_topcharge.dat  (APE-smeared, thermalization monitor)
+meas_topcharge[_su3]  →  topcharge[_su3].dat  (APE-smeared, production physics)
 ```
-Smearing must be applied to the gauge field before computing Q — it cannot be applied to Q values retroactively, because smearing is a non-local operation on the SU(3) link matrices.
 
 ---
 
