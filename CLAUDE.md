@@ -50,7 +50,7 @@ Requires Python 3 with `numpy`, `matplotlib`, `pyerrors` (Conda env `master_thes
 ### Gauge group duality
 
 SU(2) and SU(3) are implemented as parallel but separate codepaths. Each has its own:
-- Heatbath MC: `src/MC_heatbath.cc` (Kennedy-Pendleton) / `src/MC_heatbath_su3.cc` (Cabibbo-Marinari + overrelaxation)
+- Heatbath MC: `src/MC_heatbath.cc` (Kennedy-Pendleton) / `src/MC_heatbath_su3.cc` (Cabibbo-Marinari + overrelaxation + OpenMP checkerboard)
 - Topcharge measurement: `src/meas_topcharge_su2.cc` / `src/meas_topcharge_su3.cc`
 - Linear algebra: `_Utility/include/linear_algebra.hh` (SU(2), 8 doubles/link) / `include/su3_linear_algebra.hh` (SU(3), 18 doubles/link)
 - Topcharge computation: `include/topcharge_su2.hh` / `include/topcharge_su3.hh`
@@ -68,6 +68,14 @@ Shared infrastructure for both gauge groups:
 
 Both SU(2) and SU(3) simulations use `extern` globals for lattice dimensions (`T`, `L`), the gauge field pointer, boundary condition flags, and precomputed neighbor tables. These are set once at startup from input files.
 
+### OpenMP parallelization
+
+The SU(3) heatbath (`MC_heatbath_su3.cc`) uses checkerboard (even/odd) site decomposition for thread-safe OpenMP parallel sweeps. Both heatbath and overrelaxation loops are parallelized. Per-thread RNG seeding via `rlxd_init(2, seed + tid * 997)`. The SU(2) heatbath does not yet use checkerboard parallelization.
+
+### Thermalization topcharge
+
+Both heatbath programs output `therm_topcharge.dat` (Q measured every sweep). SU(2) measures unsmeared Q; SU(3) applies APE smearing (`smear_steps`, `smear_alpha` params) before measuring Q for better signal.
+
 ### Data layout
 
 - SU(2): link at `(site, mu)` → 8 contiguous doubles at offset `(4*site + mu) * 8`
@@ -80,7 +88,7 @@ Open BC (Lüscher-Schaefer): temporal plaquettes at `t=0` and `t=T-1` weighted b
 
 ### Data flow
 
-`mc_heatbath[_su3]` → `configs/conf_*.bin` + `plaquette.dat` → `detect_thermalization.py` → `meas_topcharge[_su3]` → `topcharge[_su3].dat` → `analysis.py`
+`mc_heatbath[_su3]` → `configs/conf_*.bin` + `plaquette.dat` + `therm_topcharge.dat` → `detect_thermalization.py` → `meas_topcharge[_su3]` → `topcharge[_su3].dat` → `analysis.py`
 
 Results per run: `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}/`
 

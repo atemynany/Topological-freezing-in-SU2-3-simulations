@@ -10,9 +10,17 @@
 #include <sys/stat.h>
 #include <vector>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include "su3_linear_algebra.hh"
 #include "su3_heatbath.hh"
+#include "topcharge_su3.hh"
 #include "ranlux.hh"
+extern "C" {
+#include "ranlxd.h"
+}
 #include "progressbar.hh"
 
 int T_size, L_size;
@@ -22,6 +30,9 @@ bool open_boundary_conditions = false;
 std::vector<int> neighbor_plus[4];
 std::vector<int> neighbor_minus[4];
 std::vector<int> link_index_su3;
+
+std::vector<int> even_sites_su3;
+std::vector<int> odd_sites_su3;
 
 inline int get_site_index(int t, int x, int y, int z) {
     int tt = (t + T_size) % T_size;
@@ -37,13 +48,17 @@ inline int ggi_su3(int site, int mu) {
 
 void init_neighbor_tables() {
     const int volume = T_size * L_size * L_size * L_size;
-    
+
     for (int mu = 0; mu < 4; mu++) {
         neighbor_plus[mu].resize(volume);
         neighbor_minus[mu].resize(volume);
     }
     link_index_su3.resize(volume * 4);
-    
+    even_sites_su3.clear();
+    odd_sites_su3.clear();
+    even_sites_su3.reserve(volume / 2 + 1);
+    odd_sites_su3.reserve(volume / 2 + 1);
+
     for (int t = 0; t < T_size; t++) {
         for (int x = 0; x < L_size; x++) {
             for (int y = 0; y < L_size; y++) {
@@ -51,13 +66,18 @@ void init_neighbor_tables() {
                     int site = get_site_index(t, x, y, z);
                     int coords[4] = {t, x, y, z};
                     int sizes[4] = {T_size, L_size, L_size, L_size};
-                    
+
+                    if ((t + x + y + z) % 2 == 0)
+                        even_sites_su3.push_back(site);
+                    else
+                        odd_sites_su3.push_back(site);
+
                     for (int mu = 0; mu < 4; mu++) {
                         int c_plus[4] = {coords[0], coords[1], coords[2], coords[3]};
                         int c_minus[4] = {coords[0], coords[1], coords[2], coords[3]};
                         c_plus[mu] = (coords[mu] + 1) % sizes[mu];
                         c_minus[mu] = (coords[mu] - 1 + sizes[mu]) % sizes[mu];
-                        
+
                         neighbor_plus[mu][site] = get_site_index(c_plus[0], c_plus[1], c_plus[2], c_plus[3]);
                         neighbor_minus[mu][site] = get_site_index(c_minus[0], c_minus[1], c_minus[2], c_minus[3]);
                         link_index_su3[site * 4 + mu] = ggi_su3(site, mu);
@@ -189,6 +209,49 @@ void read_su3_config(double *gf, const char *filename, int T, int L) {
     fclose(f);
 }
 
+// APE smearing for SU(3) — used for therm_topcharge measurement
+void su3_ape_smear(double *gf_out, const double *gf_in, int T, int L, double alpha) {
+    const int volume = T * L * L * L;
+    alignas(32) double staple[18], smeared[18], tmp[18];
+
+    for (int site = 0; site < volume; site++) {
+        for (int mu = 0; mu < 4; mu++) {
+            su3_eq_zero(staple);
+
+            for (int nu = 0; nu < 4; nu++) {
+                if (nu == mu) continue;
+
+                int idx_nu = link_index_su3[site * 4 + nu];
+                int site_pnu = neighbor_plus[nu][site];
+                int idx_mu_pnu = link_index_su3[site_pnu * 4 + mu];
+                int site_pmu = neighbor_plus[mu][site];
+                int idx_nu_pmu = link_index_su3[site_pmu * 4 + nu];
+
+                su3_eq_su3_ti_su3(tmp, gf_in + idx_nu, gf_in + idx_mu_pnu);
+                su3_eq_su3_ti_su3_dag(smeared, tmp, gf_in + idx_nu_pmu);
+                su3_pl_eq_su3(staple, smeared);
+
+                int site_mnu = neighbor_minus[nu][site];
+                int idx_nu_mnu = link_index_su3[site_mnu * 4 + nu];
+                int idx_mu_mnu = link_index_su3[site_mnu * 4 + mu];
+                int site_mnu_pmu = neighbor_plus[mu][site_mnu];
+                int idx_nu_mnu_pmu = link_index_su3[site_mnu_pmu * 4 + nu];
+
+                su3_eq_su3_dag_ti_su3(tmp, gf_in + idx_nu_mnu, gf_in + idx_mu_mnu);
+                su3_eq_su3_ti_su3(smeared, tmp, gf_in + idx_nu_mnu_pmu);
+                su3_pl_eq_su3(staple, smeared);
+            }
+
+            int idx = link_index_su3[site * 4 + mu];
+            for (int i = 0; i < 18; i++) {
+                smeared[i] = (1.0 - alpha) * gf_in[idx + i] + (alpha / 6.0) * staple[i];
+            }
+            su3_proj(smeared);
+            su3_eq_su3(gf_out + idx, smeared);
+        }
+    }
+}
+
 struct SimParams {
     std::string output_dir;
     std::string config_dir;
@@ -200,6 +263,8 @@ struct SimParams {
     int num_sweeps;
     int save_interval;
     int overrelax_steps;
+    int smear_steps;
+    double smear_alpha;
 };
 
 bool read_input_file(const char *filename, SimParams &params) {
@@ -220,13 +285,15 @@ bool read_input_file(const char *filename, SimParams &params) {
     params.num_sweeps = 100;
     params.save_interval = 10;
     params.overrelax_steps = 0;
-    
+    params.smear_steps = 40;
+    params.smear_alpha = 0.5;
+
     std::string line, key;
     while (std::getline(infile, line)) {
         if (line.empty() || line[0] == '#') continue;
         std::istringstream iss(line);
         iss >> key;
-        
+
         if (key == "output_dir") iss >> params.output_dir;
         else if (key == "config_dir") iss >> params.config_dir;
         else if (key == "T") iss >> params.T;
@@ -238,8 +305,46 @@ bool read_input_file(const char *filename, SimParams &params) {
         else if (key == "num_sweeps") iss >> params.num_sweeps;
         else if (key == "save_interval") iss >> params.save_interval;
         else if (key == "overrelax_steps") iss >> params.overrelax_steps;
+        else if (key == "smear_steps") iss >> params.smear_steps;
+        else if (key == "smear_alpha") iss >> params.smear_alpha;
     }
     infile.close();
+    return true;
+}
+
+bool validate_params(const SimParams &params) {
+    if (params.beta <= 0.0) {
+        std::cerr << "Error: beta must be > 0" << std::endl;
+        return false;
+    }
+    if (params.T < 2 || params.L < 2) {
+        std::cerr << "Error: T and L must be >= 2" << std::endl;
+        return false;
+    }
+    if (params.seed < 1) {
+        std::cerr << "Error: seed must be >= 1" << std::endl;
+        return false;
+    }
+    if (params.start_type != "cold" && params.start_type != "hot") {
+        std::cerr << "Error: start_type must be 'cold' or 'hot'" << std::endl;
+        return false;
+    }
+    if (params.boundary != "periodic" && params.boundary != "open") {
+        std::cerr << "Error: boundary must be 'periodic' or 'open'" << std::endl;
+        return false;
+    }
+    if (params.num_sweeps < 1 || params.save_interval < 1) {
+        std::cerr << "Error: num_sweeps and save_interval must be >= 1" << std::endl;
+        return false;
+    }
+    if (params.smear_steps < 0) {
+        std::cerr << "Error: smear_steps must be >= 0" << std::endl;
+        return false;
+    }
+    if (params.smear_alpha < 0.0 || params.smear_alpha > 1.0) {
+        std::cerr << "Error: smear_alpha must be in [0, 1]" << std::endl;
+        return false;
+    }
     return true;
 }
 
@@ -255,6 +360,11 @@ void print_params(const SimParams &params) {
     std::cout << "Sweeps:             " << params.num_sweeps << "\n";
     std::cout << "Save interval:      " << params.save_interval << "\n";
     std::cout << "Overrelax steps:    " << params.overrelax_steps << "\n";
+    std::cout << "Smear steps (Q):    " << params.smear_steps << "\n";
+    std::cout << "Smear alpha (Q):    " << params.smear_alpha << "\n";
+#ifdef _OPENMP
+    std::cout << "OpenMP threads:     " << omp_get_max_threads() << "\n";
+#endif
     std::cout << "========================================\n";
 }
 
@@ -265,30 +375,39 @@ int main(int argc, char **argv) {
             input_file = argv[++i];
         }
     }
-    
+
     if (!input_file) {
         std::cerr << "Usage: " << argv[0] << " -i <input_file>\n";
         return EXIT_FAILURE;
     }
-    
+
     SimParams params;
     if (!read_input_file(input_file, params)) return EXIT_FAILURE;
-    
+    if (!validate_params(params)) return EXIT_FAILURE;
+
     print_params(params);
-    
+
     T_size = params.T;
     L_size = params.L;
-    
+
     InitializeRand(params.seed);
+#ifdef _OPENMP
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        if (tid > 0) rlxd_init(2, params.seed + tid * 997);
+    }
+#endif
+
     init_neighbor_tables();
-    
+
     open_boundary_conditions = (params.boundary == "open");
-    
+
     mkdir(params.output_dir.c_str(), 0755);
     mkdir(params.config_dir.c_str(), 0755);
-    
+
     su3_gauge_field_alloc(&gauge_field_su3, T_size, L_size);
-    
+
     if (params.start_type == "hot") {
         std::cout << "Hot start..." << std::endl;
         su3_gauge_field_random(gauge_field_su3, T_size, L_size);
@@ -296,48 +415,93 @@ int main(int argc, char **argv) {
         std::cout << "Cold start..." << std::endl;
         su3_gauge_field_unity(gauge_field_su3, T_size, L_size);
     }
-    
+
     double P = su3_average_plaquette(gauge_field_su3, T_size, L_size);
     std::cout << "Initial <P> = " << P << std::endl;
-    
+
     std::string plaq_filename = params.output_dir + "plaquette_su3.dat";
     FILE *plaq_file = fopen(plaq_filename.c_str(), "w");
+    if (plaq_file == nullptr) {
+        std::cerr << "Error: Cannot open plaquette file: " << plaq_filename << std::endl;
+        return EXIT_FAILURE;
+    }
     fprintf(plaq_file, "# Sweep  Plaquette\n");
     fprintf(plaq_file, "%5d %+.10e\n", 0, P);
-    
+
+    std::string therm_q_filename = params.output_dir + "therm_topcharge.dat";
+    FILE *therm_q_file = fopen(therm_q_filename.c_str(), "w");
+    if (therm_q_file == nullptr) {
+        std::cerr << "Error: Cannot open therm topcharge file: " << therm_q_filename << std::endl;
+        fclose(plaq_file);
+        return EXIT_FAILURE;
+    }
+    fprintf(therm_q_file, "# Sweep  Q_int\n");
+
     const int volume = T_size * L_size * L_size * L_size;
     const int L3 = L_size * L_size * L_size;
-    alignas(32) double staple[18];
-    
+
+    // Allocate smeared field buffers for therm Q measurement
+    double *smeared_field = nullptr;
+    double *smeared_tmp = nullptr;
+    posix_memalign((void **)&smeared_field, 32, volume * 4 * 18 * sizeof(double));
+    posix_memalign((void **)&smeared_tmp, 32, volume * 4 * 18 * sizeof(double));
+
     for (int sweep = 1; sweep <= params.num_sweeps; sweep++) {
-        // Heatbath sweep
-        for (int site = 0; site < volume; site++) {
-            const int it = site / L3;  // time coordinate
-            for (int mu = 0; mu < 4; mu++) {
-                compute_staple(staple, gauge_field_su3, site, mu, it, open_boundary_conditions);
-                int idx = link_index_su3[site * 4 + mu];
-                su3_heatbath_link(gauge_field_su3 + idx, staple, params.beta, DRand);
-            }
-        }
-        
-        // Overrelaxation
-        for (int ov = 0; ov < params.overrelax_steps; ov++) {
-            for (int site = 0; site < volume; site++) {
+
+        // Checkerboard heatbath: even sites then odd sites
+        for (int parity = 0; parity < 2; parity++) {
+            const std::vector<int> &sites = (parity == 0) ? even_sites_su3 : odd_sites_su3;
+            const int n_sites = static_cast<int>(sites.size());
+
+            #pragma omp parallel for schedule(static)
+            for (int i = 0; i < n_sites; i++) {
+                alignas(32) double staple_local[18];
+                const int site = sites[i];
                 const int it = site / L3;
                 for (int mu = 0; mu < 4; mu++) {
-                    compute_staple(staple, gauge_field_su3, site, mu, it, open_boundary_conditions);
+                    compute_staple(staple_local, gauge_field_su3, site, mu, it, open_boundary_conditions);
                     int idx = link_index_su3[site * 4 + mu];
-                    su3_overrelax_link(gauge_field_su3 + idx, staple);
+                    su3_heatbath_link(gauge_field_su3 + idx, staple_local, params.beta, DRand);
                 }
             }
         }
-        
+
+        // Checkerboard overrelaxation
+        for (int ov = 0; ov < params.overrelax_steps; ov++) {
+            for (int parity = 0; parity < 2; parity++) {
+                const std::vector<int> &sites = (parity == 0) ? even_sites_su3 : odd_sites_su3;
+                const int n_sites = static_cast<int>(sites.size());
+
+                #pragma omp parallel for schedule(static)
+                for (int i = 0; i < n_sites; i++) {
+                    alignas(32) double staple_local[18];
+                    const int site = sites[i];
+                    const int it = site / L3;
+                    for (int mu = 0; mu < 4; mu++) {
+                        compute_staple(staple_local, gauge_field_su3, site, mu, it, open_boundary_conditions);
+                        int idx = link_index_su3[site * 4 + mu];
+                        su3_overrelax_link(gauge_field_su3 + idx, staple_local);
+                    }
+                }
+            }
+        }
+
         P = su3_average_plaquette(gauge_field_su3, T_size, L_size);
         fprintf(plaq_file, "%5d %+.10e\n", sweep, P);
         fflush(plaq_file);
-        
+
+        // Smeared topological charge for thermalization monitoring
+        memcpy(smeared_field, gauge_field_su3, volume * 4 * 18 * sizeof(double));
+        for (int s = 0; s < params.smear_steps; s++) {
+            su3_ape_smear(smeared_tmp, smeared_field, T_size, L_size, params.smear_alpha);
+            std::swap(smeared_field, smeared_tmp);
+        }
+        double Q_therm = su3_topological_charge(smeared_field, T_size, L_size);
+        fprintf(therm_q_file, "%5d %+.6f\n", sweep, Q_therm);
+        fflush(therm_q_file);
+
         progress_bar(static_cast<double>(sweep) / params.num_sweeps);
-        
+
         if (sweep % params.save_interval == 0) {
             char fname[1024];
             snprintf(fname, sizeof(fname), "%sconf_su3.%04d", params.config_dir.c_str(), sweep);
@@ -346,17 +510,21 @@ int main(int argc, char **argv) {
             write_su3_config(gauge_field_su3, fname, T_size, L_size, hdr);
         }
     }
-    
+
     progress_bar_clear();
     std::cout << "Final <P> = " << P << std::endl;
-    
+
     fclose(plaq_file);
+    fclose(therm_q_file);
+    free(smeared_field);
+    free(smeared_tmp);
     su3_gauge_field_free(&gauge_field_su3);
-    
+
     std::cout << "========================================\n";
-    std::cout << "Plaquette: " << plaq_filename << "\n";
-    std::cout << "Configs:   " << params.config_dir << "\n";
+    std::cout << "Plaquette:       " << plaq_filename << "\n";
+    std::cout << "Therm topcharge: " << therm_q_filename << "\n";
+    std::cout << "Configs:         " << params.config_dir << "\n";
     std::cout << "========================================\n";
-    
+
     return EXIT_SUCCESS;
 }

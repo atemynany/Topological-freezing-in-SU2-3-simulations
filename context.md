@@ -102,10 +102,15 @@ Implemented in `src/MC_heatbath.cc`. Uses the **Kennedy-Pendleton** algorithm to
 ### SU(3) Heatbath
 Implemented in `src/MC_heatbath_su3.cc`. Uses the **Cabibbo-Marinari** decomposition: the SU(3) matrix is updated by cycling through three embedded SU(2) subgroups, each updated with the SU(2) heatbath. Followed by overrelaxation steps (reflect link through the staple sum, stays exactly on SU(3) manifold).
 
+**OpenMP parallelization**: The SU(3) heatbath uses checkerboard (even/odd) site decomposition for thread-safe parallel sweeps. Sites are classified by parity `(t+x+y+z) % 2` at startup. Each half-sweep updates only even or odd sites, so no two threads touch neighboring links simultaneously. Both the heatbath and overrelaxation loops are parallelized this way. Per-thread RNG seeding uses `rlxd_init(2, seed + tid * 997)`.
+
+**Smeared thermalization Q**: The SU(3) heatbath measures the topological charge on a smeared copy of the gauge field at every sweep (controlled by `smear_steps` and `smear_alpha` input parameters, defaults 40 and 0.5). This provides a better-quantized thermalization monitor than unsmeared Q.
+
 Both programs:
 - Write the plaquette at every sweep to `plaquette[_su3].dat`
-- Write the raw (unsmeared) Q at every sweep to `therm_topcharge[_su3].dat` as a qualitative thermalization monitor
+- Write Q at every sweep to `therm_topcharge.dat` as a thermalization monitor (SU(2): unsmeared; SU(3): APE-smeared)
 - Save gauge configurations every `save_interval` sweeps
+- Validate all input parameters at startup
 
 ---
 
@@ -127,7 +132,7 @@ The smearing does **not** modify the stored configurations — it operates on an
 Thermalization is detected automatically by `scripts/detect_thermalization.py` using a sliding-window test on the plaquette. The detected `start_conf` is written to `run_info.txt` and used as the starting configuration for the topological charge measurement.
 
 Two thermalization plots are produced per run (saved to `output/figures_analysis/`):
-- **`therm_topcharge_su2/3_<run>.png`**: raw unsmeared Q vs MC sweep. Shows qualitative topological activity during thermalization. Not alpha-rescaled since unsmeared Q is not integer-quantized.
+- **`therm_topcharge_su2/3_<run>.png`**: Q vs MC sweep for thermalization monitoring. SU(2) uses unsmeared Q (noisy, not integer-quantized); SU(3) uses APE-smeared Q (better quantized). Not alpha-rescaled.
 - **`thermalization_comparison_su2/3.png`**: plaquette vs MC sweep for all β values overlaid, with detected thermalization points marked.
 
 ---
@@ -153,7 +158,7 @@ Two thermalization plots are produced per run (saved to `output/figures_analysis
 |------|---------|-------|
 | `topcharge.dat` (SU2) | `smear_step conf Q plaquette` | 4 columns |
 | `topcharge_su3.dat` | `conf smear_step Q` | 3 columns |
-| `therm_topcharge.dat` | `sweep Q` | raw unsmeared, every sweep |
+| `therm_topcharge.dat` | `sweep Q` | every sweep; SU(2) unsmeared, SU(3) APE-smeared |
 | `plaquette[_su3].dat` | `sweep plaquette` | every sweep |
 
 ---

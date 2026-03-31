@@ -23,7 +23,7 @@ brew install cmake
 brew install libomp
 ```
 
-On macOS without `libomp`, everything still compiles and runs — just without OpenMP parallelization.
+On macOS without `libomp`, everything still compiles and runs — just without OpenMP parallelization. The SU(3) heatbath uses checkerboard decomposition for thread-safe parallel sweeps; set `OMP_NUM_THREADS` to control parallelism.
 
 ## Build
 
@@ -77,8 +77,8 @@ Results saved to `data/results/` and plots to `output/figures_analysis/`.
 
 | Binary | Purpose |
 |--------|---------|
-| `mc_heatbath` | SU(2) heatbath config generation |
-| `mc_heatbath_su3` | SU(3) heatbath config generation |
+| `mc_heatbath` | SU(2) heatbath config generation (+ unsmeared therm Q) |
+| `mc_heatbath_su3` | SU(3) heatbath config generation (OpenMP checkerboard, smeared therm Q) |
 | `meas_topcharge` | SU(2) topological charge measurement |
 | `meas_topcharge_su3` | SU(3) topological charge measurement |
 | `compute_instanton_Q` | Instanton topological charge computation |
@@ -94,7 +94,9 @@ Results saved to `data/results/` and plots to `output/figures_analysis/`.
 
 - `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}/` — Per-run results
   - `configs/` — Gauge configurations
-  - `output/topcharge.dat` — Q measurements
+  - `output/topcharge.dat` — Q measurements (APE-smeared)
+  - `output/plaquette[_su3].dat` — Plaquette history (every sweep)
+  - `output/therm_topcharge.dat` — Q per sweep for thermalization monitoring
   - `run_info.txt` — Run metadata
 
 ## Analysis
