@@ -1,0 +1,21 @@
+# ==============================================================================
+# SU(2) Heatbath — Configuration Generation
+# ==============================================================================
+# Usage: ./scripts/step1_generate_configs.sh input/heatbath_su2.txt
+# ==============================================================================
+
+# Lattice parameters
+T                   22
+L                   16
+beta                2.5
+
+# MC parameters
+seed                12345
+start_type          cold
+boundary            open
+num_sweeps          1000
+save_interval       10
+
+# Output directories
+output_dir          output/su2/
+config_dir          output/su2/configs/

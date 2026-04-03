@@ -15,9 +15,39 @@ File format expected (written by meas_topcharge_su2.cc):
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import pyerrors as pe
 from pathlib import Path
 from typing import Optional
+from autocorrelation import autocorrelation
+
+
+def _ensure_endpoint_ticks(ax):
+    """Ensure the x-axis endpoints are always labeled."""
+    xlim = ax.get_xlim()
+    ticks = list(ax.get_xticks())
+    for ep in [xlim[0], xlim[1]]:
+        rounded = round(ep)
+        if not any(abs(t - rounded) < 0.1 for t in ticks):
+            ticks.append(rounded)
+    ticks = sorted(set(int(round(t)) for t in ticks if xlim[0] - 0.1 <= t <= xlim[1] + 0.1))
+    ax.set_xticks(ticks)
+
+
+def _apply_axis_style(ax, x_integer: bool = False, y_integer: bool = False,
+                      x_nbins: int = 6, y_nbins: int = 6):
+    """Apply a uniform axis style across plots."""
+    ax.grid(True, alpha=0.25, linewidth=0.6)
+    ax.tick_params(labelsize=8)
+    ax.minorticks_off()
+    if x_integer:
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=x_nbins, integer=True, min_n_ticks=4))
+    else:
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=x_nbins, min_n_ticks=4))
+    if y_integer:
+        ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=y_nbins, integer=True, min_n_ticks=4))
+    else:
+        ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=y_nbins, min_n_ticks=4))
 
 
 # ---------------------------------------------------------------------------
@@ -174,11 +204,38 @@ def analyse_timeslices(filepath: str,
 
     t_phys = t_centres * lattice_spacing_fm  # physical time in fm
 
+    # Per-timeslice susceptibility: chi_tilde(t) = <q(t)^2> / V_tilde
+    # V_tilde = L^3 * n_bin (spatial volume times number of binned slices)
+    n_bins = q_binned.shape[1]
+    chi_tilde = np.zeros(n_bins)
+    chi_tilde_err = np.zeros(n_bins)
+    for j in range(n_bins):
+        q2_obs = pe.Obs([q_binned[:, j]**2], [ensemble])
+        q2_obs.gamma_method(S=S)
+        chi_tilde[j] = q2_obs.value
+        chi_tilde_err[j] = q2_obs.dvalue
+
+    # Per-timeslice integrated autocorrelation time
+    tau_int_ts = np.zeros(n_bins)
+    dtau_int_ts = np.zeros(n_bins)
+    for j in range(n_bins):
+        try:
+            ac = autocorrelation(q_binned[:, j], name=f"{ensemble}_t{j}", S=S)
+            tau_int_ts[j] = ac.tau_int
+            dtau_int_ts[j] = ac.dtau_int
+        except Exception:
+            tau_int_ts[j] = 0.5
+            dtau_int_ts[j] = 0.0
+
     return {
         "t_phys":         t_phys,
         "t_centres_latt": t_centres,
         "means":          means,
         "errors":         errors,
+        "chi_tilde":      chi_tilde,
+        "chi_tilde_err":  chi_tilde_err,
+        "tau_int_ts":     tau_int_ts,
+        "dtau_int_ts":    dtau_int_ts,
         "n_configs":      q_matrix.shape[0],
         "n_bin":          n_bin,
         "a_fm":           lattice_spacing_fm,
@@ -551,6 +608,227 @@ def plot_timeslice_mctime_grid(ts_files: list, runs: list, n_bin: int,
 
     plt.tight_layout()
     out = os.path.join(output_dir, f"timeslice_mctime_{gauge_group}_{boundary}.png")
+    plt.savefig(out, dpi=200, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {os.path.basename(out)}")
+
+
+def plot_timeslice_susceptibility_grid(ts_results: list, runs: list, output_dir: str,
+                                       gauge_group: str, boundary: str):
+    """Grid of per-timeslice susceptibility chi_tilde(t) = <q(t)^2> / V_tilde."""
+    from calculations import lattice_spacing_su2, lattice_spacing_su3, HBAR_C
+    import os
+
+    pairs = [(res, run) for res, run in zip(ts_results, runs) if res is not None]
+    n = len(pairs)
+    if n == 0:
+        return
+
+    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+
+    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    axes = np.array(axes).flatten()
+
+    for idx, (res, run_data) in enumerate(pairs):
+        ax = axes[idx]
+        a = lattice_spacing(run_data.beta)
+        V_tilde = run_data.L ** 3 * res["n_bin"]
+
+        t_latt = res["t_centres_latt"]
+        chi_latt = res["chi_tilde"] / V_tilde
+        chi_latt_err = res["chi_tilde_err"] / V_tilde
+
+        # Convert to MeV via fourth root: chi^(1/4) [MeV] = (chi_latt / a^4)^(1/4) * hbar_c
+        chi_phys = chi_latt / a**4
+        chi_phys_err = chi_latt_err / a**4
+        chi_fourth = np.sign(chi_phys) * np.abs(chi_phys)**0.25 * HBAR_C
+        chi_fourth_err = 0.25 * np.abs(chi_phys)**(-0.75) * chi_phys_err * HBAR_C
+        chi_fourth_err = np.nan_to_num(chi_fourth_err, nan=0.0)
+
+        x_plot = t_latt
+
+        ref_val = 200.0 if gauge_group == "su2" else 191.0
+        ax.axhline(ref_val, color='grey', lw=1.0, ls='--', label=f'ref {ref_val} MeV')
+
+        ax.errorbar(x_plot, chi_fourth, yerr=chi_fourth_err, fmt='o', capsize=3,
+                    color='steelblue', zorder=3, label=r'$\tilde{\chi}(t)^{1/4}$')
+
+        open_bc = run_data.boundary == "open"
+        if open_bc:
+            ax.axvspan(-0.5, x_plot[0], alpha=0.10, color='grey')
+            ax.axvspan(x_plot[-1], run_data.T - 0.5, alpha=0.10, color='grey')
+        ax.set_xlim(-0.5, run_data.T - 0.5)
+        _ensure_endpoint_ticks(ax)
+
+        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_xlabel('$t/a$', fontsize=9)
+        ax.set_ylabel(r'$\tilde{\chi}(t)^{1/4}$ [MeV]', fontsize=9)
+        _apply_axis_style(ax, x_integer=True)
+        ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
+                fontsize=11, va='top', ha='left')
+        if idx == 0:
+            ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
+                  fontsize=7, frameon=False, handlelength=1.4, labelspacing=0.3)
+
+    plt.tight_layout()
+    out = os.path.join(output_dir, f"timeslice_susceptibility_{gauge_group}_{boundary}.png")
+    plt.savefig(out, dpi=200, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {os.path.basename(out)}")
+
+
+def plot_timeslice_tauint_grid(ts_results: list, runs: list, output_dir: str,
+                                gauge_group: str, boundary: str):
+    """Grid of per-timeslice integrated autocorrelation time tau_int(t)."""
+    from calculations import lattice_spacing_su2, lattice_spacing_su3
+    import os
+
+    pairs = [(res, run) for res, run in zip(ts_results, runs) if res is not None]
+    n = len(pairs)
+    if n == 0:
+        return
+
+    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+
+    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    axes = np.array(axes).flatten()
+
+    for idx, (res, run_data) in enumerate(pairs):
+        ax = axes[idx]
+        a = lattice_spacing(run_data.beta)
+
+        t_latt = res["t_centres_latt"]
+        tau = res["tau_int_ts"]
+        dtau = res["dtau_int_ts"]
+
+        x_plot = t_latt
+
+        ax.errorbar(x_plot, tau, yerr=dtau, fmt='s', capsize=3,
+                    color='tomato', zorder=3, label=r'$\tau_{\mathrm{int}}$')
+
+        open_bc = run_data.boundary == "open"
+        if open_bc:
+            ax.axvspan(-0.5, x_plot[0], alpha=0.10, color='grey')
+            ax.axvspan(x_plot[-1], run_data.T - 0.5, alpha=0.10, color='grey')
+        ax.set_xlim(-0.5, run_data.T - 0.5)
+        _ensure_endpoint_ticks(ax)
+
+        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_xlabel('$t/a$', fontsize=9)
+        ax.set_ylabel(r'$\tau_{\mathrm{int}}(t)$', fontsize=9)
+        _apply_axis_style(ax, x_integer=True)
+        ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
+                fontsize=11, va='top', ha='left')
+        if idx == 0:
+            ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
+                  fontsize=7, frameon=False, handlelength=1.4, labelspacing=0.3)
+
+    plt.tight_layout()
+    out = os.path.join(output_dir, f"timeslice_tauint_{gauge_group}_{boundary}.png")
+    plt.savefig(out, dpi=200, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {os.path.basename(out)}")
+
+
+def plot_timeslice_susceptibility_cropped(ts_results: list, runs: list, output_dir: str,
+                                          gauge_group: str, boundary: str):
+    """Cropped susceptibility plot: only evaluated timeslices, re-indexed from 0."""
+    from calculations import lattice_spacing_su2, lattice_spacing_su3, HBAR_C
+    import os
+
+    pairs = [(res, run) for res, run in zip(ts_results, runs) if res is not None]
+    n = len(pairs)
+    if n == 0:
+        return
+
+    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+
+    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    axes = np.array(axes).flatten()
+
+    for idx, (res, run_data) in enumerate(pairs):
+        ax = axes[idx]
+        a = lattice_spacing(run_data.beta)
+        V_tilde = run_data.L ** 3 * res["n_bin"]
+
+        chi_latt = res["chi_tilde"] / V_tilde
+        chi_latt_err = res["chi_tilde_err"] / V_tilde
+
+        chi_phys = chi_latt / a**4
+        chi_phys_err = chi_latt_err / a**4
+        chi_fourth = np.sign(chi_phys) * np.abs(chi_phys)**0.25 * HBAR_C
+        chi_fourth_err = 0.25 * np.abs(chi_phys)**(-0.75) * chi_phys_err * HBAR_C
+        chi_fourth_err = np.nan_to_num(chi_fourth_err, nan=0.0)
+
+        x_plot = np.arange(len(chi_fourth))
+
+        ref_val = 200.0 if gauge_group == "su2" else 191.0
+        ax.axhline(ref_val, color='grey', lw=1.0, ls='--', label=f'ref {ref_val} MeV')
+
+        ax.errorbar(x_plot, chi_fourth, yerr=chi_fourth_err, fmt='o', capsize=3,
+                    color='steelblue', zorder=3, label=r'$\tilde{\chi}(t)^{1/4}$')
+
+        ax.set_xlim(-0.5, len(chi_fourth) - 0.5)
+        _ensure_endpoint_ticks(ax)
+        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_xlabel('$t/a$ (evaluated only)', fontsize=9)
+        ax.set_ylabel(r'$\tilde{\chi}(t)^{1/4}$ [MeV]', fontsize=9)
+        _apply_axis_style(ax, x_integer=True)
+        ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
+                fontsize=11, va='top', ha='left')
+        if idx == 0:
+            ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
+                  fontsize=7, frameon=False, handlelength=1.4, labelspacing=0.3)
+
+    plt.tight_layout()
+    out = os.path.join(output_dir, f"timeslice_susceptibility_cropped_{gauge_group}_{boundary}.png")
+    plt.savefig(out, dpi=200, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {os.path.basename(out)}")
+
+
+def plot_timeslice_tauint_cropped(ts_results: list, runs: list, output_dir: str,
+                                   gauge_group: str, boundary: str):
+    """Cropped tauint plot: only evaluated timeslices, re-indexed from 0."""
+    from calculations import lattice_spacing_su2, lattice_spacing_su3
+    import os
+
+    pairs = [(res, run) for res, run in zip(ts_results, runs) if res is not None]
+    n = len(pairs)
+    if n == 0:
+        return
+
+    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+
+    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    axes = np.array(axes).flatten()
+
+    for idx, (res, run_data) in enumerate(pairs):
+        ax = axes[idx]
+        a = lattice_spacing(run_data.beta)
+
+        tau = res["tau_int_ts"]
+        dtau = res["dtau_int_ts"]
+
+        x_plot = np.arange(len(tau))
+
+        ax.errorbar(x_plot, tau, yerr=dtau, fmt='s', capsize=3,
+                    color='tomato', zorder=3, label=r'$\tau_{\mathrm{int}}$')
+
+        ax.set_xlim(-0.5, len(tau) - 0.5)
+        _ensure_endpoint_ticks(ax)
+        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_xlabel('$t/a$ (evaluated only)', fontsize=9)
+        ax.set_ylabel(r'$\tau_{\mathrm{int}}(t)$', fontsize=9)
+        _apply_axis_style(ax, x_integer=True)
+        ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
+                fontsize=11, va='top', ha='left')
+        if idx == 0:
+            ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
+                  fontsize=7, frameon=False, handlelength=1.4, labelspacing=0.3)
+
+    plt.tight_layout()
+    out = os.path.join(output_dir, f"timeslice_tauint_cropped_{gauge_group}_{boundary}.png")
     plt.savefig(out, dpi=200, bbox_inches='tight')
     plt.close()
     print(f"Saved: {os.path.basename(out)}")

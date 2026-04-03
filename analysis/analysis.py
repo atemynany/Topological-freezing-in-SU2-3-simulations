@@ -26,6 +26,8 @@ from plotting_code import (
 from timeslice_analysis import (
     analyse_timeslices,
     plot_timeslice_density_grid, plot_timeslice_mctime_grid,
+    plot_timeslice_susceptibility_grid, plot_timeslice_tauint_grid,
+    plot_timeslice_susceptibility_cropped, plot_timeslice_tauint_cropped,
 )
 
 
@@ -110,6 +112,8 @@ def main():
         plot_thermalization_comparison(all_runs, output_dir, gauge_group)
 
     # Timeslice grid plots — collect results per boundary group
+    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+    n_bin = 1
     for runs_group, boundary in [(runs_periodic, "periodic"), (runs_open, "open")]:
         ts_files, ts_results, ts_runs = [], [], []
         for run_data in sorted(runs_group, key=lambda x: x.beta):
@@ -136,6 +140,10 @@ def main():
         if ts_runs:
             plot_timeslice_density_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
             plot_timeslice_mctime_grid(ts_files, ts_runs, n_bin, output_dir, gauge_group, boundary)
+            plot_timeslice_susceptibility_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
+            plot_timeslice_tauint_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
+            plot_timeslice_susceptibility_cropped(ts_results, ts_runs, output_dir, gauge_group, boundary)
+            plot_timeslice_tauint_cropped(ts_results, ts_runs, output_dir, gauge_group, boundary)
 
     print(f"\nDone! Plots in: {output_dir}")
 

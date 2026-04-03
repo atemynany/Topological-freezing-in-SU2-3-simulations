@@ -52,6 +52,10 @@ input/*
 !input/.gitkeep
 !input/example_base_params.txt
 !input/example_beta_scan.txt
+!input/heatbath_su2.txt
+!input/heatbath_su3.txt
+!input/topcharge_su2.txt
+!input/topcharge_su3.txt
 
 # Output folder structure (keep dirs, ignore content)
 !output/.gitkeep
