@@ -209,10 +209,6 @@ _run_python() {
     fi
 }
 
-_run_python "$SCRIPT_DIR/plot_therm.py" "$RUN_DIR" $SU3_FLAG \
-    && echo "[OK] Thermalization plots: ${RUN_OUTPUT_DIR}/therm_plaquette.png  |  therm_topcharge.png" \
-    || echo "[WARN] Thermalization plot failed (non-fatal)"
-
 # ==============================================================================
 # Save run info
 # ==============================================================================
@@ -231,9 +227,6 @@ run_dir             ${RUN_DIR}
 
 # Files
 plaquette_file      ${RUN_OUTPUT_DIR}/${PLAQ_FILE}
-therm_topcharge_file ${RUN_OUTPUT_DIR}/therm_topcharge$([ "$GAUGE_GROUP" = "su3" ] && echo "_su3").dat
-therm_plaquette     ${RUN_OUTPUT_DIR}/therm_plaquette.png
-therm_topcharge_plot ${RUN_OUTPUT_DIR}/therm_topcharge.png
 config_dir          ${RUN_CONFIG_DIR}
 EOF
 

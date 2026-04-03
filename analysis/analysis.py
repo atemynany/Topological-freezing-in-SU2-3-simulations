@@ -21,7 +21,7 @@ from calculations import (
 from plotting_code import (
     plot_Q_vs_mctime_grid, plot_histograms_grid,
     plot_susceptibility_combined, plot_tau_int_combined,
-    plot_thermalization_comparison, plot_therm_topcharge_grid
+    plot_thermalization_comparison
 )
 from timeslice_analysis import (
     analyse_timeslices,
@@ -108,14 +108,6 @@ def main():
     all_runs = runs_periodic + runs_open
     if all_runs:
         plot_thermalization_comparison(all_runs, output_dir, gauge_group)
-
-    # Therm topcharge grid (one panel per run)
-    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
-    n_bin = 2
-    if runs_periodic:
-        plot_therm_topcharge_grid(runs_periodic, output_dir, gauge_group, "periodic")
-    if runs_open:
-        plot_therm_topcharge_grid(runs_open, output_dir, gauge_group, "open")
 
     # Timeslice grid plots — collect results per boundary group
     for runs_group, boundary in [(runs_periodic, "periodic"), (runs_open, "open")]:

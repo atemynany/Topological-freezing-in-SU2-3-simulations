@@ -16,7 +16,6 @@
 
 #include "su3_linear_algebra.hh"
 #include "su3_heatbath.hh"
-#include "topcharge_su3.hh"
 #include "ranlux.hh"
 extern "C" {
 #include "ranlxd.h"
@@ -209,49 +208,6 @@ void read_su3_config(double *gf, const char *filename, int T, int L) {
     fclose(f);
 }
 
-// APE smearing for SU(3) — used for therm_topcharge measurement
-void su3_ape_smear(double *gf_out, const double *gf_in, int T, int L, double alpha) {
-    const int volume = T * L * L * L;
-    alignas(32) double staple[18], smeared[18], tmp[18];
-
-    for (int site = 0; site < volume; site++) {
-        for (int mu = 0; mu < 4; mu++) {
-            su3_eq_zero(staple);
-
-            for (int nu = 0; nu < 4; nu++) {
-                if (nu == mu) continue;
-
-                int idx_nu = link_index_su3[site * 4 + nu];
-                int site_pnu = neighbor_plus[nu][site];
-                int idx_mu_pnu = link_index_su3[site_pnu * 4 + mu];
-                int site_pmu = neighbor_plus[mu][site];
-                int idx_nu_pmu = link_index_su3[site_pmu * 4 + nu];
-
-                su3_eq_su3_ti_su3(tmp, gf_in + idx_nu, gf_in + idx_mu_pnu);
-                su3_eq_su3_ti_su3_dag(smeared, tmp, gf_in + idx_nu_pmu);
-                su3_pl_eq_su3(staple, smeared);
-
-                int site_mnu = neighbor_minus[nu][site];
-                int idx_nu_mnu = link_index_su3[site_mnu * 4 + nu];
-                int idx_mu_mnu = link_index_su3[site_mnu * 4 + mu];
-                int site_mnu_pmu = neighbor_plus[mu][site_mnu];
-                int idx_nu_mnu_pmu = link_index_su3[site_mnu_pmu * 4 + nu];
-
-                su3_eq_su3_dag_ti_su3(tmp, gf_in + idx_nu_mnu, gf_in + idx_mu_mnu);
-                su3_eq_su3_ti_su3(smeared, tmp, gf_in + idx_nu_mnu_pmu);
-                su3_pl_eq_su3(staple, smeared);
-            }
-
-            int idx = link_index_su3[site * 4 + mu];
-            for (int i = 0; i < 18; i++) {
-                smeared[i] = (1.0 - alpha) * gf_in[idx + i] + (alpha / 6.0) * staple[i];
-            }
-            su3_proj(smeared);
-            su3_eq_su3(gf_out + idx, smeared);
-        }
-    }
-}
-
 struct SimParams {
     std::string output_dir;
     std::string config_dir;
@@ -263,8 +219,6 @@ struct SimParams {
     int num_sweeps;
     int save_interval;
     int overrelax_steps;
-    int smear_steps;
-    double smear_alpha;
 };
 
 bool read_input_file(const char *filename, SimParams &params) {
@@ -285,8 +239,6 @@ bool read_input_file(const char *filename, SimParams &params) {
     params.num_sweeps = 100;
     params.save_interval = 10;
     params.overrelax_steps = 0;
-    params.smear_steps = 40;
-    params.smear_alpha = 0.5;
 
     std::string line, key;
     while (std::getline(infile, line)) {
@@ -305,8 +257,6 @@ bool read_input_file(const char *filename, SimParams &params) {
         else if (key == "num_sweeps") iss >> params.num_sweeps;
         else if (key == "save_interval") iss >> params.save_interval;
         else if (key == "overrelax_steps") iss >> params.overrelax_steps;
-        else if (key == "smear_steps") iss >> params.smear_steps;
-        else if (key == "smear_alpha") iss >> params.smear_alpha;
     }
     infile.close();
     return true;
@@ -337,14 +287,6 @@ bool validate_params(const SimParams &params) {
         std::cerr << "Error: num_sweeps and save_interval must be >= 1" << std::endl;
         return false;
     }
-    if (params.smear_steps < 0) {
-        std::cerr << "Error: smear_steps must be >= 0" << std::endl;
-        return false;
-    }
-    if (params.smear_alpha < 0.0 || params.smear_alpha > 1.0) {
-        std::cerr << "Error: smear_alpha must be in [0, 1]" << std::endl;
-        return false;
-    }
     return true;
 }
 
@@ -360,8 +302,6 @@ void print_params(const SimParams &params) {
     std::cout << "Sweeps:             " << params.num_sweeps << "\n";
     std::cout << "Save interval:      " << params.save_interval << "\n";
     std::cout << "Overrelax steps:    " << params.overrelax_steps << "\n";
-    std::cout << "Smear steps (Q):    " << params.smear_steps << "\n";
-    std::cout << "Smear alpha (Q):    " << params.smear_alpha << "\n";
 #ifdef _OPENMP
     std::cout << "OpenMP threads:     " << omp_get_max_threads() << "\n";
 #endif
@@ -428,23 +368,8 @@ int main(int argc, char **argv) {
     fprintf(plaq_file, "# Sweep  Plaquette\n");
     fprintf(plaq_file, "%5d %+.10e\n", 0, P);
 
-    std::string therm_q_filename = params.output_dir + "therm_topcharge.dat";
-    FILE *therm_q_file = fopen(therm_q_filename.c_str(), "w");
-    if (therm_q_file == nullptr) {
-        std::cerr << "Error: Cannot open therm topcharge file: " << therm_q_filename << std::endl;
-        fclose(plaq_file);
-        return EXIT_FAILURE;
-    }
-    fprintf(therm_q_file, "# Sweep  Q_int\n");
-
     const int volume = T_size * L_size * L_size * L_size;
     const int L3 = L_size * L_size * L_size;
-
-    // Allocate smeared field buffers for therm Q measurement
-    double *smeared_field = nullptr;
-    double *smeared_tmp = nullptr;
-    posix_memalign((void **)&smeared_field, 32, volume * 4 * 18 * sizeof(double));
-    posix_memalign((void **)&smeared_tmp, 32, volume * 4 * 18 * sizeof(double));
 
     for (int sweep = 1; sweep <= params.num_sweeps; sweep++) {
 
@@ -490,16 +415,6 @@ int main(int argc, char **argv) {
         fprintf(plaq_file, "%5d %+.10e\n", sweep, P);
         fflush(plaq_file);
 
-        // Smeared topological charge for thermalization monitoring
-        memcpy(smeared_field, gauge_field_su3, volume * 4 * 18 * sizeof(double));
-        for (int s = 0; s < params.smear_steps; s++) {
-            su3_ape_smear(smeared_tmp, smeared_field, T_size, L_size, params.smear_alpha);
-            std::swap(smeared_field, smeared_tmp);
-        }
-        double Q_therm = su3_topological_charge(smeared_field, T_size, L_size);
-        fprintf(therm_q_file, "%5d %+.6f\n", sweep, Q_therm);
-        fflush(therm_q_file);
-
         progress_bar(static_cast<double>(sweep) / params.num_sweeps);
 
         if (sweep % params.save_interval == 0) {
@@ -515,14 +430,10 @@ int main(int argc, char **argv) {
     std::cout << "Final <P> = " << P << std::endl;
 
     fclose(plaq_file);
-    fclose(therm_q_file);
-    free(smeared_field);
-    free(smeared_tmp);
     su3_gauge_field_free(&gauge_field_su3);
 
     std::cout << "========================================\n";
     std::cout << "Plaquette:       " << plaq_filename << "\n";
-    std::cout << "Therm topcharge: " << therm_q_filename << "\n";
     std::cout << "Configs:         " << params.config_dir << "\n";
     std::cout << "========================================\n";
 

@@ -17,8 +17,6 @@
 
 #include "Plaquette.hh"
 #include "progressbar.hh"
-#include "smearing_techniques.hh"
-#include "topcharge_su2.hh"
 
 int T;
 int L;
@@ -80,8 +78,6 @@ struct SimParams {
     std::string boundary;
     int num_sweeps;
     int save_interval;
-    int smear_steps;
-    double smear_alpha;
 };
 
 bool read_input_file(const char *filename, SimParams &params) {
@@ -101,8 +97,6 @@ bool read_input_file(const char *filename, SimParams &params) {
     params.boundary = "periodic";
     params.num_sweeps = 100;
     params.save_interval = 10;
-    params.smear_steps = 40;
-    params.smear_alpha = 0.5;
 
     std::string line, key;
     
@@ -132,10 +126,6 @@ bool read_input_file(const char *filename, SimParams &params) {
             iss >> params.num_sweeps;
         } else if (key == "save_interval") {
             iss >> params.save_interval;
-        } else if (key == "smear_steps") {
-            iss >> params.smear_steps;
-        } else if (key == "smear_alpha") {
-            iss >> params.smear_alpha;
         }
     }
     
@@ -168,14 +158,6 @@ bool validate_params(const SimParams &params) {
         std::cerr << "Error: num_sweeps and save_interval must be >= 1" << std::endl;
         return false;
     }
-    if (params.smear_steps < 0) {
-        std::cerr << "Error: smear_steps must be >= 0" << std::endl;
-        return false;
-    }
-    if (params.smear_alpha < 0.0 || params.smear_alpha > 1.0) {
-        std::cerr << "Error: smear_alpha must be in [0, 1]" << std::endl;
-        return false;
-    }
     return true;
 }
 
@@ -192,8 +174,6 @@ void print_params(const SimParams &params) {
     std::cout << "Boundary conditions: " << params.boundary << std::endl;
     std::cout << "Number of sweeps:    " << params.num_sweeps << std::endl;
     std::cout << "Save interval:       " << params.save_interval << std::endl;
-    std::cout << "Smear steps (Q):     " << params.smear_steps << std::endl;
-    std::cout << "Smear alpha (Q):     " << params.smear_alpha << std::endl;
     std::cout << "========================================" << std::endl;
 }
 
@@ -271,21 +251,8 @@ int main(int argc, char **argv)
     fprintf(plaq_file, "# Sweep  Plaquette\n");
     fprintf(plaq_file, "%5d %+.10e\n", 0, P);
 
-    std::string therm_q_filename = params.output_dir + "therm_topcharge.dat";
-    FILE *therm_q_file = fopen(therm_q_filename.c_str(), "w");
-    if (therm_q_file == nullptr) {
-        std::cerr << "Error: Cannot open therm topcharge file: " << therm_q_filename << std::endl;
-        fclose(plaq_file);
-        return EXIT_FAILURE;
-    }
-    fprintf(therm_q_file, "# Sweep  Q_int\n");
-    
     alignas(32) double SU2_1[8], SU2_2[8];
     const int volume = T * L * L * L;
-
-    // Allocate smeared field buffer for therm Q measurement
-    double *smeared_field = nullptr;
-    Gauge_Field_Alloc(&smeared_field, T, L);
     
     for (int sweep = 1; sweep <= params.num_sweeps; sweep++) {
         
@@ -397,15 +364,6 @@ int main(int argc, char **argv)
         fprintf(plaq_file, "%5d %+.10e\n", sweep, P);
         fflush(plaq_file);
 
-        // Smeared topological charge for thermalization monitoring
-        memcpy(smeared_field, gauge_field, volume * 4 * 8 * sizeof(double));
-        for (int s = 0; s < params.smear_steps; s++) {
-            APE_Smearing_Step(smeared_field, T, L, params.smear_alpha);
-        }
-        double Q_therm = compute_topological_charge(smeared_field, T, L);
-        fprintf(therm_q_file, "%5d %+.6f\n", sweep, Q_therm);
-        fflush(therm_q_file);
-        
         double progress = static_cast<double>(sweep) / params.num_sweeps;
         progress_bar(progress);
         
@@ -426,14 +384,11 @@ int main(int argc, char **argv)
     std::cout << "Completed " << params.num_sweeps << " sweeps, final <P> = " << P << std::endl;
 
     fclose(plaq_file);
-    fclose(therm_q_file);
-    Gauge_Field_Free(&smeared_field);
     Gauge_Field_Free(&gauge_field);
     
     std::cout << "========================================" << std::endl;
     std::cout << "Simulation complete." << std::endl;
     std::cout << "Plaquette history: " << plaq_filename << std::endl;
-    std::cout << "Therm topcharge:   " << therm_q_filename << std::endl;
     std::cout << "Configurations:    " << params.config_dir << std::endl;
     std::cout << "========================================" << std::endl;
     
