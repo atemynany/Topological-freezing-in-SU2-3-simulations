@@ -14,7 +14,7 @@
 #   sbatch cluster/fuchs_heatbath.sh [--su2|--su3]
 # ==============================================================================
 
-#SBATCH --account=barros
+#SBATCH --account=agmisc
 #SBATCH --job-name=lqcd_topcharge
 #SBATCH --partition=fuchs
 #SBATCH --qos=fuchs
@@ -28,8 +28,6 @@
 #SBATCH --mail-type=FAIL
 #SBATCH --output=logs/topcharge_%j.out
 #SBATCH --error=logs/topcharge_%j.err
-# If you have a Goethe-HLR account uncomment and fill in:
-##SBATCH --account=<your_FUCHS_group>
 
 # ==============================================================================
 # Configuration

@@ -14,7 +14,7 @@
 #   ./scripts/build.sh release
 # ==============================================================================
 
-#SBATCH --account=barros
+#SBATCH --account=agmisc
 #SBATCH --job-name=lqcd_heatbath
 #SBATCH --partition=fuchs
 #SBATCH --qos=fuchs
@@ -28,8 +28,6 @@
 #SBATCH --mail-type=FAIL
 #SBATCH --output=logs/heatbath_%j.out
 #SBATCH --error=logs/heatbath_%j.err
-# If you have a Goethe-HLR account uncomment and fill in:
-##SBATCH --account=<your_FUCHS_group>
 
 # ==============================================================================
 # Configuration
