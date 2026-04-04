@@ -9,10 +9,10 @@ end_conf            1000        # Last config to measure
 conf_step           10          # Step between configs (must match save_interval)
 
 # APE smearing
-smear_steps         20          # Total smearing steps applied before measuring Q
-smear_interval      20          # Output Q every N smearing steps
+smear_steps         15          # Total smearing steps applied before measuring Q
+smear_interval      15          # Output Q every N smearing steps
 smear_alpha         0.3         # APE smearing parameter alpha
 
 # Boundary exclusion (only relevant for open BC)
-exclude_boundary_slices 2       # Time slices excluded per boundary
+exclude_boundary_slices 0       # Time slices excluded per boundary
 # ==============================================================================

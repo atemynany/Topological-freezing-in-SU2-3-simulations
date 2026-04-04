@@ -132,8 +132,9 @@ num_sweeps          ${num_sweeps:-1000}
 save_interval       ${save_interval:-10}
 EOF
 
-    [ "$GAUGE_GROUP" = "su3" ] && [ -n "$overrelax_steps" ] && \
+    if [ "$GAUGE_GROUP" = "su3" ] && [ -n "$overrelax_steps" ]; then
         echo "overrelax_steps     $overrelax_steps" >> "$output_file"
+    fi
 
     cat >> "$output_file" << EOF
 
@@ -145,8 +146,9 @@ smear_alpha         ${smear_alpha:-0.3}
 exclude_boundary_slices ${exclude_boundary_slices:-0}
 EOF
 
-    [ "$GAUGE_GROUP" = "su2" ] && [ -n "$smear_interval" ] && \
+    if [ "$GAUGE_GROUP" = "su2" ] && [ -n "$smear_interval" ]; then
         echo "smear_interval      $smear_interval" >> "$output_file"
+    fi
 
     cat >> "$output_file" << EOF
 
@@ -154,8 +156,9 @@ output_dir          ${run_output_dir}/
 config_dir          ${run_config_dir}/
 EOF
 
-    [ "$GAUGE_GROUP" = "su3" ] && \
+    if [ "$GAUGE_GROUP" = "su3" ]; then
         echo "output_file         ${run_output_dir}/topcharge_su3.dat" >> "$output_file"
+    fi
 }
 
 # ==============================================================================
