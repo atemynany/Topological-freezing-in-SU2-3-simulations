@@ -45,7 +45,7 @@ done
 # ==============================================================================
 # Environment
 # ==============================================================================
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_DIR="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$PROJECT_DIR"
 
 mkdir -p logs
