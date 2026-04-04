@@ -1,0 +1,18 @@
+# ==============================================================================
+# SU(2) Topological Charge Parameters  —  used by run_topcharge_scan.sh
+# ==============================================================================
+# Applied to every ensemble config found in the results directory
+
+# Configuration range
+# start_conf is auto-detected from thermalization (set during heatbath phase)
+end_conf            1000        # Last config to measure
+conf_step           10          # Step between configs (must match save_interval)
+
+# APE smearing
+smear_steps         20          # Total smearing steps applied before measuring Q
+smear_interval      20          # Output Q every N smearing steps
+smear_alpha         0.3         # APE smearing parameter alpha
+
+# Boundary exclusion (only relevant for open BC)
+exclude_boundary_slices 2       # Time slices excluded per boundary
+# ==============================================================================

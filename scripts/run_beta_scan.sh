@@ -37,6 +37,8 @@ set -e  # Exit on error
 GAUGE_GROUP="su2"
 DRY_RUN=false
 SKIP_BUILD=false
+HEATBATH_ONLY=false
+TOPCHARGE_ONLY=false
 BETA_FILE=""
 PARAMS_FILE=""
 CONDA_ENV="master_thesis"  # Conda environment with numpy, matplotlib, etc.
@@ -64,6 +66,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-build)
             SKIP_BUILD=true
+            shift
+            ;;
+        --heatbath-only)
+            HEATBATH_ONLY=true
+            shift
+            ;;
+        --topcharge-only)
+            TOPCHARGE_ONLY=true
             shift
             ;;
         --beta-file)

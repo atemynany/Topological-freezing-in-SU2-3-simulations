@@ -47,15 +47,18 @@ Thumbs.db
 *.out
 *.err
 
-# Input files (user-specific, examples tracked)
+# Input files (user-specific, tracked files whitelisted)
 input/*
 !input/.gitkeep
-!input/example_base_params.txt
-!input/example_beta_scan.txt
-!input/heatbath_su2.txt
-!input/heatbath_su3.txt
-!input/topcharge_su2.txt
-!input/topcharge_su3.txt
+!input/base_params_su2.txt
+!input/base_params_su3.txt
+!input/beta_scan_su2.txt
+!input/beta_scan_su3.txt
+!input/lattice_su2.txt
+!input/lattice_su3.txt
+!input/topcharge_params_su2.txt
+!input/topcharge_params_su3.txt
+!input/instanton.txt
 
 # Output folder structure (keep dirs, ignore content)
 !output/.gitkeep
