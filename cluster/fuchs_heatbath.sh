@@ -16,6 +16,7 @@
 
 #SBATCH --job-name=lqcd_heatbath
 #SBATCH --partition=fuchs
+#SBATCH --qos=fuchs
 #SBATCH --nodes=1
 #SBATCH --ntasks=20
 #SBATCH --ntasks-per-node=20
