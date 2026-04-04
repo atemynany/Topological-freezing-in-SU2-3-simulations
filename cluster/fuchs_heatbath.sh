@@ -1,10 +1,14 @@
 #!/bin/bash
 # ==============================================================================
-# FUCHS cluster job script — Heatbath (gauge config generation)
+# FUCHS cluster job script — Heatbath scan (all beta values)
 # Goethe University Frankfurt, CSC FUCHS cluster
 #
+# Runs the full beta scan from input/beta_scan_<gauge>.txt.
+# SU(2): runs all betas in parallel (one per CPU core — 20 simultaneous).
+# SU(3): runs betas sequentially (each beta uses all 20 cores via OpenMP).
+#
 # Usage:
-#   sbatch cluster/fuchs_heatbath.sh [--su2|--su3] [--beta <val>]
+#   sbatch cluster/fuchs_heatbath.sh [--su2|--su3]
 #
 # Build first on the login node:
 #   ./scripts/build.sh release
@@ -26,19 +30,14 @@
 ##SBATCH --account=<your_FUCHS_group>
 
 # ==============================================================================
-# Configuration — edit these as needed
+# Configuration
 # ==============================================================================
-GAUGE_GROUP="su2"       # su2 or su3
-BETA=""                 # leave empty to use value from params file
-PARAMS_FILE=""          # leave empty to use default (input/base_params_su2.txt)
+GAUGE_GROUP="su2"
 
-# Parse any arguments passed via sbatch --export or directly
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --su2)  GAUGE_GROUP="su2"; shift ;;
-        --su3)  GAUGE_GROUP="su3"; shift ;;
-        --beta) BETA="$2"; shift 2 ;;
-        --params-file) PARAMS_FILE="$2"; shift 2 ;;
+        --su2) GAUGE_GROUP="su2"; shift ;;
+        --su3) GAUGE_GROUP="su3"; shift ;;
         *) shift ;;
     esac
 done
@@ -51,28 +50,30 @@ cd "$PROJECT_DIR"
 
 mkdir -p logs
 
-# SU(3) uses OpenMP — pin threads to the cores on this node
-if [ "$GAUGE_GROUP" = "su3" ]; then
-    export OMP_NUM_THREADS=20
-    export OMP_PROC_BIND=close
-fi
-
 echo "======================================"
-echo "FUCHS heatbath job"
+echo "FUCHS heatbath scan"
 echo "Job ID:       $SLURM_JOB_ID"
 echo "Node:         $SLURMD_NODENAME"
 echo "Gauge group:  $GAUGE_GROUP"
+echo "CPUs:         ${SLURM_NTASKS:-20}"
 echo "Started:      $(date)"
 echo "======================================"
 
 # ==============================================================================
-# Run — delegate to the existing heatbath script with --skip-build
+# Run
 # ==============================================================================
-ARGS="--${GAUGE_GROUP} --skip-build"
-[ -n "$BETA" ]        && ARGS="$ARGS --beta $BETA"
-[ -n "$PARAMS_FILE" ] && ARGS="$ARGS --params-file $PARAMS_FILE"
-
-bash scripts/run_heatbath.sh $ARGS
+if [ "$GAUGE_GROUP" = "su3" ]; then
+    # SU(3): each beta uses all cores via OpenMP — run betas sequentially
+    export OMP_NUM_THREADS=${SLURM_NTASKS:-20}
+    export OMP_PROC_BIND=close
+    echo "SU(3) mode: sequential betas, OMP_NUM_THREADS=$OMP_NUM_THREADS"
+    bash run_heatbath_scan.sh --su3 --skip-build
+else
+    # SU(2): each beta is single-threaded — run all betas in parallel
+    JOBS=${SLURM_NTASKS:-20}
+    echo "SU(2) mode: up to $JOBS betas in parallel"
+    bash run_heatbath_scan.sh --su2 --skip-build --jobs "$JOBS"
+fi
 
 echo "======================================"
 echo "Finished: $(date)"
