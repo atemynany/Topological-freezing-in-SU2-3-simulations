@@ -5,7 +5,7 @@
 
 # Configuration range
 # start_conf is auto-detected from thermalization (set during heatbath phase)
-end_conf            1000        # Last config to measure
+end_conf            100        # Last config to measure
 conf_step           10          # Step between configs (must match save_interval)
 
 # APE smearing
