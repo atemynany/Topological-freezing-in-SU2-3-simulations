@@ -14,6 +14,7 @@
 #   ./scripts/build.sh release
 # ==============================================================================
 
+#SBATCH --account=barros
 #SBATCH --job-name=lqcd_heatbath
 #SBATCH --partition=fuchs
 #SBATCH --qos=fuchs

@@ -14,6 +14,7 @@
 #   sbatch cluster/fuchs_heatbath.sh [--su2|--su3]
 # ==============================================================================
 
+#SBATCH --account=barros
 #SBATCH --job-name=lqcd_topcharge
 #SBATCH --partition=fuchs
 #SBATCH --qos=fuchs
