@@ -17,6 +17,8 @@
 #   --skip-build    Skip build step
 #   --beta-file     Custom beta scan file
 #   --params-file   Custom base parameters file
+#   --parallel      Run all beta values in parallel (uses all CPUs)
+#   --jobs N        Run up to N beta values in parallel
 #
 # Requires run dirs from:
 #   ./run_heatbath_scan.sh [--su2|--su3] [same options]
@@ -36,6 +38,7 @@ SKIP_BUILD=false
 BETA_FILE=""
 LATTICE_FILE=""
 TOPCHARGE_FILE_PARAMS=""
+PARALLEL_JOBS=0
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -47,6 +50,8 @@ while [[ $# -gt 0 ]]; do
         --beta-file)        BETA_FILE="$2";             shift 2 ;;
         --lattice-file)     LATTICE_FILE="$2";          shift 2 ;;
         --topcharge-file)   TOPCHARGE_FILE_PARAMS="$2"; shift 2 ;;
+        --parallel)         PARALLEL_JOBS=$(nproc 2>/dev/null || echo 4); shift ;;
+        --jobs)             PARALLEL_JOBS="$2";         shift 2 ;;
         -h|--help)          head -25 "$0" | tail -22;   exit 0 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
@@ -141,50 +146,43 @@ if [ "$SKIP_BUILD" = false ] && [ "$DRY_RUN" = false ]; then
 fi
 
 # ==============================================================================
-# Main loop
+# Single-beta worker
 # ==============================================================================
-RUN_COUNT=0
-for BETA in "${BETAS[@]}"; do
-    RUN_COUNT=$((RUN_COUNT + 1))
-    echo ""
-    echo -e "${GREEN}------------------------------------------------------${NC}"
-    echo -e "${GREEN}  Run $RUN_COUNT/${#BETAS[@]}: beta = $BETA${NC}"
-    echo -e "${GREEN}------------------------------------------------------${NC}"
+run_topcharge_beta() {
+    local BETA="$1"
+    local COUNT="$2"
+    local TOTAL="$3"
+    local TO_LOG="$4"    # "log" = file only, "tee" = also stdout
 
-    # Find the run dir created by the heatbath phase
+    local RUN_DIR
     RUN_DIR=$(ls -d "$RESULTS_DIR"/T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed* 2>/dev/null | head -1)
 
     if [ -z "$RUN_DIR" ]; then
-        log_error "No existing run dir found for beta=$BETA (T=${T_SIZE}, L=${L_SIZE}, boundary=${BOUNDARY})"
-        log_error "Run ./run_heatbath_scan.sh --${GAUGE_GROUP} first"
-        continue
+        log_error "[$COUNT/$TOTAL] No run dir for beta=$BETA — run heatbath scan first"
+        return 1
     fi
 
-    RUN_OUTPUT_DIR="$RUN_DIR/output"
-    TEMP_INPUT="$RUN_DIR/input.txt"
+    local RUN_OUTPUT_DIR="$RUN_DIR/output"
+    local TEMP_INPUT="$RUN_DIR/input.txt"
+    local RUN_NAME
     RUN_NAME=$(basename "$RUN_DIR")
 
-    log_info "Found run: $RUN_NAME"
+    echo -e "${GREEN}------------------------------------------------------${NC}"
+    echo -e "${GREEN}  [$COUNT/$TOTAL] beta = $BETA  ($RUN_NAME)${NC}"
+    echo -e "${GREEN}------------------------------------------------------${NC}"
 
     if [ ! -f "$TEMP_INPUT" ]; then
-        log_error "input.txt missing in $RUN_DIR — was heatbath phase completed?"
-        continue
+        log_error "[$COUNT/$TOTAL] input.txt missing in $RUN_DIR"
+        return 1
     fi
 
-    if [ "$DRY_RUN" = true ]; then
-        echo "  Would run topcharge on: $RUN_DIR"
-        echo "  Input: $TEMP_INPUT"
-        continue
-    fi
-
-    # -------------------------------------------------------------------------
-    # Patch input.txt with topcharge params from topcharge_params file
-    # -------------------------------------------------------------------------
-    END_CONF=$(read_param "end_conf"                "$TOPCHARGE_FILE_PARAMS")
-    CONF_STEP=$(read_param "conf_step"              "$TOPCHARGE_FILE_PARAMS")
-    SMEAR_STEPS=$(read_param "smear_steps"          "$TOPCHARGE_FILE_PARAMS")
-    SMEAR_ALPHA=$(read_param "smear_alpha"          "$TOPCHARGE_FILE_PARAMS")
-    SMEAR_INTERVAL=$(read_param "smear_interval"    "$TOPCHARGE_FILE_PARAMS")
+    # Patch input.txt with topcharge params
+    local END_CONF CONF_STEP SMEAR_STEPS SMEAR_ALPHA SMEAR_INTERVAL EXCLUDE_BC
+    END_CONF=$(read_param "end_conf"                  "$TOPCHARGE_FILE_PARAMS")
+    CONF_STEP=$(read_param "conf_step"                "$TOPCHARGE_FILE_PARAMS")
+    SMEAR_STEPS=$(read_param "smear_steps"            "$TOPCHARGE_FILE_PARAMS")
+    SMEAR_ALPHA=$(read_param "smear_alpha"            "$TOPCHARGE_FILE_PARAMS")
+    SMEAR_INTERVAL=$(read_param "smear_interval"      "$TOPCHARGE_FILE_PARAMS")
     EXCLUDE_BC=$(read_param "exclude_boundary_slices" "$TOPCHARGE_FILE_PARAMS")
 
     for key in end_conf conf_step smear_steps smear_alpha smear_interval exclude_boundary_slices; do
@@ -200,29 +198,107 @@ smear_steps         ${SMEAR_STEPS:-20}
 smear_alpha         ${SMEAR_ALPHA:-0.3}
 exclude_boundary_slices ${EXCLUDE_BC:-0}
 EOF
-    [ -n "$SMEAR_INTERVAL" ] && echo "smear_interval      $SMEAR_INTERVAL" >> "$TEMP_INPUT"
+    if [ -n "$SMEAR_INTERVAL" ]; then
+        echo "smear_interval      $SMEAR_INTERVAL" >> "$TEMP_INPUT"
+    fi
 
-    # -------------------------------------------------------------------------
-    # Run topological charge measurement
-    # -------------------------------------------------------------------------
-    log_step "Measuring topological charge..."
+    # Run measurement
+    log_step "[$COUNT/$TOTAL] Measuring topcharge for beta=$BETA..."
     cd "$PROJECT_DIR"
-    "$BUILD_DIR/bin/$TOPCHARGE_BIN" -i "$TEMP_INPUT" 2>&1 | tee "$RUN_DIR/topcharge.log"
+    if [ "$TO_LOG" = "tee" ]; then
+        "$BUILD_DIR/bin/$TOPCHARGE_BIN" -i "$TEMP_INPUT" 2>&1 | tee "$RUN_DIR/topcharge.log"
+    else
+        "$BUILD_DIR/bin/$TOPCHARGE_BIN" -i "$TEMP_INPUT" > "$RUN_DIR/topcharge.log" 2>&1
+    fi
 
-    TOPCHARGE_PATH="$RUN_OUTPUT_DIR/$TOPCHARGE_FILE"
+    local TOPCHARGE_PATH="$RUN_OUTPUT_DIR/$TOPCHARGE_FILE"
     if [ ! -f "$TOPCHARGE_PATH" ] && [ -f "$PROJECT_DIR/output/$TOPCHARGE_FILE" ]; then
         mv "$PROJECT_DIR/output/$TOPCHARGE_FILE" "$TOPCHARGE_PATH"
     fi
 
-    # Update run_info.txt with topcharge output
     cat >> "$RUN_DIR/run_info.txt" << EOF
 
 # Topcharge phase
 topcharge_file      $RUN_OUTPUT_DIR/$TOPCHARGE_FILE
 EOF
 
-    log_success "Beta=$BETA done — results in $RUN_OUTPUT_DIR"
-done
+    log_success "[$COUNT/$TOTAL] Beta=$BETA done — results in $RUN_OUTPUT_DIR"
+}
+
+# ==============================================================================
+# Main loop
+# ==============================================================================
+TOTAL=${#BETAS[@]}
+
+if [ "$DRY_RUN" = true ]; then
+    for i in "${!BETAS[@]}"; do
+        BETA="${BETAS[$i]}"
+        RUN_DIR=$(ls -d "$RESULTS_DIR"/T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed* 2>/dev/null | head -1)
+        echo "  Would run topcharge on: ${RUN_DIR:-<not found>}"
+    done
+    echo ""
+    echo "Mode: $( [ "$PARALLEL_JOBS" -gt 0 ] && echo "parallel (max $PARALLEL_JOBS jobs)" || echo "sequential" )"
+    exit 0
+fi
+
+if [ "$PARALLEL_JOBS" -gt 0 ]; then
+    log_info "Parallel mode: running up to $PARALLEL_JOBS beta(s) simultaneously"
+    log_info "Progress visible in per-run topcharge.log files"
+    echo ""
+
+    declare -a PIDS=()
+    declare -a PID_BETAS=()
+    FAILED_COUNT=0
+
+    for i in "${!BETAS[@]}"; do
+        BETA="${BETAS[$i]}"; COUNT=$((i+1))
+
+        while [ "${#PIDS[@]}" -ge "$PARALLEL_JOBS" ]; do
+            NEW_PIDS=(); NEW_BETAS=()
+            for j in "${!PIDS[@]}"; do
+                p="${PIDS[$j]}"
+                if kill -0 "$p" 2>/dev/null; then
+                    NEW_PIDS+=("$p"); NEW_BETAS+=("${PID_BETAS[$j]}")
+                else
+                    if wait "$p"; then
+                        :
+                    else
+                        log_error "Job for beta=${PID_BETAS[$j]} failed — check topcharge.log"
+                        FAILED_COUNT=$((FAILED_COUNT+1))
+                    fi
+                fi
+            done
+            PIDS=("${NEW_PIDS[@]}"); PID_BETAS=("${NEW_BETAS[@]}")
+            [ "${#PIDS[@]}" -ge "$PARALLEL_JOBS" ] && sleep 0.5
+        done
+
+        log_info "Launching beta=$BETA [job $COUNT/$TOTAL]..."
+        run_topcharge_beta "$BETA" "$COUNT" "$TOTAL" "log" &
+        PIDS+=($!); PID_BETAS+=("$BETA")
+    done
+
+    for j in "${!PIDS[@]}"; do
+        p="${PIDS[$j]}"
+        if wait "$p"; then
+            :
+        else
+            log_error "Job for beta=${PID_BETAS[$j]} failed — check topcharge.log"
+            FAILED_COUNT=$((FAILED_COUNT+1))
+        fi
+    done
+
+    echo ""
+    if [ "$FAILED_COUNT" -gt 0 ]; then
+        log_warn "$FAILED_COUNT beta run(s) failed. Check individual topcharge.log files."
+    fi
+
+else
+    for i in "${!BETAS[@]}"; do
+        BETA="${BETAS[$i]}"; COUNT=$((i+1))
+        echo ""
+        run_topcharge_beta "$BETA" "$COUNT" "$TOTAL" "tee"
+    done
+fi
 
 echo ""
 echo -e "${GREEN}======================================================${NC}"
