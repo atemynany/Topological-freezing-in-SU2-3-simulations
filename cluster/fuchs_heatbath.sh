@@ -16,7 +16,7 @@
 #SBATCH --output=logs/heatbath_%j.out
 #SBATCH --error=logs/heatbath_%j.err
 
-PROJECT_DIR="${SLURM_SUBMIT_DIR}"
+PROJECT_DIR="$(cd "${SLURM_SUBMIT_DIR}" && pwd -P)"
 cd "$PROJECT_DIR"
 mkdir -p logs
 
