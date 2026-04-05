@@ -204,6 +204,11 @@ run_single_beta() {
     else
         "$BUILD_DIR/bin/$HEATBATH_BIN" -i "$TEMP_INPUT" > "$RUN_DIR/heatbath.log" 2>&1
     fi
+    local heatbath_exit=${PIPESTATUS[0]}
+    if [ "$heatbath_exit" -ne 0 ]; then
+        log_error "[$RUN_COUNT/$TOTAL] Heatbath binary exited with code $heatbath_exit for beta=$BETA"
+        return 1
+    fi
 
     # -------------------------------------------------------------------------
     # Step 2: Detect thermalization
