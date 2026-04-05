@@ -21,6 +21,12 @@ BUILD_DIR="${PROJECT_ROOT}/build"
 
 # Parse arguments
 BUILD_TYPE="${1:-Release}"
+MARCH_FLAG=""
+for arg in "$@"; do
+    case "$arg" in
+        --march=*) MARCH_FLAG="${arg#--march=}" ;;
+    esac
+done
 case "$BUILD_TYPE" in
     debug|Debug)
         BUILD_TYPE="Debug"
@@ -30,7 +36,7 @@ case "$BUILD_TYPE" in
         ;;
     *)
         echo "Unknown build type: $BUILD_TYPE"
-        echo "Usage: $0 [debug|release]"
+        echo "Usage: $0 [debug|release] [--march=<arch>]"
         exit 1
         ;;
 esac
@@ -49,8 +55,11 @@ cd "${BUILD_DIR}"
 
 # Configure with CMake
 echo "Configuring with CMake..."
+CMAKE_EXTRA=""
+[ -n "$MARCH_FLAG" ] && CMAKE_EXTRA="-DMARCH=${MARCH_FLAG}"
 cmake -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
       -DBUILD_TESTING=ON \
+      $CMAKE_EXTRA \
       "${PROJECT_ROOT}"
 
 # Build
