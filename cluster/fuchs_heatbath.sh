@@ -1,7 +1,4 @@
 #!/bin/bash
-# ==============================================================================
-# FUCHS cluster job script — Heatbath (single run, one beta)
-# ==============================================================================
 #SBATCH --account=agmisc
 #SBATCH --job-name=lqcd_heatbath
 #SBATCH --partition=fuchs
@@ -11,27 +8,10 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
 #SBATCH --time=48:00:00
-#SBATCH --no-requeue
-#SBATCH --mail-type=FAIL
 #SBATCH --output=logs/heatbath_%j.out
 #SBATCH --error=logs/heatbath_%j.err
 
-PROJECT_DIR="/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations"
-cd "$PROJECT_DIR"
+cd /work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations
 mkdir -p logs
 
-echo "======================================"
-echo "Job ID:   $SLURM_JOB_ID"
-echo "Node:     $SLURMD_NODENAME"
-echo "Started:  $(date)"
-echo "======================================"
-
-# Build (limit parallel jobs to avoid OOM)
-BUILD_JOBS=2 bash scripts/build.sh release --march=avx
-
-# Run
-bash run_heatbath_scan.sh --su2 --skip-build
-
-echo "======================================"
-echo "Finished: $(date)"
-echo "======================================"
+./build/bin/mc_heatbath -i input/run_input.txt

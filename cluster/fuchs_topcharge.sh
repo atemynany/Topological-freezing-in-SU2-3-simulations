@@ -26,8 +26,13 @@ echo "Node:     $SLURMD_NODENAME"
 echo "Started:  $(date)"
 echo "======================================"
 
-# Build (limit parallel jobs to avoid OOM)
-BUILD_JOBS=2 bash scripts/build.sh release --march=avx
+# Verify binary exists (build on login node first)
+if [ ! -f "build/bin/meas_topcharge" ]; then
+    echo "ERROR: binary not found — build on login node first:"
+    echo "  cmake -B build -DCMAKE_BUILD_TYPE=Release -DMARCH=avx ."
+    echo "  cmake --build build --parallel 2"
+    exit 1
+fi
 
 # Run
 bash run_topcharge_scan.sh --su2 --skip-build
