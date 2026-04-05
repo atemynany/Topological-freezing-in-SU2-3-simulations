@@ -16,7 +16,7 @@
 #SBATCH --output=logs/heatbath_%j.out
 #SBATCH --error=logs/heatbath_%j.err
 
-PROJECT_DIR="$(cd "${SLURM_SUBMIT_DIR}" && pwd -P)"
+PROJECT_DIR="/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations"
 cd "$PROJECT_DIR"
 mkdir -p logs
 
