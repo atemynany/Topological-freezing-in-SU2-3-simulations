@@ -8,9 +8,10 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=0               
 #SBATCH --time=48:00:00
-#SBATCH --output=scan_%j.out
-#SBATCH --error=scan_%j.err
+#SBATCH --output=logs/scan_%j.out
+#SBATCH --error=logs/scan_%j.err
 
 cd /work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations
+mkdir -p logs
 
 bash run_heatbath_scan.sh --su2 --skip-build --jobs 20
