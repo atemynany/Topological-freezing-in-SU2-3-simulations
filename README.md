@@ -49,21 +49,6 @@ CMake auto-detects macOS and sets up the right flags. If you installed `libomp` 
 
 ## Main Workflow: Beta Scan
 
-Run simulations across multiple β values and analyze:
-
-```bash
-# 1. Edit beta values to scan
-nano input/beta_scan_su2.txt
-
-# 2. Run scan (generates configs + measures Q)
-./scripts/run_beta_scan.sh --su2
-
-# 3. Analyze results
-python3 analysis/analysis.py --su2
-```
-
-Or use the all-in-one entry point:
-
 ```bash
 ./run_simulation.sh --su2          # SU(2) with default betas
 ./run_simulation.sh --su3          # SU(3) with default betas
@@ -72,6 +57,26 @@ Or use the all-in-one entry point:
 ```
 
 Results saved to `data/results/` and plots to `output/figures_analysis/`.
+
+## Cluster (Fuchs HPC)
+
+```bash
+# On the cluster login node — build once before submitting
+rm -rf build && ./scripts/build.sh release
+
+# Submit jobs
+sbatch cluster/fuchs_heatbath.sh     # heatbath scan
+sbatch cluster/fuchs_topcharge.sh    # topcharge measurement
+
+# Monitor
+tail -f logs/scan_<jobid>.out
+```
+
+Sync results to local (run from local machine):
+
+```bash
+./cluster/sync_results.sh
+```
 
 ## Key Executables
 
