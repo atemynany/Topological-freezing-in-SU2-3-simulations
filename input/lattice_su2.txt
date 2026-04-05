@@ -10,6 +10,6 @@ L                   8          # Spatial extent
 # Monte Carlo
 start_type          cold        # cold or hot
 boundary            periodic    # periodic or open
-num_sweeps          100        # Total MC sweeps
+num_sweeps          1000        # Total MC sweeps
 save_interval       10          # Save config every N sweeps
 # ==============================================================================
