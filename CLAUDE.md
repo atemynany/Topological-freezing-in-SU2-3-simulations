@@ -37,6 +37,26 @@ This delegates to `scripts/run_beta_scan.sh`, which for each beta: runs heatbath
 
 Parameters: `input/base_params_su2.txt` / `input/base_params_su3.txt`. Beta values: `input/beta_scan_su2.txt` / `input/beta_scan_su3.txt`. Copy from `input/example_*.txt` to create these.
 
+## Cluster (Fuchs HPC)
+
+Cluster: `fuchs.hhlr-gu.de`, user `barros`, project dir `/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/`
+
+```bash
+sbatch cluster/fuchs_heatbath.sh    # Submit heatbath scan (20 parallel jobs, 48h)
+sbatch cluster/fuchs_topcharge.sh   # Submit topcharge measurement
+tail -f logs/scan_<jobid>.out       # Follow job output live
+```
+
+**Before first submit:** build on the cluster login node:
+```bash
+rm -rf build && ./scripts/build.sh release
+```
+
+**Sync results to local** (run from local machine, skips binary configs):
+```bash
+./cluster/sync_results.sh
+```
+
 ## Analysis
 
 ```bash
