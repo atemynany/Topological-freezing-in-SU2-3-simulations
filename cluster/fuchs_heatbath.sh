@@ -9,7 +9,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=512
+#SBATCH --mem=4G
 #SBATCH --time=48:00:00
 #SBATCH --no-requeue
 #SBATCH --mail-type=FAIL
@@ -26,8 +26,8 @@ echo "Node:     $SLURMD_NODENAME"
 echo "Started:  $(date)"
 echo "======================================"
 
-# Build
-bash scripts/build.sh release --march=avx
+# Build (limit parallel jobs to avoid OOM)
+BUILD_JOBS=2 bash scripts/build.sh release --march=avx
 
 # Run
 bash run_heatbath_scan.sh --su2 --skip-build
