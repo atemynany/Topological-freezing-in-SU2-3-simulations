@@ -201,7 +201,6 @@ def plot_susceptibility_combined(results_periodic: List[AnalysisResult],
             point_counter += 1
     
     ax.axhline(y=ref_value, color='gray', linestyle='--', linewidth=1, alpha=0.7)
-    ax.axhline(y=220, color='gray', linestyle='--', linewidth=1, alpha=0.7)
     
     ax.set_xlabel(r'$a$ (fm)')
     ax.set_ylabel(r'$\chi_t^{1/4}$ (MeV)')
