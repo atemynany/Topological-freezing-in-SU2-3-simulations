@@ -110,11 +110,19 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
         ax = axes[row, col]
 
         Q = run_data.Q_rescaled
+        Q_unrounded = run_data.alpha * run_data.Q_raw
 
-        hist_label = r'$Q_{\rm re}$' if idx == 0 else None
+        # Rounded values: full-width bars with low opacity
+        rounded_label = r'$Q_{\rm rounded}$' if idx == 0 else None
         counts, bin_edges, _ = ax.hist(Q, bins=bins, density=False,
-            color='steelblue', edgecolor='black', linewidth=0.5, alpha=0.9, rwidth=0.15,
-            label=hist_label)
+            color='steelblue', edgecolor='steelblue', linewidth=0.5, alpha=0.2,
+            label=rounded_label)
+
+        # Unrounded values: step histogram with higher opacity
+        unrounded_label = r'$\alpha \hat{Q}$' if idx == 0 else None
+        ax.hist(Q_unrounded, bins=bins, density=False,
+            color='steelblue', edgecolor='steelblue', linewidth=1.5, alpha=0.8,
+            histtype='step', label=unrounded_label)
 
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
         try:

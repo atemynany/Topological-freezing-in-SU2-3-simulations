@@ -58,6 +58,7 @@ input/*
 !input/lattice_su3.txt
 !input/topcharge_params_su2.txt
 !input/topcharge_params_su3.txt
+!input/setup_*.txt
 !input/instanton.txt
 
 # Output folder structure (keep dirs, ignore content)
