@@ -2,8 +2,9 @@
 # ==============================================================================
 # run_heatbath_scan.sh  —  Phase 1: generate gauge configs for all beta values
 # ==============================================================================
-# For each beta: auto-seeds, runs heatbath, detects thermalization, saves
-# input.txt with start_conf so run_topcharge_scan.sh can pick up from here.
+# Discovers all input/setup_*_${GAUGE_GROUP}.txt files and runs heatbath for
+# every (setup_file, beta) combination. Each setup file contains lattice params
+# and one or more "beta X.X" lines.
 #
 # Usage:
 #   ./run_heatbath_scan.sh [--su2|--su3] [options]
@@ -11,11 +12,8 @@
 # Options:
 #   --su2           SU(2) gauge group (default)
 #   --su3           SU(3) gauge group
-#   --open          Open boundary conditions
 #   --dry-run       Preview without executing
 #   --skip-build    Skip build step
-#   --beta-file     Custom beta scan file
-#   --params-file   Custom base parameters file
 #   --parallel      Run all beta values in parallel (uses all CPUs)
 #   --jobs N        Run up to N beta values in parallel
 #
@@ -32,48 +30,22 @@ RESULTS_DIR="$PROJECT_DIR/data/results"
 CONDA_ENV="master_thesis"
 
 GAUGE_GROUP="su2"
-OPEN_BC=false
 DRY_RUN=false
 SKIP_BUILD=false
-BETA_FILE=""
-LATTICE_FILE=""
 PARALLEL_JOBS=0   # 0 = sequential (default)
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --su2)           GAUGE_GROUP="su2"; shift ;;
         --su3)           GAUGE_GROUP="su3"; shift ;;
-        --open)          OPEN_BC=true;      shift ;;
         --dry-run)       DRY_RUN=true;      shift ;;
         --skip-build)    SKIP_BUILD=true;   shift ;;
-        --beta-file)     BETA_FILE="$2";    shift 2 ;;
-        --lattice-file)  LATTICE_FILE="$2"; shift 2 ;;
         --parallel)      PARALLEL_JOBS=$(nproc 2>/dev/null || echo 4); shift ;;
         --jobs)          PARALLEL_JOBS="$2"; shift 2 ;;
-        -h|--help)       head -25 "$0" | tail -22; exit 0 ;;
+        -h|--help)       head -22 "$0" | tail -19; exit 0 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
-
-# ==============================================================================
-# File selection
-# ==============================================================================
-if [ -z "$LATTICE_FILE" ]; then
-    LATTICE_FILE="input/lattice_${GAUGE_GROUP}.txt"
-    [ ! -f "$LATTICE_FILE" ] && LATTICE_FILE="input/example_base_params.txt"
-fi
-
-if [ -z "$BETA_FILE" ]; then
-    if [ "$OPEN_BC" = true ]; then
-        BETA_FILE="input/beta_scan_${GAUGE_GROUP}_open.txt"
-        [ ! -f "$BETA_FILE" ] && BETA_FILE="input/beta_scan_${GAUGE_GROUP}.txt"
-    else
-        BETA_FILE="input/beta_scan_${GAUGE_GROUP}.txt"
-    fi
-    [ ! -f "$BETA_FILE" ] && BETA_FILE="input/example_beta_scan.txt"
-fi
-
-PARAMS_FILE="$LATTICE_FILE"
 
 if [ "$GAUGE_GROUP" = "su3" ]; then
     HEATBATH_BIN="mc_heatbath_su3"
@@ -86,7 +58,7 @@ fi
 GAUGE_GROUP_UPPER=$(echo "$GAUGE_GROUP" | tr '[:lower:]' '[:upper:]')
 
 # ==============================================================================
-# Helpers (copied from run_beta_scan.sh)
+# Helpers
 # ==============================================================================
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; MAGENTA='\033[0;35m'; NC='\033[0m'
@@ -106,21 +78,15 @@ generate_seed() {
 
 create_input_file() {
     local output_file="$1" beta="$2" seed="$3" start_conf="$4"
-    local run_output_dir="$5" run_config_dir="$6"
+    local run_output_dir="$5" run_config_dir="$6" setup_file="$7"
 
-    local T=$(read_param "T" "$PARAMS_FILE")
-    local L=$(read_param "L" "$PARAMS_FILE")
-    local start_type=$(read_param "start_type" "$PARAMS_FILE")
-    local boundary=$(read_param "boundary" "$PARAMS_FILE")
-    local num_sweeps=$(read_param "num_sweeps" "$PARAMS_FILE")
-    local save_interval=$(read_param "save_interval" "$PARAMS_FILE")
-    local end_conf=$(read_param "end_conf" "$PARAMS_FILE")
-    local conf_step=$(read_param "conf_step" "$PARAMS_FILE")
-    local smear_steps=$(read_param "smear_steps" "$PARAMS_FILE")
-    local smear_alpha=$(read_param "smear_alpha" "$PARAMS_FILE")
-    local exclude_boundary_slices=$(read_param "exclude_boundary_slices" "$PARAMS_FILE")
-    local overrelax_steps=$(read_param "overrelax_steps" "$PARAMS_FILE")
-    local smear_interval=$(read_param "smear_interval" "$PARAMS_FILE")
+    local T=$(read_param "T" "$setup_file")
+    local L=$(read_param "L" "$setup_file")
+    local start_type=$(read_param "start_type" "$setup_file")
+    local boundary=$(read_param "boundary" "$setup_file")
+    local num_sweeps=$(read_param "num_sweeps" "$setup_file")
+    local save_interval=$(read_param "save_interval" "$setup_file")
+    local overrelax_steps=$(read_param "overrelax_steps" "$setup_file")
 
     cat > "$output_file" << EOF
 # Auto-generated input file
@@ -143,20 +109,6 @@ EOF
 
     cat >> "$output_file" << EOF
 
-start_conf          ${start_conf:-50}
-end_conf            ${end_conf:-1000}
-conf_step           ${conf_step:-10}
-smear_steps         ${smear_steps:-20}
-smear_alpha         ${smear_alpha:-0.3}
-exclude_boundary_slices ${exclude_boundary_slices:-0}
-EOF
-
-    if [ "$GAUGE_GROUP" = "su2" ] && [ -n "$smear_interval" ]; then
-        echo "smear_interval      $smear_interval" >> "$output_file"
-    fi
-
-    cat >> "$output_file" << EOF
-
 output_dir          ${run_output_dir}/
 config_dir          ${run_config_dir}/
 EOF
@@ -167,93 +119,38 @@ EOF
 }
 
 # ==============================================================================
-# Single-beta worker — runs heatbath + thermalization for one beta value.
-# Called both in serial (foreground) and parallel (background subshell) modes.
-# In parallel mode all output is written to RUN_DIR/heatbath.log.
+# Discover setup files
 # ==============================================================================
-run_single_beta() {
-    local BETA="$1"
-    local SEED="$2"
-    local RUN_COUNT="$3"
-    local TOTAL="$4"
-    local TO_LOG="$5"    # "log" = file only, "tee" = also stdout
+SETUP_FILES=("$PROJECT_DIR"/input/setup_*_${GAUGE_GROUP}.txt)
 
-    local BOUNDARY
-    BOUNDARY=$(read_param "boundary" "$PARAMS_FILE"); BOUNDARY=${BOUNDARY:-periodic}
+if [ ! -f "${SETUP_FILES[0]}" ]; then
+    log_error "No setup files found matching input/setup_*_${GAUGE_GROUP}.txt"
+    exit 1
+fi
 
-    local RUN_NAME="T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed${SEED}"
-    local RUN_DIR="$RESULTS_DIR/$RUN_NAME"
-    local RUN_OUTPUT_DIR="$RUN_DIR/output"
-    local RUN_CONFIG_DIR="$RUN_DIR/configs"
+# ==============================================================================
+# Build flat job list: (setup_file, beta) pairs
+# ==============================================================================
+declare -a JOB_SETUP=()
+declare -a JOB_BETA=()
 
-    echo -e "${GREEN}------------------------------------------------------${NC}"
-    echo -e "${GREEN}  [$RUN_COUNT/$TOTAL] beta = $BETA  (seed=$SEED)${NC}"
-    echo -e "${GREEN}------------------------------------------------------${NC}"
-
-    mkdir -p "$RUN_OUTPUT_DIR" "$RUN_CONFIG_DIR"
-    local TEMP_INPUT="$RUN_DIR/input.txt"
-    create_input_file "$TEMP_INPUT" "$BETA" "$SEED" "10" "$RUN_OUTPUT_DIR" "$RUN_CONFIG_DIR"
-
-    # -------------------------------------------------------------------------
-    # Step 1: Heatbath
-    # -------------------------------------------------------------------------
-    log_step "[$RUN_COUNT/$TOTAL] Running heatbath for beta=$BETA..."
-    cd "$PROJECT_DIR"
-    if [ "$TO_LOG" = "tee" ]; then
-        "$BUILD_DIR/bin/$HEATBATH_BIN" -i "$TEMP_INPUT" 2>&1 | tee "$RUN_DIR/heatbath.log"
-    else
-        "$BUILD_DIR/bin/$HEATBATH_BIN" -i "$TEMP_INPUT" > "$RUN_DIR/heatbath.log" 2>&1
+for SETUP in "${SETUP_FILES[@]}"; do
+    BETAS_IN_FILE=($(grep -E '^beta\s+' "$SETUP" | awk '{print $2}'))
+    if [ ${#BETAS_IN_FILE[@]} -eq 0 ]; then
+        log_warn "No beta values in $SETUP, skipping"
+        continue
     fi
-    local heatbath_exit=${PIPESTATUS[0]}
-    if [ "$heatbath_exit" -ne 0 ]; then
-        log_error "[$RUN_COUNT/$TOTAL] Heatbath binary exited with code $heatbath_exit for beta=$BETA"
-        return 1
-    fi
+    for B in "${BETAS_IN_FILE[@]}"; do
+        JOB_SETUP+=("$SETUP")
+        JOB_BETA+=("$B")
+    done
+done
 
-    # -------------------------------------------------------------------------
-    # Step 2: Detect thermalization
-    # -------------------------------------------------------------------------
-    local PLAQ_PATH="$RUN_OUTPUT_DIR/$PLAQ_FILE"
-    if [ ! -f "$PLAQ_PATH" ] && [ -f "$PROJECT_DIR/output/$PLAQ_FILE" ]; then
-        mv "$PROJECT_DIR/output/$PLAQ_FILE" "$PLAQ_PATH"
-    fi
-
-    local START_CONF=50
-    if [ -f "$PLAQ_PATH" ]; then
-        START_CONF=$(conda run -n "$CONDA_ENV" python3 \
-            "$SCRIPT_DIR/scripts/detect_thermalization.py" "$PLAQ_PATH" "$SAVE_INTERVAL" 2>/dev/null \
-            || echo "50")
-        [[ "$START_CONF" =~ ^[0-9]+$ ]] || START_CONF=50
-    else
-        log_warn "[$RUN_COUNT/$TOTAL] Plaquette file not found, using start_conf=50"
-    fi
-
-    # -------------------------------------------------------------------------
-    # Step 3: Update input.txt with start_conf (ready for topcharge scan)
-    # -------------------------------------------------------------------------
-    create_input_file "$TEMP_INPUT" "$BETA" "$SEED" "$START_CONF" "$RUN_OUTPUT_DIR" "$RUN_CONFIG_DIR"
-
-    cat > "$RUN_DIR/run_info.txt" << EOF
-# Run Information — heatbath phase
-# Generated: $(date)
-
-gauge_group         ${GAUGE_GROUP_UPPER}
-beta                $BETA
-seed                $SEED
-T                   $T_SIZE
-L                   $L_SIZE
-boundary            $BOUNDARY
-save_interval       $SAVE_INTERVAL
-start_conf          $START_CONF
-run_dir             $RUN_DIR
-
-# Files
-plaquette_file      $RUN_OUTPUT_DIR/$PLAQ_FILE
-config_dir          $RUN_CONFIG_DIR
-EOF
-
-    log_success "[$RUN_COUNT/$TOTAL] Beta=$BETA done (start_conf=$START_CONF) — configs in $RUN_CONFIG_DIR"
-}
+TOTAL=${#JOB_BETA[@]}
+if [ "$TOTAL" -eq 0 ]; then
+    log_error "No jobs found across setup files"
+    exit 1
+fi
 
 # ==============================================================================
 # Validation
@@ -264,22 +161,13 @@ echo -e "${GREEN}     ${GAUGE_GROUP_UPPER} Heatbath Scan — Phase 1/2${NC}"
 echo -e "${GREEN}======================================================${NC}"
 echo ""
 
-[ ! -f "$BETA_FILE" ]    && { log_error "Beta file not found: $BETA_FILE";    exit 1; }
-[ ! -f "$LATTICE_FILE" ] && { log_error "Lattice file not found: $LATTICE_FILE"; exit 1; }
-
-SAVE_INTERVAL=$(read_param "save_interval" "$LATTICE_FILE")
-T_SIZE=$(read_param "T" "$LATTICE_FILE")
-L_SIZE=$(read_param "L" "$LATTICE_FILE")
-
 log_info "Gauge group:   ${GAUGE_GROUP_UPPER}"
-log_info "Beta file:     $BETA_FILE"
-log_info "Lattice file:  $LATTICE_FILE"
-log_info "Lattice:       ${T_SIZE}x${L_SIZE}^3"
+log_info "Setup files:   ${#SETUP_FILES[@]}"
+for SF in "${SETUP_FILES[@]}"; do
+    log_info "  $(basename "$SF")"
+done
+log_info "Total jobs:    $TOTAL"
 log_info "Results dir:   $RESULTS_DIR"
-echo ""
-
-BETAS=($(grep -v '^#' "$BETA_FILE" | grep -v '^$'))
-log_info "Beta values: ${BETAS[*]}"
 echo ""
 
 # ==============================================================================
@@ -298,22 +186,110 @@ fi
 mkdir -p "$RESULTS_DIR"
 
 # ==============================================================================
-# Pre-generate seeds sequentially (avoids timestamp collisions in fast loops)
+# Pre-generate seeds
 # ==============================================================================
 declare -a SEEDS=()
-for BETA in "${BETAS[@]}"; do
+for i in "${!JOB_BETA[@]}"; do
     SEEDS+=("$(generate_seed)")
     sleep 0.1
 done
 
+# ==============================================================================
+# Single-beta worker
+# ==============================================================================
+run_single_beta() {
+    local SETUP_FILE="$1"
+    local BETA="$2"
+    local SEED="$3"
+    local RUN_COUNT="$4"
+    local TOTAL="$5"
+    local TO_LOG="$6"
+
+    local T_SIZE=$(read_param "T" "$SETUP_FILE")
+    local L_SIZE=$(read_param "L" "$SETUP_FILE")
+    local SAVE_INTERVAL=$(read_param "save_interval" "$SETUP_FILE")
+    local BOUNDARY
+    BOUNDARY=$(read_param "boundary" "$SETUP_FILE"); BOUNDARY=${BOUNDARY:-periodic}
+
+    local RUN_NAME="T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed${SEED}_${GAUGE_GROUP}"
+    local RUN_DIR="$RESULTS_DIR/$RUN_NAME"
+    local RUN_OUTPUT_DIR="$RUN_DIR/output"
+    local RUN_CONFIG_DIR="$RUN_DIR/configs"
+
+    echo -e "${GREEN}------------------------------------------------------${NC}"
+    echo -e "${GREEN}  [$RUN_COUNT/$TOTAL] beta = $BETA  (${T_SIZE}x${L_SIZE}^3, ${BOUNDARY}, seed=$SEED)${NC}"
+    echo -e "${GREEN}------------------------------------------------------${NC}"
+
+    mkdir -p "$RUN_OUTPUT_DIR" "$RUN_CONFIG_DIR"
+    local TEMP_INPUT="$RUN_DIR/input.txt"
+    create_input_file "$TEMP_INPUT" "$BETA" "$SEED" "10" "$RUN_OUTPUT_DIR" "$RUN_CONFIG_DIR" "$SETUP_FILE"
+
+    # Heatbath
+    log_step "[$RUN_COUNT/$TOTAL] Running heatbath for beta=$BETA..."
+    cd "$PROJECT_DIR"
+    if [ "$TO_LOG" = "tee" ]; then
+        "$BUILD_DIR/bin/$HEATBATH_BIN" -i "$TEMP_INPUT" 2>&1 | tee "$RUN_DIR/heatbath.log"
+    else
+        "$BUILD_DIR/bin/$HEATBATH_BIN" -i "$TEMP_INPUT" > "$RUN_DIR/heatbath.log" 2>&1
+    fi
+    local heatbath_exit=${PIPESTATUS[0]}
+    if [ "$heatbath_exit" -ne 0 ]; then
+        log_error "[$RUN_COUNT/$TOTAL] Heatbath binary exited with code $heatbath_exit for beta=$BETA"
+        return 1
+    fi
+
+    # Detect thermalization
+    local PLAQ_PATH="$RUN_OUTPUT_DIR/$PLAQ_FILE"
+    if [ ! -f "$PLAQ_PATH" ] && [ -f "$PROJECT_DIR/output/$PLAQ_FILE" ]; then
+        mv "$PROJECT_DIR/output/$PLAQ_FILE" "$PLAQ_PATH"
+    fi
+
+    local START_CONF=50
+    if [ -f "$PLAQ_PATH" ]; then
+        START_CONF=$(conda run -n "$CONDA_ENV" python3 \
+            "$SCRIPT_DIR/scripts/detect_thermalization.py" "$PLAQ_PATH" "${SAVE_INTERVAL:-10}" 2>/dev/null \
+            || echo "50")
+        [[ "$START_CONF" =~ ^[0-9]+$ ]] || START_CONF=50
+    else
+        log_warn "[$RUN_COUNT/$TOTAL] Plaquette file not found, using start_conf=50"
+    fi
+
+    # Update input.txt with start_conf (ready for topcharge scan)
+    create_input_file "$TEMP_INPUT" "$BETA" "$SEED" "$START_CONF" "$RUN_OUTPUT_DIR" "$RUN_CONFIG_DIR" "$SETUP_FILE"
+
+    cat > "$RUN_DIR/run_info.txt" << EOF
+# Run Information — heatbath phase
+# Generated: $(date)
+
+gauge_group         ${GAUGE_GROUP_UPPER}
+beta                $BETA
+seed                $SEED
+T                   $T_SIZE
+L                   $L_SIZE
+boundary            $BOUNDARY
+save_interval       ${SAVE_INTERVAL:-10}
+start_conf          $START_CONF
+run_dir             $RUN_DIR
+
+# Files
+plaquette_file      $RUN_OUTPUT_DIR/$PLAQ_FILE
+config_dir          $RUN_CONFIG_DIR
+EOF
+
+    log_success "[$RUN_COUNT/$TOTAL] Beta=$BETA done (start_conf=$START_CONF) — configs in $RUN_CONFIG_DIR"
+}
+
+# ==============================================================================
 # Dry-run preview
+# ==============================================================================
 if [ "$DRY_RUN" = true ]; then
-    BOUNDARY=$(read_param "boundary" "$PARAMS_FILE"); BOUNDARY=${BOUNDARY:-periodic}
-    for i in "${!BETAS[@]}"; do
-        BETA="${BETAS[$i]}"; SEED="${SEEDS[$i]}"
-        RUN_NAME="T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed${SEED}"
+    for i in "${!JOB_BETA[@]}"; do
+        SETUP="${JOB_SETUP[$i]}"; BETA="${JOB_BETA[$i]}"; SEED="${SEEDS[$i]}"
+        T_SIZE=$(read_param "T" "$SETUP"); L_SIZE=$(read_param "L" "$SETUP")
+        BOUNDARY=$(read_param "boundary" "$SETUP"); BOUNDARY=${BOUNDARY:-periodic}
+        RUN_NAME="T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed${SEED}_${GAUGE_GROUP}"
         echo "  Would create: $RESULTS_DIR/$RUN_NAME"
-        echo "  Would run heatbath with beta=$BETA, seed=$SEED"
+        echo "    Setup: $(basename "$SETUP"), beta=$BETA, seed=$SEED"
     done
     echo ""
     echo "Mode: $( [ "$PARALLEL_JOBS" -gt 0 ] && echo "parallel (max $PARALLEL_JOBS jobs)" || echo "sequential" )"
@@ -323,47 +299,42 @@ fi
 # ==============================================================================
 # Main loop
 # ==============================================================================
-TOTAL=${#BETAS[@]}
-
 if [ "$PARALLEL_JOBS" -gt 0 ]; then
-    # --------------------------------------------------------------------------
-    # Parallel mode: each beta runs as a background subshell.
-    # Output goes to RUN_DIR/heatbath.log; terminal shows start/done messages.
-    # --------------------------------------------------------------------------
-    log_info "Parallel mode: running up to $PARALLEL_JOBS beta(s) simultaneously"
+    log_info "Parallel mode: running up to $PARALLEL_JOBS job(s) simultaneously"
     log_info "Progress visible in per-run heatbath.log files"
     echo ""
 
     declare -a PIDS=()
-    declare -a PID_BETAS=()
+    declare -a PID_LABELS=()
     FAILED_COUNT=0
 
-    for i in "${!BETAS[@]}"; do
-        BETA="${BETAS[$i]}"; SEED="${SEEDS[$i]}"; COUNT=$((i+1))
+    for i in "${!JOB_BETA[@]}"; do
+        SETUP="${JOB_SETUP[$i]}"; BETA="${JOB_BETA[$i]}"; SEED="${SEEDS[$i]}"
+        COUNT=$((i+1))
 
         # Throttle: wait until a slot is free
         while [ "${#PIDS[@]}" -ge "$PARALLEL_JOBS" ]; do
-            NEW_PIDS=(); NEW_BETAS=()
+            NEW_PIDS=(); NEW_LABELS=()
             for j in "${!PIDS[@]}"; do
                 p="${PIDS[$j]}"
                 if kill -0 "$p" 2>/dev/null; then
-                    NEW_PIDS+=("$p"); NEW_BETAS+=("${PID_BETAS[$j]}")
+                    NEW_PIDS+=("$p"); NEW_LABELS+=("${PID_LABELS[$j]}")
                 else
                     if wait "$p"; then
-                        : # already logged inside run_single_beta
+                        :
                     else
-                        log_error "Job for beta=${PID_BETAS[$j]} failed — check heatbath.log"
+                        log_error "Job for ${PID_LABELS[$j]} failed — check heatbath.log"
                         FAILED_COUNT=$((FAILED_COUNT+1))
                     fi
                 fi
             done
-            PIDS=("${NEW_PIDS[@]}"); PID_BETAS=("${NEW_BETAS[@]}")
+            PIDS=("${NEW_PIDS[@]}"); PID_LABELS=("${NEW_LABELS[@]}")
             [ "${#PIDS[@]}" -ge "$PARALLEL_JOBS" ] && sleep 0.5
         done
 
         log_info "Launching beta=$BETA [job $COUNT/$TOTAL]..."
-        run_single_beta "$BETA" "$SEED" "$COUNT" "$TOTAL" "log" &
-        PIDS+=($!); PID_BETAS+=("$BETA")
+        run_single_beta "$SETUP" "$BETA" "$SEED" "$COUNT" "$TOTAL" "log" &
+        PIDS+=($!); PID_LABELS+=("beta=$BETA")
     done
 
     # Wait for remaining jobs
@@ -372,24 +343,22 @@ if [ "$PARALLEL_JOBS" -gt 0 ]; then
         if wait "$p"; then
             :
         else
-            log_error "Job for beta=${PID_BETAS[$j]} failed — check heatbath.log"
+            log_error "Job for ${PID_LABELS[$j]} failed — check heatbath.log"
             FAILED_COUNT=$((FAILED_COUNT+1))
         fi
     done
 
     echo ""
     if [ "$FAILED_COUNT" -gt 0 ]; then
-        log_warn "$FAILED_COUNT beta run(s) failed. Check individual heatbath.log files."
+        log_warn "$FAILED_COUNT job(s) failed. Check individual heatbath.log files."
     fi
 
 else
-    # --------------------------------------------------------------------------
-    # Serial mode: run betas one at a time, tee output to terminal + log.
-    # --------------------------------------------------------------------------
-    for i in "${!BETAS[@]}"; do
-        BETA="${BETAS[$i]}"; SEED="${SEEDS[$i]}"; COUNT=$((i+1))
+    for i in "${!JOB_BETA[@]}"; do
+        SETUP="${JOB_SETUP[$i]}"; BETA="${JOB_BETA[$i]}"; SEED="${SEEDS[$i]}"
+        COUNT=$((i+1))
         echo ""
-        run_single_beta "$BETA" "$SEED" "$COUNT" "$TOTAL" "tee"
+        run_single_beta "$SETUP" "$BETA" "$SEED" "$COUNT" "$TOTAL" "tee"
     done
 fi
 

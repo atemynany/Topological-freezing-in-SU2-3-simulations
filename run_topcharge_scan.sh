@@ -32,11 +32,8 @@ BUILD_DIR="$PROJECT_DIR/build"
 RESULTS_DIR="$PROJECT_DIR/data/results"
 
 GAUGE_GROUP="su2"
-OPEN_BC=false
 DRY_RUN=false
 SKIP_BUILD=false
-BETA_FILE=""
-LATTICE_FILE=""
 TOPCHARGE_FILE_PARAMS=""
 PARALLEL_JOBS=0
 
@@ -44,11 +41,8 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --su2)              GAUGE_GROUP="su2";          shift ;;
         --su3)              GAUGE_GROUP="su3";          shift ;;
-        --open)             OPEN_BC=true;               shift ;;
         --dry-run)          DRY_RUN=true;               shift ;;
         --skip-build)       SKIP_BUILD=true;            shift ;;
-        --beta-file)        BETA_FILE="$2";             shift 2 ;;
-        --lattice-file)     LATTICE_FILE="$2";          shift 2 ;;
         --topcharge-file)   TOPCHARGE_FILE_PARAMS="$2"; shift 2 ;;
         --parallel)         PARALLEL_JOBS=$(nproc 2>/dev/null || echo 4); shift ;;
         --jobs)             PARALLEL_JOBS="$2";         shift 2 ;;
@@ -60,23 +54,8 @@ done
 # ==============================================================================
 # File selection
 # ==============================================================================
-if [ -z "$LATTICE_FILE" ]; then
-    LATTICE_FILE="input/lattice_${GAUGE_GROUP}.txt"
-    [ ! -f "$LATTICE_FILE" ] && LATTICE_FILE="input/example_base_params.txt"
-fi
-
 if [ -z "$TOPCHARGE_FILE_PARAMS" ]; then
     TOPCHARGE_FILE_PARAMS="input/topcharge_params_${GAUGE_GROUP}.txt"
-fi
-
-if [ -z "$BETA_FILE" ]; then
-    if [ "$OPEN_BC" = true ]; then
-        BETA_FILE="input/beta_scan_${GAUGE_GROUP}_open.txt"
-        [ ! -f "$BETA_FILE" ] && BETA_FILE="input/beta_scan_${GAUGE_GROUP}.txt"
-    else
-        BETA_FILE="input/beta_scan_${GAUGE_GROUP}.txt"
-    fi
-    [ ! -f "$BETA_FILE" ] && BETA_FILE="input/example_beta_scan.txt"
 fi
 
 if [ "$GAUGE_GROUP" = "su3" ]; then
@@ -112,24 +91,19 @@ echo -e "${GREEN}     ${GAUGE_GROUP_UPPER} Topcharge Scan — Phase 2/2${NC}"
 echo -e "${GREEN}======================================================${NC}"
 echo ""
 
-[ ! -f "$BETA_FILE" ]            && { log_error "Beta file not found: $BETA_FILE";             exit 1; }
-[ ! -f "$LATTICE_FILE" ]         && { log_error "Lattice file not found: $LATTICE_FILE";         exit 1; }
 [ ! -f "$TOPCHARGE_FILE_PARAMS" ] && { log_error "Topcharge params not found: $TOPCHARGE_FILE_PARAMS"; exit 1; }
 
-T_SIZE=$(read_param "T" "$LATTICE_FILE")
-L_SIZE=$(read_param "L" "$LATTICE_FILE")
-BOUNDARY=$(read_param "boundary" "$LATTICE_FILE"); BOUNDARY=${BOUNDARY:-periodic}
+# Discover all run dirs for this gauge group
+RUN_DIRS=($(ls -d "$RESULTS_DIR"/T*_seed*_${GAUGE_GROUP} 2>/dev/null))
+if [ ${#RUN_DIRS[@]} -eq 0 ]; then
+    log_error "No run directories found matching *_${GAUGE_GROUP} in $RESULTS_DIR"
+    exit 1
+fi
 
 log_info "Gauge group:       ${GAUGE_GROUP_UPPER}"
-log_info "Beta file:         $BETA_FILE"
-log_info "Lattice file:      $LATTICE_FILE"
 log_info "Topcharge params:  $TOPCHARGE_FILE_PARAMS"
-log_info "Lattice:       ${T_SIZE}x${L_SIZE}^3"
-log_info "Results dir:   $RESULTS_DIR"
-echo ""
-
-BETAS=($(grep -v '^#' "$BETA_FILE" | grep -v '^$'))
-log_info "Beta values: ${BETAS[*]}"
+log_info "Run dirs found:    ${#RUN_DIRS[@]}"
+log_info "Results dir:       $RESULTS_DIR"
 echo ""
 
 # ==============================================================================
@@ -149,23 +123,17 @@ fi
 # Single-beta worker
 # ==============================================================================
 run_topcharge_beta() {
-    local BETA="$1"
+    local RUN_DIR="$1"
     local COUNT="$2"
     local TOTAL="$3"
     local TO_LOG="$4"    # "log" = file only, "tee" = also stdout
-
-    local RUN_DIR
-    RUN_DIR=$(ls -d "$RESULTS_DIR"/T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed* 2>/dev/null | head -1)
-
-    if [ -z "$RUN_DIR" ]; then
-        log_error "[$COUNT/$TOTAL] No run dir for beta=$BETA — run heatbath scan first"
-        return 1
-    fi
 
     local RUN_OUTPUT_DIR="$RUN_DIR/output"
     local TEMP_INPUT="$RUN_DIR/input.txt"
     local RUN_NAME
     RUN_NAME=$(basename "$RUN_DIR")
+    local BETA
+    BETA=$(read_param "beta" "$TEMP_INPUT")
 
     echo -e "${GREEN}------------------------------------------------------${NC}"
     echo -e "${GREEN}  [$COUNT/$TOTAL] beta = $BETA  ($RUN_NAME)${NC}"
@@ -228,13 +196,11 @@ EOF
 # ==============================================================================
 # Main loop
 # ==============================================================================
-TOTAL=${#BETAS[@]}
+TOTAL=${#RUN_DIRS[@]}
 
 if [ "$DRY_RUN" = true ]; then
-    for i in "${!BETAS[@]}"; do
-        BETA="${BETAS[$i]}"
-        RUN_DIR=$(ls -d "$RESULTS_DIR"/T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed* 2>/dev/null | head -1)
-        echo "  Would run topcharge on: ${RUN_DIR:-<not found>}"
+    for RD in "${RUN_DIRS[@]}"; do
+        echo "  Would run topcharge on: $RD"
     done
     echo ""
     echo "Mode: $( [ "$PARALLEL_JOBS" -gt 0 ] && echo "parallel (max $PARALLEL_JOBS jobs)" || echo "sequential" )"
@@ -242,39 +208,39 @@ if [ "$DRY_RUN" = true ]; then
 fi
 
 if [ "$PARALLEL_JOBS" -gt 0 ]; then
-    log_info "Parallel mode: running up to $PARALLEL_JOBS beta(s) simultaneously"
+    log_info "Parallel mode: running up to $PARALLEL_JOBS job(s) simultaneously"
     log_info "Progress visible in per-run topcharge.log files"
     echo ""
 
     declare -a PIDS=()
-    declare -a PID_BETAS=()
+    declare -a PID_LABELS=()
     FAILED_COUNT=0
 
-    for i in "${!BETAS[@]}"; do
-        BETA="${BETAS[$i]}"; COUNT=$((i+1))
+    for i in "${!RUN_DIRS[@]}"; do
+        RD="${RUN_DIRS[$i]}"; COUNT=$((i+1))
 
         while [ "${#PIDS[@]}" -ge "$PARALLEL_JOBS" ]; do
-            NEW_PIDS=(); NEW_BETAS=()
+            NEW_PIDS=(); NEW_LABELS=()
             for j in "${!PIDS[@]}"; do
                 p="${PIDS[$j]}"
                 if kill -0 "$p" 2>/dev/null; then
-                    NEW_PIDS+=("$p"); NEW_BETAS+=("${PID_BETAS[$j]}")
+                    NEW_PIDS+=("$p"); NEW_LABELS+=("${PID_LABELS[$j]}")
                 else
                     if wait "$p"; then
                         :
                     else
-                        log_error "Job for beta=${PID_BETAS[$j]} failed — check topcharge.log"
+                        log_error "Job for ${PID_LABELS[$j]} failed — check topcharge.log"
                         FAILED_COUNT=$((FAILED_COUNT+1))
                     fi
                 fi
             done
-            PIDS=("${NEW_PIDS[@]}"); PID_BETAS=("${NEW_BETAS[@]}")
+            PIDS=("${NEW_PIDS[@]}"); PID_LABELS=("${NEW_LABELS[@]}")
             [ "${#PIDS[@]}" -ge "$PARALLEL_JOBS" ] && sleep 0.5
         done
 
-        log_info "Launching beta=$BETA [job $COUNT/$TOTAL]..."
-        run_topcharge_beta "$BETA" "$COUNT" "$TOTAL" "log" &
-        PIDS+=($!); PID_BETAS+=("$BETA")
+        log_info "Launching job $COUNT/$TOTAL ($(basename "$RD"))..."
+        run_topcharge_beta "$RD" "$COUNT" "$TOTAL" "log" &
+        PIDS+=($!); PID_LABELS+=("$(basename "$RD")")
     done
 
     for j in "${!PIDS[@]}"; do
@@ -282,21 +248,21 @@ if [ "$PARALLEL_JOBS" -gt 0 ]; then
         if wait "$p"; then
             :
         else
-            log_error "Job for beta=${PID_BETAS[$j]} failed — check topcharge.log"
+            log_error "Job for ${PID_LABELS[$j]} failed — check topcharge.log"
             FAILED_COUNT=$((FAILED_COUNT+1))
         fi
     done
 
     echo ""
     if [ "$FAILED_COUNT" -gt 0 ]; then
-        log_warn "$FAILED_COUNT beta run(s) failed. Check individual topcharge.log files."
+        log_warn "$FAILED_COUNT job(s) failed. Check individual topcharge.log files."
     fi
 
 else
-    for i in "${!BETAS[@]}"; do
-        BETA="${BETAS[$i]}"; COUNT=$((i+1))
+    for i in "${!RUN_DIRS[@]}"; do
+        RD="${RUN_DIRS[$i]}"; COUNT=$((i+1))
         echo ""
-        run_topcharge_beta "$BETA" "$COUNT" "$TOTAL" "tee"
+        run_topcharge_beta "$RD" "$COUNT" "$TOTAL" "tee"
     done
 fi
 

@@ -15,3 +15,4 @@ cd /work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations
 mkdir -p logs
 
 bash run_heatbath_scan.sh --su2 --skip-build --jobs 20
+# Discovers all input/setup_*_su2.txt files automatically

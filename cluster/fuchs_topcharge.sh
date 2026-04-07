@@ -15,3 +15,4 @@ cd /work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations
 mkdir -p logs
 
 bash run_topcharge_scan.sh --su2 --skip-build --jobs 20
+# Scans all data/results/*_su2 directories automatically
