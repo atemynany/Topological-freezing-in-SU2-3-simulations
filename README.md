@@ -47,14 +47,21 @@ CMake auto-detects macOS and sets up the right flags. If you installed `libomp` 
 ./scripts/run_tests.sh
 ```
 
-## Main Workflow: Beta Scan
+## Main Workflow
+
+The simulation runs in two phases: heatbath (config generation) then topological charge measurement.
 
 ```bash
-./run_simulation.sh --su2          # SU(2) with default betas
-./run_simulation.sh --su3          # SU(3) with default betas
-./run_simulation.sh --su2 --open   # SU(2) with open boundaries
-./run_simulation.sh --dry-run      # preview without running
+./run_heatbath_scan.sh --su2                # Phase 1: generate configs
+./run_heatbath_scan.sh --su3                # SU(3) configs
+./run_heatbath_scan.sh --su2 --dry-run      # preview without running
+./run_heatbath_scan.sh --su2 --jobs 4       # parallel (4 jobs)
+
+./run_topcharge_scan.sh --su2               # Phase 2: measure Q
+./run_topcharge_scan.sh --su3 --jobs 4      # parallel
 ```
+
+Setup files in `input/setup_*_su2.txt` / `input/setup_*_su3.txt` define lattice parameters and beta values. Each file contains one lattice configuration; multiple `beta` lines produce multiple runs. `--su2`/`--su3` discovers all matching setup files automatically.
 
 Results saved to `data/results/` and plots to `output/figures_analysis/`.
 
@@ -90,14 +97,28 @@ Sync results to local (run from local machine):
 
 ## Input Files
 
-- `input/base_params_su2.txt` — Simulation parameters (T, L, sweeps, smearing)
-- `input/base_params_su3.txt` — SU(3) simulation parameters
-- `input/beta_scan_su2.txt` — List of β values to scan
-- `input/beta_scan_su3.txt` — SU(3) β values
+- `input/setup_*_su2.txt` — SU(2) setup files (lattice params + beta values)
+- `input/setup_*_su3.txt` — SU(3) setup files
+- `input/topcharge_params_su2.txt` — Topcharge measurement params (smearing, exclusion)
+- `input/topcharge_params_su3.txt` — SU(3) topcharge params
+
+Example setup file:
+```
+T                   8
+L                   8
+start_type          cold
+boundary            periodic
+num_sweeps          1000
+save_interval       10
+
+beta 2.3
+beta 2.5
+beta 2.7
+```
 
 ## Output
 
-- `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}/` — Per-run results
+- `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}_{su2|su3}/` — Per-run results
   - `configs/` — Gauge configurations
   - `output/topcharge.dat` — Q measurements (APE-smeared)
   - `output/plaquette[_su3].dat` — Plaquette history (every sweep)
@@ -120,6 +141,7 @@ Key outputs from `analysis.py`:
 ├── tests/                # Catch2 unit tests
 ├── scripts/              # Build, run, and analysis scripts
 ├── analysis/             # Python analysis and plotting
-├── input/                # Parameter and beta scan files
-└── run_simulation.sh     # Main entry point
+├── input/                # Setup files and topcharge params
+├── run_heatbath_scan.sh  # Phase 1: config generation
+└── run_topcharge_scan.sh # Phase 2: topcharge measurement
 ```
