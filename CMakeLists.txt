@@ -369,6 +369,24 @@ if(BUILD_TESTING)
             ${MATH_LIBRARY}
     )
     
+    # --- Test: Gauge Invariance ---
+    add_executable(test_gauge_invariance
+        tests/test_gauge_invariance.cc
+    )
+
+    target_include_directories(test_gauge_invariance
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/_Utility/include
+    )
+
+    target_link_libraries(test_gauge_invariance
+        PRIVATE
+            su2_utility
+            Catch2::Catch2WithMain
+            ${MATH_LIBRARY}
+    )
+
     # Register tests with CTest
     # Using simple test registration to avoid issues with special characters in test names
     add_test(NAME test_heatbath COMMAND test_heatbath)
@@ -376,6 +394,7 @@ if(BUILD_TESTING)
     add_test(NAME test_topcharge COMMAND test_topcharge)
     add_test(NAME test_smearing COMMAND test_smearing)
     add_test(NAME test_plaquette COMMAND test_plaquette)
+    add_test(NAME test_gauge_invariance COMMAND test_gauge_invariance)
 endif()
 
 # ==============================================================================
