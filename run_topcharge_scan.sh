@@ -145,16 +145,25 @@ run_topcharge_beta() {
     fi
 
     # Patch input.txt with topcharge params
-    local END_CONF CONF_STEP SMEAR_STEPS SMEAR_ALPHA SMEAR_INTERVAL EXCLUDE_BC
-    END_CONF=$(read_param "end_conf"                  "$TOPCHARGE_FILE_PARAMS")
-    CONF_STEP=$(read_param "conf_step"                "$TOPCHARGE_FILE_PARAMS")
-    SMEAR_STEPS=$(read_param "smear_steps"            "$TOPCHARGE_FILE_PARAMS")
-    SMEAR_ALPHA=$(read_param "smear_alpha"            "$TOPCHARGE_FILE_PARAMS")
-    SMEAR_INTERVAL=$(read_param "smear_interval"      "$TOPCHARGE_FILE_PARAMS")
-    EXCLUDE_BC=$(read_param "exclude_boundary_slices" "$TOPCHARGE_FILE_PARAMS")
+    local END_CONF CONF_STEP SMEAR_STEPS SMEAR_ALPHA SMEAR_INTERVAL EXCLUDE_BC_OPEN
+    END_CONF=$(read_param "end_conf"                       "$TOPCHARGE_FILE_PARAMS")
+    CONF_STEP=$(read_param "conf_step"                     "$TOPCHARGE_FILE_PARAMS")
+    SMEAR_STEPS=$(read_param "smear_steps"                 "$TOPCHARGE_FILE_PARAMS")
+    SMEAR_ALPHA=$(read_param "smear_alpha"                 "$TOPCHARGE_FILE_PARAMS")
+    SMEAR_INTERVAL=$(read_param "smear_interval"           "$TOPCHARGE_FILE_PARAMS")
+    EXCLUDE_BC_OPEN=$(read_param "exclude_boundary_slices_open" "$TOPCHARGE_FILE_PARAMS")
+
+    # Auto-detect boundary conditions from directory name
+    local EXCLUDE_BC=0
+    if [[ "$RUN_NAME" == *"_open_"* ]]; then
+        EXCLUDE_BC=${EXCLUDE_BC_OPEN:-2}
+        log_info "[$COUNT/$TOTAL] Detected open BC — exclude_boundary_slices=$EXCLUDE_BC"
+    else
+        log_info "[$COUNT/$TOTAL] Detected periodic BC — exclude_boundary_slices=0"
+    fi
 
     for key in end_conf conf_step smear_steps smear_alpha smear_interval exclude_boundary_slices; do
-        sed -i "s/^${key}[[:space:]].*//" "$TEMP_INPUT"
+        grep -v "^${key}[[:space:]]" "$TEMP_INPUT" > "${TEMP_INPUT}.tmp" && mv "${TEMP_INPUT}.tmp" "$TEMP_INPUT"
     done
 
     cat >> "$TEMP_INPUT" << EOF
@@ -164,7 +173,7 @@ end_conf            ${END_CONF:-1000}
 conf_step           ${CONF_STEP:-10}
 smear_steps         ${SMEAR_STEPS:-20}
 smear_alpha         ${SMEAR_ALPHA:-0.3}
-exclude_boundary_slices ${EXCLUDE_BC:-0}
+exclude_boundary_slices ${EXCLUDE_BC}
 EOF
     if [ -n "$SMEAR_INTERVAL" ]; then
         echo "smear_interval      $SMEAR_INTERVAL" >> "$TEMP_INPUT"
