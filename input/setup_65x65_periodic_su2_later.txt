@@ -1,0 +1,9 @@
+T                   65
+L                   65
+start_type          cold
+boundary            periodic
+num_sweeps          1
+save_interval       1
+
+# Beta values (each becomes a separate run)
+beta 2.95

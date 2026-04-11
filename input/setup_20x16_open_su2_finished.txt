@@ -1,0 +1,10 @@
+T                   20
+L                   16
+start_type          cold
+boundary            open
+num_sweeps          40000
+save_interval       100
+
+# Beta values (each becomes a separate run)
+beta 2.5
+beta 2.5
