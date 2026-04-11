@@ -7,7 +7,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=20
 #SBATCH --mem=0
-#SBATCH --time=48:00:00
+#SBATCH --time=96:00:00
 #SBATCH --output=logs/scan_%j.out
 #SBATCH --error=logs/scan_%j.err
 
