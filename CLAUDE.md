@@ -22,29 +22,32 @@ Executables go to `build/bin/`, library to `build/lib/`.
 ./scripts/run_tests.sh test_topcharge  # Single test suite by name (-R pattern)
 ```
 
-Auto-builds if `build/` is missing. Five test suites: `test_heatbath`, `test_linear_algebra`, `test_topcharge`, `test_smearing`, `test_plaquette`.
+Auto-builds if `build/` is missing. Six test suites: `test_heatbath`, `test_linear_algebra`, `test_topcharge`, `test_smearing`, `test_plaquette`, `test_gauge_invariance`.
 
 ## Simulation Workflow
 
+Two-phase workflow: heatbath (config generation) then topological charge measurement.
+
 ```bash
-./run_simulation.sh --su2              # SU(2) periodic BC
-./run_simulation.sh --su3              # SU(3) periodic BC
-./run_simulation.sh --su2 --open       # Open boundary conditions
-./run_simulation.sh --dry-run          # Preview without running
+./run_heatbath_scan.sh --su2               # Phase 1: generate configs
+./run_heatbath_scan.sh --su2 --jobs 4      # parallel (4 beta values at once)
+./run_heatbath_scan.sh --su2 --dry-run     # preview without running
+
+./run_topcharge_scan.sh --su2              # Phase 2: measure Q
+./run_topcharge_scan.sh --su2 --jobs 4     # parallel
 ```
 
-This delegates to `scripts/run_beta_scan.sh`, which for each beta: runs heatbath → detects thermalization → measures topological charge with APE smearing.
-
-Parameters: `input/base_params_su2.txt` / `input/base_params_su3.txt`. Beta values: `input/beta_scan_su2.txt` / `input/beta_scan_su3.txt`. Copy from `input/example_*.txt` to create these.
+Setup files: `input/setup_*_su2.txt` / `input/setup_*_su3.txt` define lattice params and beta values. Topcharge params: `input/topcharge_params_su2.txt` / `_su3.txt` (smearing, boundary exclusion). The topcharge scan auto-detects periodic vs open BC from the run directory name and sets `exclude_boundary_slices` accordingly.
 
 ## Cluster (Fuchs HPC)
 
 Cluster: `fuchs.hhlr-gu.de`, user `barros`, project dir `/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/`
 
 ```bash
-sbatch cluster/fuchs_heatbath.sh    # Submit heatbath scan (20 parallel jobs, 48h)
-sbatch cluster/fuchs_topcharge.sh   # Submit topcharge measurement
-tail -f logs/scan_<jobid>.out       # Follow job output live
+sbatch cluster/fuchs_heatbath.sh    # Submit heatbath scan (48h)
+sbatch cluster/fuchs_topcharge.sh   # Submit topcharge measurement (auto-detects periodic/open BC)
+tail -1 data/results/T*_su2/output/plaquette.dat  # Check sweep progress
+squeue -u barros                                   # Job status
 ```
 
 **Before first submit:** build on the cluster login node:
@@ -70,7 +73,7 @@ Requires Python 3 with `numpy`, `matplotlib`, `pyerrors` (Conda env `master_thes
 ### Gauge group duality
 
 SU(2) and SU(3) are implemented as parallel but separate codepaths. Each has its own:
-- Heatbath MC: `src/MC_heatbath.cc` (Kennedy-Pendleton) / `src/MC_heatbath_su3.cc` (Cabibbo-Marinari + overrelaxation + OpenMP checkerboard)
+- Heatbath MC: `src/MC_heatbath.cc` (Kennedy-Pendleton + OpenMP checkerboard) / `src/MC_heatbath_su3.cc` (Cabibbo-Marinari + overrelaxation + OpenMP checkerboard)
 - Topcharge measurement: `src/meas_topcharge_su2.cc` / `src/meas_topcharge_su3.cc`
 - Linear algebra: `_Utility/include/linear_algebra.hh` (SU(2), 8 doubles/link) / `include/su3_linear_algebra.hh` (SU(3), 18 doubles/link)
 - Topcharge computation: `include/topcharge_su2.hh` / `include/topcharge_su3.hh`
@@ -90,7 +93,7 @@ Both SU(2) and SU(3) simulations use `extern` globals for lattice dimensions (`T
 
 ### OpenMP parallelization
 
-The SU(3) heatbath (`MC_heatbath_su3.cc`) uses checkerboard (even/odd) site decomposition for thread-safe OpenMP parallel sweeps. Both heatbath and overrelaxation loops are parallelized. Per-thread RNG seeding via `rlxd_init(2, seed + tid * 997)`. The SU(2) heatbath does not yet use checkerboard parallelization.
+Both SU(2) and SU(3) heatbath use checkerboard (even/odd) site decomposition for thread-safe OpenMP parallel sweeps. Per-thread RNG seeding via `rlxd_init(2, seed + tid * 997)`. The SU(3) heatbath also parallelizes overrelaxation sweeps. For small lattices (below ~32^4), `OMP_NUM_THREADS=1` is faster due to thread synchronization overhead.
 
 ### Thermalization topcharge
 

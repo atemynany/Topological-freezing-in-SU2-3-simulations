@@ -2,16 +2,18 @@
 # SU(3) Topological Charge Parameters  —  used by run_topcharge_scan.sh
 # ==============================================================================
 # Applied to every ensemble config found in the results directory
+# exclude_boundary_slices is auto-set by the scan script:
+#   periodic dirs -> 0,  open dirs -> exclude_boundary_slices_open
 
 # Configuration range
 # start_conf is auto-detected from thermalization (set during heatbath phase)
-end_conf            1000        # Last config to measure
-conf_step           10          # Step between configs (must match save_interval)
+end_conf            40000       # Last config to measure
+conf_step           100         # Step between configs (must match save_interval)
 
 # APE smearing
 smear_steps         20          # Total smearing steps applied before measuring Q
 smear_alpha         0.3         # APE smearing parameter alpha
 
-# Boundary exclusion (only relevant for open BC)
-exclude_boundary_slices 2       # Time slices excluded per boundary
+# Boundary exclusion (applied only to open BC runs)
+exclude_boundary_slices_open 2  # Time slices excluded per boundary for open BC
 # ==============================================================================

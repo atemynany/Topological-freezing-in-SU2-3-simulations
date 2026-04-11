@@ -23,7 +23,7 @@ brew install cmake
 brew install libomp
 ```
 
-On macOS without `libomp`, everything still compiles and runs — just without OpenMP parallelization. The SU(3) heatbath uses checkerboard decomposition for thread-safe parallel sweeps; set `OMP_NUM_THREADS` to control parallelism.
+On macOS without `libomp`, everything still compiles and runs — just without OpenMP parallelization. Both SU(2) and SU(3) heatbath use checkerboard (even/odd) decomposition for thread-safe OpenMP parallel sweeps; set `OMP_NUM_THREADS` to control parallelism. For small lattices (below ~32^4), single-threaded is faster due to thread overhead.
 
 ## Build
 
@@ -46,6 +46,8 @@ CMake auto-detects macOS and sets up the right flags. If you installed `libomp` 
 ```bash
 ./scripts/run_tests.sh
 ```
+
+Six test suites: `test_heatbath`, `test_linear_algebra`, `test_topcharge`, `test_smearing`, `test_plaquette`, `test_gauge_invariance`.
 
 ## Main Workflow
 
@@ -75,8 +77,10 @@ rm -rf build && ./scripts/build.sh release
 sbatch cluster/fuchs_heatbath.sh     # heatbath scan
 sbatch cluster/fuchs_topcharge.sh    # topcharge measurement
 
-# Monitor
-tail -f logs/scan_<jobid>.out
+# Monitor progress
+tail -1 data/results/T*_su2/output/plaquette.dat   # check sweep number
+squeue -u barros                                     # job status
+sacct                                                # job history
 ```
 
 Sync results to local (run from local machine):
@@ -89,8 +93,8 @@ Sync results to local (run from local machine):
 
 | Binary | Purpose |
 |--------|---------|
-| `mc_heatbath` | SU(2) heatbath config generation (+ smeared therm Q) |
-| `mc_heatbath_su3` | SU(3) heatbath config generation (OpenMP checkerboard, smeared therm Q) |
+| `mc_heatbath` | SU(2) heatbath config generation (OpenMP checkerboard) |
+| `mc_heatbath_su3` | SU(3) heatbath config generation (OpenMP checkerboard + overrelaxation) |
 | `meas_topcharge` | SU(2) topological charge measurement |
 | `meas_topcharge_su3` | SU(3) topological charge measurement |
 | `compute_instanton_Q` | Instanton topological charge computation |
@@ -99,8 +103,10 @@ Sync results to local (run from local machine):
 
 - `input/setup_*_su2.txt` — SU(2) setup files (lattice params + beta values)
 - `input/setup_*_su3.txt` — SU(3) setup files
-- `input/topcharge_params_su2.txt` — Topcharge measurement params (smearing, exclusion)
+- `input/topcharge_params_su2.txt` — Topcharge measurement params (smearing, boundary exclusion)
 - `input/topcharge_params_su3.txt` — SU(3) topcharge params
+
+The topcharge scan script auto-detects periodic vs open boundary conditions from the run directory name (`_periodic_` or `_open_`). For open BC runs, `exclude_boundary_slices_open` from the param file is applied; periodic runs use 0.
 
 Example setup file:
 ```
