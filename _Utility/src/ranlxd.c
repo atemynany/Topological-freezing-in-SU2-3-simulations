@@ -46,7 +46,7 @@
 #include <stdio.h>
 #include <math.h>
 
-#if (defined SSE) && (defined __x86_64__ || defined __i386__)
+#if (defined SSE) && (defined __x86_64__ || defined __i386__) && !defined(_OPENMP)
 
 typedef struct
 {

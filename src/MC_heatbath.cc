@@ -24,6 +24,8 @@ extern "C" {
 
 #include "Plaquette.hh"
 #include "progressbar.hh"
+#include <dirent.h>
+#include <algorithm>
 
 int T;
 int L;
@@ -165,8 +167,8 @@ bool validate_params(const SimParams &params) {
         std::cerr << "Error: seed must be >= 1" << std::endl;
         return false;
     }
-    if (params.start_type != "cold" && params.start_type != "hot") {
-        std::cerr << "Error: start_type must be 'cold' or 'hot'" << std::endl;
+    if (params.start_type != "cold" && params.start_type != "hot" && params.start_type != "continue") {
+        std::cerr << "Error: start_type must be 'cold', 'hot', or 'continue'" << std::endl;
         return false;
     }
     if (params.boundary != "periodic" && params.boundary != "open") {
@@ -197,6 +199,26 @@ void print_params(const SimParams &params) {
     std::cout << "OpenMP threads:      " << omp_get_max_threads() << std::endl;
 #endif
     std::cout << "========================================" << std::endl;
+}
+
+int find_last_config(const std::string &config_dir, std::string &last_config_path) {
+    DIR *dir = opendir(config_dir.c_str());
+    if (!dir) return -1;
+
+    int max_sweep = -1;
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        std::string name(entry->d_name);
+        if (name.substr(0, 5) == "conf.") {
+            int sweep = std::atoi(name.substr(5).c_str());
+            if (sweep > max_sweep) {
+                max_sweep = sweep;
+                last_config_path = config_dir + name;
+            }
+        }
+    }
+    closedir(dir);
+    return max_sweep;
 }
 
 int main(int argc, char **argv)
@@ -258,31 +280,47 @@ int main(int argc, char **argv)
     mkdir(params.config_dir.c_str(), 0755);
     
     Gauge_Field_Alloc(&gauge_field, T, L);
-    
-    if (hot_start) {
+
+    int start_sweep = 0;
+
+    if (params.start_type == "continue") {
+        std::string last_config;
+        int last_sweep = find_last_config(params.config_dir, last_config);
+        if (last_sweep < 0) {
+            std::cerr << "Error: No configs found in " << params.config_dir << " to continue from" << std::endl;
+            return EXIT_FAILURE;
+        }
+        std::cout << "Continuing from " << last_config << " (sweep " << last_sweep << ")" << std::endl;
+        read_gauge_field(gauge_field, last_config.c_str(), T, L);
+        start_sweep = last_sweep;
+    } else if (hot_start) {
         std::cout << "Initializing hot start..." << std::endl;
         Gauge_Field_Random(gauge_field, T, L);
     } else {
         std::cout << "Initializing cold start..." << std::endl;
         Gauge_Field_Unity(gauge_field, T, L);
     }
-    
+
     double P = Average_Plaquette(gauge_field, T, L);
     std::cout << "Initial <P> = " << P << std::endl;
-    
+
     std::string plaq_filename = params.output_dir + "plaquette.dat";
-    FILE *plaq_file = fopen(plaq_filename.c_str(), "w");
+    FILE *plaq_file;
+    if (params.start_type == "continue") {
+        plaq_file = fopen(plaq_filename.c_str(), "a");
+    } else {
+        plaq_file = fopen(plaq_filename.c_str(), "w");
+        fprintf(plaq_file, "# Sweep  Plaquette\n");
+        fprintf(plaq_file, "%5d %+.10e\n", 0, P);
+    }
     if (plaq_file == nullptr) {
         std::cerr << "Error: Cannot open plaquette file: " << plaq_filename << std::endl;
         return EXIT_FAILURE;
     }
-    
-    fprintf(plaq_file, "# Sweep  Plaquette\n");
-    fprintf(plaq_file, "%5d %+.10e\n", 0, P);
 
     const int L3 = L * L * L;
 
-    for (int sweep = 1; sweep <= params.num_sweeps; sweep++) {
+    for (int sweep = start_sweep + 1; sweep <= params.num_sweeps; sweep++) {
 
         // Checkerboard heatbath: even sites then odd sites
         for (int parity = 0; parity < 2; parity++) {
