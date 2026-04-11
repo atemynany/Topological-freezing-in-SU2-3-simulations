@@ -1,4 +1,4 @@
-T                   81
+T                   65
 L                   65
 start_type          cold
 boundary            periodic
