@@ -1,0 +1,9 @@
+T                   143
+L                   115
+start_type          cold
+boundary            open
+num_sweeps          1
+save_interval       1
+
+# Beta values (each becomes a separate run)
+beta 3.15

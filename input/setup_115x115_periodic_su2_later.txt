@@ -1,7 +1,7 @@
-T                   81
-L                   65
+T                   115
+L                   115
 start_type          cold
-boundary            open
+boundary            periodic
 num_sweeps          40000
 save_interval       100
 
