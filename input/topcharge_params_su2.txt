@@ -6,7 +6,7 @@
 #   periodic dirs -> 0,  open dirs -> exclude_boundary_slices_open
 
 # Configuration range
-# start_conf is auto-detected from thermalization (set during heatbath phase)
+start_conf          100         # First config to measure (must match save_interval)
 end_conf            40000       # Last config to measure
 conf_step           100         # Step between configs (must match save_interval)
 
