@@ -18,7 +18,7 @@ export OMP_NUM_THREADS=1
 
 # SU(2) — exclude large lattices still running heatbath (T65, T81)
 #bash run_topcharge_scan.sh --su2 --skip-build --jobs 12 --exclude "T16\|T20\|T22\|T28\|T30\|T38\|T65\|T81"
-bash run_topcharge_scan.sh --su2 --skip-build --jobs 4 --exclude "T16\|T20\|T22\|T28\|T65\|T81"
+bash run_topcharge_scan.sh --su2 --skip-build --jobs 4 --exclude "T16\|T20\|T22\|T28\|T30\|T38\|T65\|T81"
 
 # Uncomment for SU(3):
 # bash run_topcharge_scan.sh --su3 --skip-build --jobs 12
