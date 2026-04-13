@@ -36,6 +36,7 @@ DRY_RUN=false
 SKIP_BUILD=false
 TOPCHARGE_FILE_PARAMS=""
 PARALLEL_JOBS=0
+EXCLUDE_PATTERN=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -46,6 +47,7 @@ while [[ $# -gt 0 ]]; do
         --topcharge-file)   TOPCHARGE_FILE_PARAMS="$2"; shift 2 ;;
         --parallel)         PARALLEL_JOBS=$(nproc 2>/dev/null || echo 4); shift ;;
         --jobs)             PARALLEL_JOBS="$2";         shift 2 ;;
+        --exclude)          EXCLUDE_PATTERN="$2";       shift 2 ;;
         -h|--help)          head -25 "$0" | tail -22;   exit 0 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
@@ -95,6 +97,9 @@ echo ""
 
 # Discover all run dirs for this gauge group
 RUN_DIRS=($(ls -d "$RESULTS_DIR"/T*_seed*_${GAUGE_GROUP} 2>/dev/null))
+if [ -n "$EXCLUDE_PATTERN" ]; then
+    RUN_DIRS=($(printf '%s\n' "${RUN_DIRS[@]}" | grep -v "$EXCLUDE_PATTERN"))
+fi
 if [ ${#RUN_DIRS[@]} -eq 0 ]; then
     log_error "No run directories found matching *_${GAUGE_GROUP} in $RESULTS_DIR"
     exit 1

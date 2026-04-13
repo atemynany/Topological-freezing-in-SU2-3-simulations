@@ -61,6 +61,7 @@ The simulation runs in two phases: heatbath (config generation) then topological
 
 ./run_topcharge_scan.sh --su2               # Phase 2: measure Q
 ./run_topcharge_scan.sh --su3 --jobs 4      # parallel
+./run_topcharge_scan.sh --su2 --exclude "T65\|T81"  # skip specific ensembles
 ```
 
 Setup files in `input/setup_*_su2.txt` / `input/setup_*_su3.txt` define lattice parameters and beta values. Each file contains one lattice configuration; multiple `beta` lines produce multiple runs. `--su2`/`--su3` discovers all matching setup files automatically.

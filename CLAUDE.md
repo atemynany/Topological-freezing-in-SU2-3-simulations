@@ -45,10 +45,12 @@ Cluster: `fuchs.hhlr-gu.de`, user `barros`, project dir `/work/mesonqcd/barros/S
 
 ```bash
 sbatch cluster/fuchs_heatbath.sh    # Submit heatbath scan (48h)
-sbatch cluster/fuchs_topcharge.sh   # Submit topcharge measurement (auto-detects periodic/open BC)
+sbatch cluster/fuchs_topcharge.sh   # Submit topcharge (12 parallel single-core jobs)
 tail -1 data/results/T*_su2/output/plaquette.dat  # Check sweep progress
 squeue -u barros                                   # Job status
 ```
+
+`fuchs_topcharge.sh` passes `--exclude "T65\|T81"` to skip ensembles still running heatbath. Remove the flag once those finish.
 
 **Before first submit:** build on the cluster login node:
 ```bash
