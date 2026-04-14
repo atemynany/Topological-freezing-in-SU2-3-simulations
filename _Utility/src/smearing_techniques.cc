@@ -32,33 +32,33 @@
 
 void APE_Smearing_all(double *smeared_gauge_field, int T, int L, double APE_smearing_alpha)
 {
-  int it, ix, iy, iz;
-  double M1[18], M2[18];
-
-
   double *smeared_gauge_field_old;
   Gauge_Field_Alloc(&smeared_gauge_field_old, T, L);
   Gauge_Field_Copy(smeared_gauge_field_old, smeared_gauge_field, T, L);
 
 
-  for(it = 0; it < T; it++)
+  // Double-buffered smearing: reads smeared_gauge_field_old, writes smeared_gauge_field.
+  // Each (it,ix,iy,iz) iteration writes 4 unique links; no cross-iteration races.
+  #pragma omp parallel for collapse(4) schedule(static)
+  for(int it = 0; it < T; it++)
     {
-      for(ix = 0; ix < L; ix++)
+      for(int ix = 0; ix < L; ix++)
 	{
-	  for(iy = 0; iy < L; iy++)
+	  for(int iy = 0; iy < L; iy++)
 	    {
-	      for(iz = 0; iz < L; iz++)
+	      for(int iz = 0; iz < L; iz++)
 		{
-		  int index;
+		  double M1[18], M2[18];
+		  long long index;
 
-		  int index_mt_1, index_mt_2, index_mt_3;
-		  int index_pt_1, index_pt_2, index_pt_3;
-		  int index_mx_1, index_mx_2, index_mx_3;
-		  int index_px_1, index_px_2, index_px_3;
-		  int index_my_1, index_my_2, index_my_3;
-		  int index_py_1, index_py_2, index_py_3;
-		  int index_mz_1, index_mz_2, index_mz_3;
-		  int index_pz_1, index_pz_2, index_pz_3;
+		  long long index_mt_1, index_mt_2, index_mt_3;
+		  long long index_pt_1, index_pt_2, index_pt_3;
+		  long long index_mx_1, index_mx_2, index_mx_3;
+		  long long index_px_1, index_px_2, index_px_3;
+		  long long index_my_1, index_my_2, index_my_3;
+		  long long index_py_1, index_py_2, index_py_3;
+		  long long index_mz_1, index_mz_2, index_mz_3;
+		  long long index_pz_1, index_pz_2, index_pz_3;
 		  
 		
 		  double *U;

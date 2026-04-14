@@ -13,18 +13,18 @@ inline void compute_plaquette(double *plaq, double *gauge_field,
     
     int idx[4] = {it, ix, iy, iz};
     
-    int idx_U_mu = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
-    
+    long long idx_U_mu = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
+
     idx[mu] += 1;
-    int idx_U_nu_shifted = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
-    
+    long long idx_U_nu_shifted = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
+
     idx[mu] -= 1;
     idx[nu] += 1;
-    int idx_U_mu_shifted = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
-    
+    long long idx_U_mu_shifted = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
+
     idx[nu] -= 1;
-    int idx_U_nu = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
-    
+    long long idx_U_nu = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
+
     if (idx_U_mu < 0 || idx_U_nu_shifted < 0 || idx_U_mu_shifted < 0 || idx_U_nu < 0) {
         cm_eq_id(plaq);
         return;

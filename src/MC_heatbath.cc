@@ -36,7 +36,7 @@ bool hot_start = false;
 // Precomputed neighbor index tables for faster lookup
 std::vector<int> neighbor_plus[4];
 std::vector<int> neighbor_minus[4];
-std::vector<int> link_index;
+std::vector<long long> link_index;
 
 std::vector<int> even_sites;
 std::vector<int> odd_sites;
@@ -343,10 +343,10 @@ int main(int argc, char **argv)
 
                         // Lower staple: U_nu^dag(x-nu) * U_mu(x-nu) * U_nu(x-nu+mu)
                         const int site_minus_nu = neighbor_minus[nu][site];
-                        const int idx1 = link_index[site_minus_nu * 4 + nu];
-                        const int idx2 = link_index[site_minus_nu * 4 + mu];
+                        const long long idx1 = link_index[site_minus_nu * 4 + nu];
+                        const long long idx2 = link_index[site_minus_nu * 4 + mu];
                         const int site_minus_nu_plus_mu = neighbor_plus[mu][site_minus_nu];
-                        const int idx3 = link_index[site_minus_nu_plus_mu * 4 + nu];
+                        const long long idx3 = link_index[site_minus_nu_plus_mu * 4 + nu];
 
                         if (idx1 >= 0 && idx2 >= 0 && idx3 >= 0) {
                             cm_eq_cm_ti_cm(SU2_1, gauge_field + idx2, gauge_field + idx3);
@@ -358,11 +358,11 @@ int main(int argc, char **argv)
                         }
 
                         // Upper staple: U_nu(x) * U_mu(x+nu) * U_nu^dag(x+mu)
-                        const int idx4 = link_index[site * 4 + nu];
+                        const long long idx4 = link_index[site * 4 + nu];
                         const int site_plus_nu = neighbor_plus[nu][site];
-                        const int idx5 = link_index[site_plus_nu * 4 + mu];
+                        const long long idx5 = link_index[site_plus_nu * 4 + mu];
                         const int site_plus_mu = neighbor_plus[mu][site];
-                        const int idx6 = link_index[site_plus_mu * 4 + nu];
+                        const long long idx6 = link_index[site_plus_mu * 4 + nu];
 
                         if (idx4 >= 0 && idx5 >= 0 && idx6 >= 0) {
                             cm_eq_cm_ti_cm_dag(SU2_1, gauge_field + idx5, gauge_field + idx6);
@@ -427,7 +427,7 @@ int main(int argc, char **argv)
                     h[3] *= norm;
                     cm_from_h(SU2_1, h);
 
-                    const int current_link_idx = link_index[site * 4 + mu];
+                    const long long current_link_idx = link_index[site * 4 + mu];
                     if (current_link_idx >= 0) {
                         cm_eq_cm(gauge_field + current_link_idx, SU2_1);
                     }

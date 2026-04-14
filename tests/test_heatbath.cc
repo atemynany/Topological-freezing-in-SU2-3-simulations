@@ -163,7 +163,7 @@ static void heatbath_update_link(double *gf, int it, int ix, int iy, int iz, int
     cm_from_h(SU2_1, h);
     
     // Update link
-    int index = ggi(get_index(it, ix, iy, iz, T_local, L_local), i1);
+    long long index = ggi(get_index(it, ix, iy, iz, T_local, L_local), i1);
     if (index >= 0)
         cm_eq_cm(gf + index, SU2_1);
 }
@@ -229,7 +229,7 @@ TEST_CASE("Geometry: ggi returns valid gauge field indices", "[geometry]") {
     SECTION("All directions give valid indices") {
         int site_idx = get_index(2, 1, 1, 1, T, L);
         for (int dir = 0; dir < 4; dir++) {
-            int gf_idx = ggi(site_idx, dir);
+            long long gf_idx = ggi(site_idx, dir);
             REQUIRE(gf_idx >= 0);
             // Each link has 8 doubles (SU(2) matrix)
             REQUIRE(gf_idx % 8 == 0);
@@ -277,7 +277,7 @@ TEST_CASE("Gauge Field: Cold start (unity) initialization", "[fields]") {
                 for (int iy = 0; iy < L; iy++) {
                     for (int iz = 0; iz < L; iz++) {
                         for (int dir = 0; dir < 4; dir++) {
-                            int idx = ggi(get_index(it, ix, iy, iz, T, L), dir);
+                            long long idx = ggi(get_index(it, ix, iy, iz, T, L), dir);
                             REQUIRE(matrices_equal(test_field + idx, identity));
                         }
                     }
@@ -305,7 +305,7 @@ TEST_CASE("Gauge Field: Hot start (random) initialization", "[fields]") {
                 for (int iy = 0; iy < L; iy++) {
                     for (int iz = 0; iz < L; iz++) {
                         for (int dir = 0; dir < 4; dir++) {
-                            int idx = ggi(get_index(it, ix, iy, iz, T, L), dir);
+                            long long idx = ggi(get_index(it, ix, iy, iz, T, L), dir);
                             REQUIRE(is_valid_su2(test_field + idx));
                         }
                     }
@@ -320,7 +320,7 @@ TEST_CASE("Gauge Field: Hot start (random) initialization", "[fields]") {
         
         bool found_non_identity = false;
         for (int it = 0; it < T && !found_non_identity; it++) {
-            int idx = ggi(get_index(it, 0, 0, 0, T, L), 0);
+            long long idx = ggi(get_index(it, 0, 0, 0, T, L), 0);
             if (!matrices_equal(test_field + idx, identity, 0.01)) {
                 found_non_identity = true;
             }
@@ -540,8 +540,8 @@ TEST_CASE("Heatbath: Single update preserves SU(2)", "[heatbath]") {
     
     SECTION("Link remains valid SU(2) after update") {
         heatbath_update_link(test_field, 2, 1, 1, 1, 0, beta, T, L);
-        
-        int idx = ggi(get_index(2, 1, 1, 1, T, L), 0);
+
+        long long idx = ggi(get_index(2, 1, 1, 1, T, L), 0);
         REQUIRE(is_valid_su2(test_field + idx));
     }
     
@@ -579,7 +579,7 @@ TEST_CASE("Heatbath: Full sweep preserves all SU(2) matrices", "[heatbath]") {
                 for (int iy = 0; iy < L; iy++) {
                     for (int iz = 0; iz < L; iz++) {
                         for (int dir = 0; dir < 4; dir++) {
-                            int idx = ggi(get_index(it, ix, iy, iz, T, L), dir);
+                            long long idx = ggi(get_index(it, ix, iy, iz, T, L), dir);
                             REQUIRE(is_valid_su2(test_field + idx));
                         }
                     }
@@ -606,7 +606,7 @@ TEST_CASE("Heatbath: Updates change the configuration", "[heatbath]") {
     cm_eq_id(identity);
     
     // Store original link
-    int idx = ggi(get_index(2, 1, 1, 1, T, L), 0);
+    long long idx = ggi(get_index(2, 1, 1, 1, T, L), 0);
     double original[8];
     cm_eq_cm(original, test_field + idx);
     
@@ -659,7 +659,7 @@ TEST_CASE("Open BC: Boundary links handled correctly", "[boundary]") {
                 for (int iy = 0; iy < L; iy++) {
                     for (int iz = 0; iz < L; iz++) {
                         for (int dir = 0; dir < 4; dir++) {
-                            int idx = ggi(get_index(it, ix, iy, iz, T, L), dir);
+                            long long idx = ggi(get_index(it, ix, iy, iz, T, L), dir);
                             if (idx >= 0) {
                                 REQUIRE(is_valid_su2(test_field + idx));
                             }
@@ -730,7 +730,7 @@ TEST_CASE("Heatbath: Deterministic with same seed", "[heatbath][determinism]") {
                 for (int iy = 0; iy < L; iy++) {
                     for (int iz = 0; iz < L; iz++) {
                         for (int dir = 0; dir < 4; dir++) {
-                            int idx = ggi(get_index(it, ix, iy, iz, T, L), dir);
+                            long long idx = ggi(get_index(it, ix, iy, iz, T, L), dir);
                             REQUIRE(matrices_equal(field1 + idx, field2 + idx));
                         }
                     }

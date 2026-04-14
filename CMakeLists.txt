@@ -318,6 +318,7 @@ if(BUILD_TESTING)
     # --- Test: Topological Charge ---
     add_executable(test_topcharge
         tests/test_topcharge.cc
+        src/instanton.cc
     )
     
     target_include_directories(test_topcharge

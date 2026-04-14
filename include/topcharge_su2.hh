@@ -24,17 +24,17 @@ inline void compute_plaq_pp(double *result, const double *gauge_field, int it, i
     alignas(32) double M1[8], M2[8];
     int idx[4] = {it, ix, iy, iz};
 
-    int i1 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
+    long long i1 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
 
     idx[mu] += 1;
-    int i2 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
+    long long i2 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
 
     idx[mu] -= 1;
     idx[nu] += 1;
-    int i3 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
+    long long i3 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
 
     idx[nu] -= 1;
-    int i4 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
+    long long i4 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
 
     if (i1 < 0 || i2 < 0 || i3 < 0 || i4 < 0) {
         cm_eq_zero(result);
@@ -52,16 +52,16 @@ inline void compute_plaq_mp(double *result, const double *gauge_field, int it, i
     int idx[4] = {it, ix, iy, iz};
 
     idx[mu] -= 1;
-    int i1 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
+    long long i1 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
 
-    int i2 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
+    long long i2 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
 
     idx[nu] += 1;
-    int i3 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
+    long long i3 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
 
     idx[mu] += 1;
     idx[nu] -= 1;
-    int i4 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
+    long long i4 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
 
     if (i1 < 0 || i2 < 0 || i3 < 0 || i4 < 0) {
         cm_eq_zero(result);
@@ -79,15 +79,15 @@ inline void compute_plaq_mm(double *result, const double *gauge_field, int it, i
     int idx[4] = {it, ix, iy, iz};
 
     idx[mu] -= 1;
-    int i1 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
+    long long i1 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
 
     idx[nu] -= 1;
-    int i2 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
+    long long i2 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
 
-    int i3 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
+    long long i3 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
 
     idx[mu] += 1;
-    int i4 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
+    long long i4 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
 
     if (i1 < 0 || i2 < 0 || i3 < 0 || i4 < 0) {
         cm_eq_zero(result);
@@ -104,16 +104,16 @@ inline void compute_plaq_pm(double *result, const double *gauge_field, int it, i
     alignas(32) double M1[8], M2[8];
     int idx[4] = {it, ix, iy, iz};
 
-    int i1 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
+    long long i1 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
 
     idx[mu] += 1;
     idx[nu] -= 1;
-    int i2 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
+    long long i2 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
 
     idx[mu] -= 1;
-    int i3 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
+    long long i3 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), mu);
 
-    int i4 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
+    long long i4 = ggi(get_index(idx[0], idx[1], idx[2], idx[3], T, L), nu);
 
     if (i1 < 0 || i2 < 0 || i3 < 0 || i4 < 0) {
         cm_eq_zero(result);
@@ -248,7 +248,7 @@ inline double compute_topological_charge_open(double * __restrict__ gauge_field,
         return compute_topological_charge(gauge_field, T, L);
     }
 
-    #pragma omp parallel for reduction(+:Q) schedule(static)
+    #pragma omp parallel for collapse(4) reduction(+:Q) schedule(static)
     for (int it = t_min; it < t_max; it++) {
         for (int ix = 0; ix < L; ix++) {
             for (int iy = 0; iy < L; iy++) {

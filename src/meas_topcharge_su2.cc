@@ -359,9 +359,13 @@ int main(int argc, char *argv[]) {
                               ? params.exclude_boundary_slices : 0;
             const int t_max = (params.boundary == "open" && params.exclude_boundary_slices > 0)
                               ? params.T - params.exclude_boundary_slices : params.T;
+            const int t_count = t_max - t_min;
 
-            timeslice_file << std::fixed << std::setprecision(8);
-            for (int it = t_min; it < t_max; it++) {
+            // Compute q(t) in parallel (one thread per timeslice), then write serially.
+            std::vector<double> q_per_t(t_count, 0.0);
+            #pragma omp parallel for schedule(static)
+            for (int it_idx = 0; it_idx < t_count; it_idx++) {
+                const int it = t_min + it_idx;
                 double q_t = 0.0;
                 for (int ix = 0; ix < params.L; ix++) {
                     for (int iy = 0; iy < params.L; iy++) {
@@ -370,11 +374,15 @@ int main(int argc, char *argv[]) {
                         }
                     }
                 }
-                q_t /= (4.0 * M_PI * M_PI);
+                q_per_t[it_idx] = q_t / (4.0 * M_PI * M_PI);
+            }
+
+            timeslice_file << std::fixed << std::setprecision(8);
+            for (int it_idx = 0; it_idx < t_count; it_idx++) {
                 timeslice_file << std::setw(5)  << params.smear_steps << "  "
                                << std::setw(6)  << n << "  "
-                               << std::setw(4)  << it << "  "
-                               << std::setw(14) << q_t << "\n";
+                               << std::setw(4)  << (t_min + it_idx) << "  "
+                               << std::setw(14) << q_per_t[it_idx] << "\n";
             }
         }
 

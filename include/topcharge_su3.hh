@@ -10,7 +10,7 @@
 extern int T_size, L_size;
 extern std::vector<int> neighbor_plus[4];
 extern std::vector<int> neighbor_minus[4];
-extern std::vector<int> link_index_su3;
+extern std::vector<long long> link_index_su3;
 
 inline int su3_get_site(int t, int x, int y, int z) {
     int tt = (t + T_size) % T_size;
@@ -20,8 +20,8 @@ inline int su3_get_site(int t, int x, int y, int z) {
     return ((tt * L_size + xx) * L_size + yy) * L_size + zz;
 }
 
-inline int su3_link_idx(int site, int mu) {
-    return (4 * site + mu) * 18;
+inline long long su3_link_idx(int site, int mu) {
+    return ((long long)4 * site + mu) * 18;
 }
 
 // P_{++}: U_mu(x) U_nu(x+mu) U_mu^dag(x+nu) U_nu^dag(x)
@@ -30,18 +30,18 @@ inline void su3_plaq_pp(double *result, const double *gf, int it, int ix, int iy
     int idx[4] = {it, ix, iy, iz};
     int site = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
     
-    int i1 = su3_link_idx(site, mu);
+    long long i1 = su3_link_idx(site, mu);
     
     idx[mu] += 1;
     int site_mu = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
-    int i2 = su3_link_idx(site_mu, nu);
+    long long i2 = su3_link_idx(site_mu, nu);
     
     idx[mu] -= 1; idx[nu] += 1;
     int site_nu = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
-    int i3 = su3_link_idx(site_nu, mu);
+    long long i3 = su3_link_idx(site_nu, mu);
     
     idx[nu] -= 1;
-    int i4 = su3_link_idx(site, nu);
+    long long i4 = su3_link_idx(site, nu);
     
     su3_eq_su3_ti_su3(M1, gf + i1, gf + i2);
     su3_eq_su3_ti_su3_dag(M2, M1, gf + i3);
@@ -55,16 +55,16 @@ inline void su3_plaq_mp(double *result, const double *gf, int it, int ix, int iy
     
     idx[mu] -= 1;
     int site_mmu = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
-    int i1 = su3_link_idx(site_mmu, mu);
-    int i2 = su3_link_idx(site_mmu, nu);
+    long long i1 = su3_link_idx(site_mmu, mu);
+    long long i2 = su3_link_idx(site_mmu, nu);
     
     idx[nu] += 1;
     int site_mmu_pnu = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
-    int i3 = su3_link_idx(site_mmu_pnu, mu);
+    long long i3 = su3_link_idx(site_mmu_pnu, mu);
     
     idx[mu] += 1; idx[nu] -= 1;
     int site0 = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
-    int i4 = su3_link_idx(site0, nu);
+    long long i4 = su3_link_idx(site0, nu);
     
     su3_eq_su3_dag_ti_su3(M1, gf + i1, gf + i2);
     su3_eq_su3_ti_su3(M2, M1, gf + i3);
@@ -78,16 +78,16 @@ inline void su3_plaq_mm(double *result, const double *gf, int it, int ix, int iy
     
     idx[mu] -= 1;
     int site_mmu = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
-    int i1 = su3_link_idx(site_mmu, mu);
+    long long i1 = su3_link_idx(site_mmu, mu);
     
     idx[nu] -= 1;
     int site_mmu_mnu = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
-    int i2 = su3_link_idx(site_mmu_mnu, nu);
-    int i3 = su3_link_idx(site_mmu_mnu, mu);
+    long long i2 = su3_link_idx(site_mmu_mnu, nu);
+    long long i3 = su3_link_idx(site_mmu_mnu, mu);
     
     idx[mu] += 1;
     int site_mnu = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
-    int i4 = su3_link_idx(site_mnu, nu);
+    long long i4 = su3_link_idx(site_mnu, nu);
     
     su3_eq_su3_dag_ti_su3_dag(M1, gf + i1, gf + i2);
     su3_eq_su3_ti_su3(M2, M1, gf + i3);
@@ -99,16 +99,16 @@ inline void su3_plaq_pm(double *result, const double *gf, int it, int ix, int iy
     alignas(32) double M1[18], M2[18];
     int idx[4] = {it, ix, iy, iz};
     int site0 = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
-    int i1 = su3_link_idx(site0, mu);
+    long long i1 = su3_link_idx(site0, mu);
     
     idx[mu] += 1; idx[nu] -= 1;
     int site_pmu_mnu = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
-    int i2 = su3_link_idx(site_pmu_mnu, nu);
+    long long i2 = su3_link_idx(site_pmu_mnu, nu);
     
     idx[mu] -= 1;
     int site_mnu = su3_get_site(idx[0], idx[1], idx[2], idx[3]);
-    int i3 = su3_link_idx(site_mnu, mu);
-    int i4 = su3_link_idx(site_mnu, nu);
+    long long i3 = su3_link_idx(site_mnu, mu);
+    long long i4 = su3_link_idx(site_mnu, nu);
     
     su3_eq_su3_ti_su3_dag(M1, gf + i1, gf + i2);
     su3_eq_su3_ti_su3_dag(M2, M1, gf + i3);
@@ -211,7 +211,7 @@ inline double su3_topological_charge_open(const double * __restrict__ gf, int T,
         return su3_topological_charge(gf, T, L);
     }
     
-    #pragma omp parallel for reduction(+:Q) schedule(static)
+    #pragma omp parallel for collapse(4) reduction(+:Q) schedule(static)
     for (int it = t_min; it < t_max; it++) {
         for (int ix = 0; ix < L; ix++) {
             for (int iy = 0; iy < L; iy++) {
@@ -221,7 +221,7 @@ inline double su3_topological_charge_open(const double * __restrict__ gf, int T,
             }
         }
     }
-    
+
     return Q / (4.0 * M_PI * M_PI);
 }
 

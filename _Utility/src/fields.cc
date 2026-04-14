@@ -34,7 +34,7 @@ void Gauge_Field_Alloc(double **gauge_field, int T, int L)
 	 // "void Gauge_Field_Alloc(...   -->   Trying to allocate %ld M ...",
 	//  T*L*L*L * 4 * 8 * sizeof(double) / 1000000);
 
-  if((*gauge_field = (double *)malloc(T*L*L*L * 4 * 8 * sizeof(double))) ==
+  if((*gauge_field = (double *)malloc((size_t)T*L*L*L * 4 * 8 * sizeof(double))) ==
      NULL)
     {
       fprintf(stderr, "\nError: void Gauge_Field_Alloc(...\n");
@@ -50,7 +50,7 @@ void Gauge_Field_Alloc_Mu_Fixed(double **gauge_field, int T, int L)
    // "void Mu_Fixed_Gauge_Field_Alloc(...   -->   Trying to allocate %ld M ...",
    // T*L*L*L * 8 * sizeof(double) / 1000000);
 
-  if((*gauge_field = (double *)malloc(T*L*L*L * 8 * sizeof(double))) ==
+  if((*gauge_field = (double *)malloc((size_t)T*L*L*L * 8 * sizeof(double))) ==
      NULL)
     {
       fprintf(stderr, "\nError: void Mu_Fixed_Gauge_Field_Alloc(...\n");
@@ -66,7 +66,7 @@ void Gauge_Field_Alloc_Timeslice(double **gauge_field, int L)
   //  "void Timeslice_Gauge_Field_Alloc(...   -->   Trying to allocate %ld M ...",
    // L*L*L * 4 * 8 * sizeof(double) / 1000000);
 
-  if((*gauge_field = (double *)malloc(L*L*L * 4 * 8 * sizeof(double))) ==
+  if((*gauge_field = (double *)malloc((size_t)L*L*L * 4 * 8 * sizeof(double))) ==
      NULL)
     {
       fprintf(stderr, "\nError: void Gauge_Field_Alloc(...\n");
@@ -98,7 +98,7 @@ void Gauge_Field_Free(double **gauge_field)
 
 void Gauge_Field_Copy(double *gauge_field_dst, double *gauge_field_src, int T, int L)
 {
-  memcpy(gauge_field_dst, gauge_field_src, T*L*L*L * 4 * 8 * sizeof(double));
+  memcpy(gauge_field_dst, gauge_field_src, (size_t)T*L*L*L * 4 * 8 * sizeof(double));
 }
 
 // Copies a timeslice of a gauge field (lattice size T * L^3).
@@ -133,7 +133,7 @@ void Gauge_Field_Unity(double *gauge_field, int T, int L)
 		{
 		  for(i1 = 0; i1 < 4; i1++)
 		    {
-		      int index = ggi(get_index(it, ix, iy, iz, T, L), i1);
+		      long long index = ggi(get_index(it, ix, iy, iz, T, L), i1);
 
 		      cm_eq_id(gauge_field + index);
 		    }
@@ -188,7 +188,7 @@ void Gauge_Field_Random(double *gauge_field, int T, int L)
 
 		      cm_from_h(SU2_1, h);
 
-		      int index = ggi(get_index(it, ix, iy, iz, T, L), i1);
+		      long long index = ggi(get_index(it, ix, iy, iz, T, L), i1);
 
 		      cm_eq_cm(gauge_field + index, SU2_1);
 		    }

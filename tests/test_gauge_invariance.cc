@@ -66,7 +66,7 @@ static void Apply_Gauge_Transformation(double *gauge_field, double *g_x, int T, 
                     int site = get_index(it, ix, iy, iz, T, L);
                     for (int mu = 0; mu < 4; mu++) {
 
-                        int link_idx = ggi(site, mu);
+                        long long link_idx = ggi(site, mu);
                         if (link_idx == -1) continue;
 
                         int it_new = it, ix_new = ix, iy_new = iy, iz_new = iz;
