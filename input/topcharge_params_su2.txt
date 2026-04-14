@@ -16,5 +16,5 @@ smear_interval      15          # Output Q every N smearing steps
 smear_alpha         0.3         # APE smearing parameter alpha
 
 # Boundary exclusion (applied only to open BC runs)
-exclude_boundary_slices_open 4  # Time slices excluded per boundary for open BC
+exclude_boundary_slices_open 3  # Time slices excluded per boundary for open BC
 # ==============================================================================

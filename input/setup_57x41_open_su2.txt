@@ -1,14 +1,13 @@
 # ==============================================================================
-# SU(2) Setup: 8x8^3 periodic
+# SU(2) Setup: 57x41^3 open
 # ==============================================================================
 
-T                   28
-L                   22
+T                   57
+L                   41
 start_type          cold
 boundary            open
 num_sweeps          40000
 save_interval       100
 
 # Beta values (each becomes a separate run)
-beta 2.6
-beta 2.6
+beta 2.8
