@@ -104,7 +104,7 @@ void insert_instanton(double *gauge_field, double rho, double a, int L, int T, b
                         
                         cm_proj(U);
                         
-                        const int idx = (site * 4 + mu) * 8;
+                        const long long idx = ((long long)site * 4 + mu) * 8;
                         for (int i = 0; i < 8; ++i) {
                             gauge_field[idx + i] = U[i];
                         }

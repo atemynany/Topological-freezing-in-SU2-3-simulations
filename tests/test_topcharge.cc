@@ -18,6 +18,7 @@
 #include "linear_algebra.hh"
 #include "ranlux.hh"
 #include "topcharge_su2.hh"
+#include "instanton.hh"
 
 // ==============================================================================
 // External Global Variables
@@ -566,8 +567,60 @@ TEST_CASE("Topological Charge: Clover transforms covariantly", "[topcharge][clov
     // Compare
     for (int i = 0; i < 8; ++i)
         REQUIRE(std::fabs(cov[i] - C2[i]) < LOOSE_TOL);
-    
+
     Gauge_Field_Free(&gauge_field);
     Gauge_Field_Free(&gauge_field_transformed);
+}
+
+// ==============================================================================
+// Instanton Tests
+// ==============================================================================
+// An SU(2) BPST instanton inserted onto the lattice should give Q close to +1
+// (anti-instanton: -1). The bare-lattice clover Q has O(a²/ρ²) discretisation
+// errors, which remain small for ρ ≫ a on a sufficiently large lattice.
+
+TEST_CASE("Topological Charge: Instanton gives Q ~ +1", "[topcharge][instanton]") {
+    const int T = 14, L = 14;
+    const double rho = 3.5, a = 1.0;
+    const std::size_t vol = static_cast<std::size_t>(T) * L * L * L;
+
+    std::vector<double> gf(vol * 4 * 8, 0.0);
+    insert_instanton(gf.data(), rho, a, L, T, /*is_anti=*/false);
+
+    double Q = compute_topological_charge(gf.data(), T, L);
+    INFO("Q = " << Q);
+    REQUIRE(std::fabs(Q - 1.0) < 0.1);
+}
+
+TEST_CASE("Topological Charge: Anti-instanton gives Q ~ -1", "[topcharge][instanton]") {
+    const int T = 14, L = 14;
+    const double rho = 3.5, a = 1.0;
+    const std::size_t vol = static_cast<std::size_t>(T) * L * L * L;
+
+    std::vector<double> gf(vol * 4 * 8, 0.0);
+    insert_instanton(gf.data(), rho, a, L, T, /*is_anti=*/true);
+
+    double Q = compute_topological_charge(gf.data(), T, L);
+    INFO("Q = " << Q);
+    REQUIRE(std::fabs(Q + 1.0) < 0.1);
+}
+
+TEST_CASE("Topological Charge: Instanton/anti-instanton symmetry Q_inst = -Q_anti", "[topcharge][instanton]") {
+    const int T = 12, L = 12;
+    const double rho = 3.0, a = 1.0;
+    const std::size_t vol = static_cast<std::size_t>(T) * L * L * L;
+
+    std::vector<double> gf_inst(vol * 4 * 8, 0.0);
+    std::vector<double> gf_anti(vol * 4 * 8, 0.0);
+    insert_instanton(gf_inst.data(), rho, a, L, T, false);
+    insert_instanton(gf_anti.data(), rho, a, L, T, true);
+
+    double Q_inst = compute_topological_charge(gf_inst.data(), T, L);
+    double Q_anti = compute_topological_charge(gf_anti.data(), T, L);
+
+    INFO("Q_inst = " << Q_inst);
+    INFO("Q_anti = " << Q_anti);
+    // CP symmetry: inserting with flipped eta gives exactly opposite charge.
+    REQUIRE(std::fabs(Q_inst + Q_anti) < TOL);
 }
 

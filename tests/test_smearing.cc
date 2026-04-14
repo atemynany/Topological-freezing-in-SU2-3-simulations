@@ -53,7 +53,7 @@ static bool all_links_valid_su2(double *gauge_field, int T, int L, double tol = 
             for (int iy = 0; iy < L; iy++) {
                 for (int iz = 0; iz < L; iz++) {
                     for (int mu = 0; mu < 4; mu++) {
-                        int idx = ggi(get_index(it, ix, iy, iz, T, L), mu);
+                        long long idx = ggi(get_index(it, ix, iy, iz, T, L), mu);
                         if (idx >= 0 && !is_valid_su2(gauge_field + idx, tol)) {
                             return false;
                         }

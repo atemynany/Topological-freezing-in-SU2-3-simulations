@@ -18,7 +18,7 @@
 int T_size, L_size;
 std::vector<int> neighbor_plus[4];
 std::vector<int> neighbor_minus[4];
-std::vector<int> link_index_su3;
+std::vector<long long> link_index_su3;
 
 inline int get_site_index(int t, int x, int y, int z) {
     int tt = (t + T_size) % T_size;
@@ -52,7 +52,7 @@ void init_neighbor_tables() {
                         
                         neighbor_plus[mu][site] = get_site_index(c_plus[0], c_plus[1], c_plus[2], c_plus[3]);
                         neighbor_minus[mu][site] = get_site_index(c_minus[0], c_minus[1], c_minus[2], c_minus[3]);
-                        link_index_su3[site * 4 + mu] = (4 * site + mu) * 18;
+                        link_index_su3[site * 4 + mu] = ((long long)4 * site + mu) * 18;
                     }
                 }
             }
@@ -74,9 +74,12 @@ void read_su3_config(double *gf, const char *filename, int T, int L) {
 // Simple APE smearing for SU(3)
 void su3_ape_smear(double *gf_out, const double *gf_in, int T, int L, double alpha) {
     const int volume = T * L * L * L;
-    alignas(32) double staple[18], smeared[18], tmp[18];
-    
+
+    // Double-buffered: reads gf_in, writes gf_out. Each (site, mu) writes a unique
+    // link, so different iterations never collide — embarrassingly parallel.
+    #pragma omp parallel for schedule(static)
     for (int site = 0; site < volume; site++) {
+        alignas(32) double staple[18], smeared[18], tmp[18];
         for (int mu = 0; mu < 4; mu++) {
             su3_eq_zero(staple);
             
@@ -85,11 +88,11 @@ void su3_ape_smear(double *gf_out, const double *gf_in, int T, int L, double alp
                 if (nu == mu) continue;
                 
                 // Upper staple
-                int idx_nu = link_index_su3[site * 4 + nu];
+                long long idx_nu = link_index_su3[site * 4 + nu];
                 int site_pnu = neighbor_plus[nu][site];
-                int idx_mu_pnu = link_index_su3[site_pnu * 4 + mu];
+                long long idx_mu_pnu = link_index_su3[site_pnu * 4 + mu];
                 int site_pmu = neighbor_plus[mu][site];
-                int idx_nu_pmu = link_index_su3[site_pmu * 4 + nu];
+                long long idx_nu_pmu = link_index_su3[site_pmu * 4 + nu];
                 
                 su3_eq_su3_ti_su3(tmp, gf_in + idx_nu, gf_in + idx_mu_pnu);
                 su3_eq_su3_ti_su3_dag(smeared, tmp, gf_in + idx_nu_pmu);
@@ -97,10 +100,10 @@ void su3_ape_smear(double *gf_out, const double *gf_in, int T, int L, double alp
                 
                 // Lower staple
                 int site_mnu = neighbor_minus[nu][site];
-                int idx_nu_mnu = link_index_su3[site_mnu * 4 + nu];
-                int idx_mu_mnu = link_index_su3[site_mnu * 4 + mu];
+                long long idx_nu_mnu = link_index_su3[site_mnu * 4 + nu];
+                long long idx_mu_mnu = link_index_su3[site_mnu * 4 + mu];
                 int site_mnu_pmu = neighbor_plus[mu][site_mnu];
-                int idx_nu_mnu_pmu = link_index_su3[site_mnu_pmu * 4 + nu];
+                long long idx_nu_mnu_pmu = link_index_su3[site_mnu_pmu * 4 + nu];
                 
                 su3_eq_su3_dag_ti_su3(tmp, gf_in + idx_nu_mnu, gf_in + idx_mu_mnu);
                 su3_eq_su3_ti_su3(smeared, tmp, gf_in + idx_nu_mnu_pmu);
@@ -108,7 +111,7 @@ void su3_ape_smear(double *gf_out, const double *gf_in, int T, int L, double alp
             }
             
             // U' = (1-alpha)*U + (alpha/6)*staple, then project
-            int idx = link_index_su3[site * 4 + mu];
+            long long idx = link_index_su3[site * 4 + mu];
             for (int i = 0; i < 18; i++) {
                 smeared[i] = (1.0 - alpha) * gf_in[idx + i] + (alpha / 6.0) * staple[i];
             }
@@ -239,8 +242,13 @@ int main(int argc, char **argv) {
                                   ? params.exclude_boundary_slices : 0;
                 const int t_max = (params.boundary == "open" && params.exclude_boundary_slices > 0)
                                   ? params.T - params.exclude_boundary_slices : params.T;
-                timeslice_file << std::fixed << std::setprecision(8);
-                for (int it = t_min; it < t_max; it++) {
+                const int t_count = t_max - t_min;
+
+                // Compute q(t) in parallel (one thread per timeslice), then write serially.
+                std::vector<double> q_per_t(t_count, 0.0);
+                #pragma omp parallel for schedule(static)
+                for (int it_idx = 0; it_idx < t_count; it_idx++) {
+                    const int it = t_min + it_idx;
                     double q_t = 0.0;
                     for (int ix = 0; ix < params.L; ix++) {
                         for (int iy = 0; iy < params.L; iy++) {
@@ -249,11 +257,15 @@ int main(int argc, char **argv) {
                             }
                         }
                     }
-                    q_t /= (4.0 * M_PI * M_PI);
+                    q_per_t[it_idx] = q_t / (4.0 * M_PI * M_PI);
+                }
+
+                timeslice_file << std::fixed << std::setprecision(8);
+                for (int it_idx = 0; it_idx < t_count; it_idx++) {
                     timeslice_file << std::setw(5)  << params.smear_steps << "  "
                                    << std::setw(6)  << conf << "  "
-                                   << std::setw(4)  << it << "  "
-                                   << std::setw(14) << q_t << "\n";
+                                   << std::setw(4)  << (t_min + it_idx) << "  "
+                                   << std::setw(14) << q_per_t[it_idx] << "\n";
                 }
             }
             

@@ -48,31 +48,31 @@ void Fat_Time_Links(double *gauge_field, double *smeared_gauge_field, int T, int
 		  // *****
 		  // *****
 
-  int index = ggi(get_index(it, ix, iy, iz, T, L), 0);
+  long long index = ggi(get_index(it, ix, iy, iz, T, L), 0);
 
-  int index_mx_1 = ggi(get_index(it, ix-1, iy, iz, T, L), 1);
-  int index_mx_2 = ggi(get_index(it, ix-1, iy, iz, T, L), 0);
-  int index_mx_3 = ggi(get_index(it+1, ix-1, iy, iz, T, L), 1);
+  long long index_mx_1 = ggi(get_index(it, ix-1, iy, iz, T, L), 1);
+  long long index_mx_2 = ggi(get_index(it, ix-1, iy, iz, T, L), 0);
+  long long index_mx_3 = ggi(get_index(it+1, ix-1, iy, iz, T, L), 1);
 
-  int index_px_1 = ggi(get_index(it, ix, iy, iz, T, L), 1);
-  int index_px_2 = ggi(get_index(it, ix+1, iy, iz, T, L), 0);
-  int index_px_3 = ggi(get_index(it+1, ix, iy, iz, T, L), 1);
+  long long index_px_1 = ggi(get_index(it, ix, iy, iz, T, L), 1);
+  long long index_px_2 = ggi(get_index(it, ix+1, iy, iz, T, L), 0);
+  long long index_px_3 = ggi(get_index(it+1, ix, iy, iz, T, L), 1);
 
-  int index_my_1 = ggi(get_index(it, ix, iy-1, iz, T, L), 2);
-  int index_my_2 = ggi(get_index(it, ix, iy-1, iz, T, L), 0);
-  int index_my_3 = ggi(get_index(it+1, ix, iy-1, iz, T, L), 2);
+  long long index_my_1 = ggi(get_index(it, ix, iy-1, iz, T, L), 2);
+  long long index_my_2 = ggi(get_index(it, ix, iy-1, iz, T, L), 0);
+  long long index_my_3 = ggi(get_index(it+1, ix, iy-1, iz, T, L), 2);
 
-  int index_py_1 = ggi(get_index(it, ix, iy, iz, T, L), 2);
-  int index_py_2 = ggi(get_index(it, ix, iy+1, iz, T, L), 0);
-  int index_py_3 = ggi(get_index(it+1, ix, iy, iz, T, L), 2);
+  long long index_py_1 = ggi(get_index(it, ix, iy, iz, T, L), 2);
+  long long index_py_2 = ggi(get_index(it, ix, iy+1, iz, T, L), 0);
+  long long index_py_3 = ggi(get_index(it+1, ix, iy, iz, T, L), 2);
 
-  int index_mz_1 = ggi(get_index(it, ix, iy, iz-1, T, L), 3);
-  int index_mz_2 = ggi(get_index(it, ix, iy, iz-1, T, L), 0);
-  int index_mz_3 = ggi(get_index(it+1, ix, iy, iz-1, T, L), 3);
+  long long index_mz_1 = ggi(get_index(it, ix, iy, iz-1, T, L), 3);
+  long long index_mz_2 = ggi(get_index(it, ix, iy, iz-1, T, L), 0);
+  long long index_mz_3 = ggi(get_index(it+1, ix, iy, iz-1, T, L), 3);
 
-  int index_pz_1 = ggi(get_index(it, ix, iy, iz, T, L), 3);
-  int index_pz_2 = ggi(get_index(it, ix, iy, iz+1, T, L), 0);
-  int index_pz_3 = ggi(get_index(it+1, ix, iy, iz, T, L), 3);
+  long long index_pz_1 = ggi(get_index(it, ix, iy, iz, T, L), 3);
+  long long index_pz_2 = ggi(get_index(it, ix, iy, iz+1, T, L), 0);
+  long long index_pz_3 = ggi(get_index(it+1, ix, iy, iz, T, L), 3);
 
 
   double *U = smeared_gauge_field + index;
@@ -169,7 +169,7 @@ double *V3_3_1, *V3_3_2;
 inline void HYP_Helper_3(double *gauge_field, int T, int L, double time_link_alpha3, double *U, int it, int ix, int iy, int iz, int mu, int nu, int rho)
 {
   int eta;
-  int index_1, index_2, index_3;
+  long long index_1, index_2, index_3;
   double M1[18], M2[18];
 
 
@@ -426,7 +426,7 @@ inline void HYP_Helper_3(double *gauge_field, int T, int L, double time_link_alp
 
   // center
 
-  int index = ggi(get_index(it, ix, iy, iz, T, L), mu);
+  long long index = ggi(get_index(it, ix, iy, iz, T, L), mu);
   if (index >= 0)
   	cm_eq_cm_ti_re(M2, gauge_field + index, 1.0-time_link_alpha3);
 
@@ -441,7 +441,7 @@ inline void HYP_Helper_3(double *gauge_field, int T, int L, double time_link_alp
 
 inline void HYP_Ref_3(int T, int L, double **U, int it, int ix, int iy, int iz, int mu, int nu, int rho)
 {
-  int index = get_index(it, ix, iy, iz, T, L) * 18;
+  long long index = (long long)get_index(it, ix, iy, iz, T, L) * 18;
 if (index>=0) {
   if(mu == 0)
     {
@@ -761,7 +761,7 @@ inline void HYP_Helper_2(double *gauge_field, int T, int L, double time_link_alp
 
   // center
 
-  int index = ggi(get_index(it, ix, iy, iz, T, L), mu);
+  long long index = ggi(get_index(it, ix, iy, iz, T, L), mu);
  if (index>=0) {
   cm_eq_cm_ti_re(M2, gauge_field + index, 1.0-time_link_alpha2);
 
@@ -777,7 +777,7 @@ inline void HYP_Helper_2(double *gauge_field, int T, int L, double time_link_alp
 
 inline void HYP_Ref_2(int T, int L, double **U, int it, int ix, int iy, int iz, int mu, int nu)
 {
-  int index = get_index(it, ix, iy, iz, T, L) * 18;
+  long long index = (long long)get_index(it, ix, iy, iz, T, L) * 18;
 
   if(mu == 0)
     {
@@ -834,7 +834,7 @@ inline void HYP_Ref_2(int T, int L, double **U, int it, int ix, int iy, int iz, 
 
 inline void HYP_Helper_1(double *gauge_field, double *smeared_gauge_field, int T, int L, double time_link_alpha1, int it, int ix, int iy, int iz)
 {
-  int index = ggi(get_index(it, ix, iy, iz, T, L), 0);
+  long long index = ggi(get_index(it, ix, iy, iz, T, L), 0);
   if (index>=0) {
   double M1[18], M2[18], *SU3_1, *SU3_2, *SU3_3;
 
@@ -997,7 +997,7 @@ void HYP_Time_Links(double *gauge_field, double *smeared_gauge_field, int T, int
 	    {
 	      for(iz = 0; iz < L; iz++)
 		{
-		  int index = get_index(it, ix, iy, iz, T, L) * 18;
+		  long long index = (long long)get_index(it, ix, iy, iz, T, L) * 18;
 			if (index>=0){
 		  		HYP_Helper_3(gauge_field, T, L, time_link_alpha3,
 			       V3_0_1 + index, it, ix, iy, iz, 0, 2, 3);
@@ -1040,7 +1040,7 @@ void HYP_Time_Links(double *gauge_field, double *smeared_gauge_field, int T, int
 	    {
 	      for(iz = 0; iz < L; iz++)
 		{
-		  int index = get_index(it, ix, iy, iz, T, L) * 18;
+		  long long index = (long long)get_index(it, ix, iy, iz, T, L) * 18;
 			
 			if (index >= 0) {
 		  		HYP_Helper_2(gauge_field, T, L, time_link_alpha2,
@@ -1133,14 +1133,14 @@ void APE_Smearing_Step(double *smeared_gauge_field, int T, int L, double APE_sme
 	    {
 	      for(iz = 0; iz < L; iz++)
 		{
-		  int index;
+		  long long index;
 
-		  int index_mx_1, index_mx_2, index_mx_3;
-		  int index_px_1, index_px_2, index_px_3;
-		  int index_my_1, index_my_2, index_my_3;
-		  int index_py_1, index_py_2, index_py_3;
-		  int index_mz_1, index_mz_2, index_mz_3;
-		  int index_pz_1, index_pz_2, index_pz_3;
+		  long long index_mx_1, index_mx_2, index_mx_3;
+		  long long index_px_1, index_px_2, index_px_3;
+		  long long index_my_1, index_my_2, index_my_3;
+		  long long index_py_1, index_py_2, index_py_3;
+		  long long index_mz_1, index_mz_2, index_mz_3;
+		  long long index_pz_1, index_pz_2, index_pz_3;
 
 
 		  double *U;
@@ -1419,14 +1419,14 @@ void APE_Smearing_Step_Timeslice(double *smeared_gauge_field, int T, int L, doub
 	{
 	  for(iz = 0; iz < L; iz++)
 	    {
-	      int index, index_;
+	      long long index, index_;
 
-	      int index_mx_1, index_mx_2, index_mx_3;
-	      int index_px_1, index_px_2, index_px_3;
-	      int index_my_1, index_my_2, index_my_3;
-	      int index_py_1, index_py_2, index_py_3;
-	      int index_mz_1, index_mz_2, index_mz_3;
-	      int index_pz_1, index_pz_2, index_pz_3;
+	      long long index_mx_1, index_mx_2, index_mx_3;
+	      long long index_px_1, index_px_2, index_px_3;
+	      long long index_my_1, index_my_2, index_my_3;
+	      long long index_py_1, index_py_2, index_py_3;
+	      long long index_mz_1, index_mz_2, index_mz_3;
+	      long long index_pz_1, index_pz_2, index_pz_3;
 
 
 	      double *U;

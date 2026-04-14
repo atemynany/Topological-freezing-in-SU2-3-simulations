@@ -94,7 +94,7 @@ void read_gauge_field(double *gauge_field, const char *filename, const int T, co
       exit(EXIT_FAILURE);
     }
 
-  int index = ggi(get_index(it, ix, iy, iz, T, L), mu);
+  long long index = ggi(get_index(it, ix, iy, iz, T, L), mu);
   cm_from_h(gauge_field + index, h);
 		    }
 		}
@@ -166,7 +166,7 @@ void read_gauge_field_header(double *gauge_field, const char *filename, const in
                             exit(EXIT_FAILURE);
                         }
 
-                        int index = ggi(get_index(it, ix, iy, iz, T, L), mu);
+                        long long index = ggi(get_index(it, ix, iy, iz, T, L), mu);
                         cm_from_h(gauge_field + index, h);
                     }
                 }

@@ -28,7 +28,7 @@ bool open_boundary_conditions = false;
 
 std::vector<int> neighbor_plus[4];
 std::vector<int> neighbor_minus[4];
-std::vector<int> link_index_su3;
+std::vector<long long> link_index_su3;
 
 std::vector<int> even_sites_su3;
 std::vector<int> odd_sites_su3;
@@ -41,8 +41,8 @@ inline int get_site_index(int t, int x, int y, int z) {
     return ((tt * L_size + xx) * L_size + yy) * L_size + zz;
 }
 
-inline int ggi_su3(int site, int mu) {
-    return (4 * site + mu) * 18;
+inline long long ggi_su3(int site, int mu) {
+    return ((long long)4 * site + mu) * 18;
 }
 
 void init_neighbor_tables() {
@@ -122,12 +122,12 @@ double su3_average_plaquette(const double *gf, int T, int L) {
     for (int site = 0; site < volume; site++) {
         for (int mu = 0; mu < 4; mu++) {
             for (int nu = mu + 1; nu < 4; nu++) {
-                int idx_mu = link_index_su3[site * 4 + mu];
-                int idx_nu = link_index_su3[site * 4 + nu];
+                long long idx_mu = link_index_su3[site * 4 + mu];
+                long long idx_nu = link_index_su3[site * 4 + nu];
                 int site_plus_mu = neighbor_plus[mu][site];
                 int site_plus_nu = neighbor_plus[nu][site];
-                int idx_nu_at_mu = link_index_su3[site_plus_mu * 4 + nu];
-                int idx_mu_at_nu = link_index_su3[site_plus_nu * 4 + mu];
+                long long idx_nu_at_mu = link_index_su3[site_plus_mu * 4 + nu];
+                long long idx_mu_at_nu = link_index_su3[site_plus_nu * 4 + mu];
                 
                 const double *U_mu = gf + idx_mu;
                 const double *U_nu = gf + idx_nu;
@@ -158,11 +158,11 @@ void compute_staple(double *staple, const double *gf, int site, int mu, int it, 
         if (nu == mu) continue;
         
         // Upper staple: U_nu(x) * U_mu(x+nu) * U_nu^dag(x+mu)
-        int idx_nu = link_index_su3[site * 4 + nu];
+        long long idx_nu = link_index_su3[site * 4 + nu];
         int site_plus_nu = neighbor_plus[nu][site];
-        int idx_mu_at_nu = link_index_su3[site_plus_nu * 4 + mu];
+        long long idx_mu_at_nu = link_index_su3[site_plus_nu * 4 + mu];
         int site_plus_mu = neighbor_plus[mu][site];
-        int idx_nu_at_mu = link_index_su3[site_plus_mu * 4 + nu];
+        long long idx_nu_at_mu = link_index_su3[site_plus_mu * 4 + nu];
         
         su3_eq_su3_ti_su3(T1, gf + idx_nu, gf + idx_mu_at_nu);
         su3_eq_su3_ti_su3_dag(T2, T1, gf + idx_nu_at_mu);
@@ -171,10 +171,10 @@ void compute_staple(double *staple, const double *gf, int site, int mu, int it, 
         
         // Lower staple: U_nu^dag(x-nu) * U_mu(x-nu) * U_nu(x-nu+mu)
         int site_minus_nu = neighbor_minus[nu][site];
-        int idx_nu_at_minus = link_index_su3[site_minus_nu * 4 + nu];
-        int idx_mu_at_minus = link_index_su3[site_minus_nu * 4 + mu];
+        long long idx_nu_at_minus = link_index_su3[site_minus_nu * 4 + nu];
+        long long idx_mu_at_minus = link_index_su3[site_minus_nu * 4 + mu];
         int site_minus_nu_plus_mu = neighbor_plus[mu][site_minus_nu];
-        int idx_nu_at_minus_mu = link_index_su3[site_minus_nu_plus_mu * 4 + nu];
+        long long idx_nu_at_minus_mu = link_index_su3[site_minus_nu_plus_mu * 4 + nu];
         
         su3_eq_su3_dag_ti_su3(T1, gf + idx_nu_at_minus, gf + idx_mu_at_minus);
         su3_eq_su3_ti_su3(T2, T1, gf + idx_nu_at_minus_mu);
@@ -385,7 +385,7 @@ int main(int argc, char **argv) {
                 const int it = site / L3;
                 for (int mu = 0; mu < 4; mu++) {
                     compute_staple(staple_local, gauge_field_su3, site, mu, it, open_boundary_conditions);
-                    int idx = link_index_su3[site * 4 + mu];
+                    long long idx = link_index_su3[site * 4 + mu];
                     su3_heatbath_link(gauge_field_su3 + idx, staple_local, params.beta, DRand);
                 }
             }
@@ -404,7 +404,7 @@ int main(int argc, char **argv) {
                     const int it = site / L3;
                     for (int mu = 0; mu < 4; mu++) {
                         compute_staple(staple_local, gauge_field_su3, site, mu, it, open_boundary_conditions);
-                        int idx = link_index_su3[site * 4 + mu];
+                        long long idx = link_index_su3[site * 4 + mu];
                         su3_overrelax_link(gauge_field_su3 + idx, staple_local);
                     }
                 }
