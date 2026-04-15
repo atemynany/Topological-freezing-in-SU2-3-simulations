@@ -11,3 +11,5 @@ save_interval       100
 
 # Beta values (each becomes a separate run)
 beta 2.8
+beta 2.8
+

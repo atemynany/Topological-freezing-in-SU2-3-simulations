@@ -20,7 +20,7 @@ mkdir -p logs data/thread_test
 
 # Default is a quick smoke test; increase NUM_SWEEPS for stable timing comparisons.
 THREADS_LIST=(1 2 4 8)
-NUM_SWEEPS=100
+NUM_SWEEPS=10
 SAVE_INTERVAL=1
 
 SETUP_FILES=(
