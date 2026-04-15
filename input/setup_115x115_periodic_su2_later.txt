@@ -2,8 +2,8 @@ T                   115
 L                   115
 start_type          cold
 boundary            periodic
-num_sweeps          40000
+num_sweeps          5000
 save_interval       100
 
 # Beta values (each becomes a separate run)
-beta 2.95
+beta 3.15

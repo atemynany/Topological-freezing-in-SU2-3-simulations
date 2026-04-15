@@ -2,8 +2,8 @@ T                   159
 L                   115
 start_type          cold
 boundary            open
-num_sweeps          1
-save_interval       1
+num_sweeps          5000
+save_interval       100
 
 # Beta values (each becomes a separate run)
 beta 3.15
