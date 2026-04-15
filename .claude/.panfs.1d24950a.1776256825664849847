@@ -6,9 +6,7 @@
       "Bash(find /home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/SU23_freezing/analysis/__pycache__ -name \"plotting_code*\" -delete)",
       "Bash(/home/alex/miniconda3/envs/master_thesis/bin/python3 scripts/plot_therm.py data/results/T16_L16_b2.5_periodic_seed1773998864)",
       "Bash(/home/alex/miniconda3/envs/master_thesis/bin/python3 -c \":*)",
-      "Bash(/home/alex/miniconda3/envs/master_thesis/bin/python3 analysis/analysis.py)",
-      "Bash(grep -l \"seed593082697\\\\|41x41.*periodic.*2.8\\\\|b2.8.*periodic.*41\" /panfs/vdura1/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs/scan_1651894.out /panfs/vdura1/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs/scan_1651927.out echo \"---\" grep \"593082697\\\\|41x41\\\\|b2.8\" /panfs/vdura1/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs/scan_1651894.out)",
-      "Read(//panfs/vdura1/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/**)"
+      "Bash(/home/alex/miniconda3/envs/master_thesis/bin/python3 analysis/analysis.py)"
     ],
     "additionalDirectories": [
       "/home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/SU23_freezing"
