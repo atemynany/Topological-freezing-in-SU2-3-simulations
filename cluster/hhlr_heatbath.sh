@@ -7,14 +7,14 @@
 #SBATCH --cpus-per-task=40
 #SBATCH --mem=0
 #SBATCH --time=00-01:00:00
-#SBATCH --output=logs/scan_%j.out
-#SBATCH --error=logs/scan_%j.err
+#SBATCH --output=/home/mesonqcd/barros/SU2_calc/Topological-freezing-in-SU2-3-simulations/logs/scan_%j.out
+#SBATCH --error=/home/mesonqcd/barros/SU2_calc/Topological-freezing-in-SU2-3-simulations/logs/scan_%j.err
 
 # Purge the environment to prevent dynamic linking conflicts
 module purge
 
 # Set working directory
-cd /work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations
+cd /home/mesonqcd/barros/SU2_calc/Topological-freezing-in-SU2-3-simulations
 mkdir -p logs
 
 # Explicitly map OpenMP threads to the requested physical cores
