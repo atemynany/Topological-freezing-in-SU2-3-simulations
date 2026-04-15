@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=40
 #SBATCH --mem=0
-#SBATCH --time=00-01:00:00
+#SBATCH --time=11-00:00:00
 #SBATCH --output=/home/mesonqcd/barros/SU2_calc/Topological-freezing-in-SU2-3-simulations/logs/scan_%j.out
 #SBATCH --error=/home/mesonqcd/barros/SU2_calc/Topological-freezing-in-SU2-3-simulations/logs/scan_%j.err
 
