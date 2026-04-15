@@ -42,6 +42,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# NFS temp files
+.nfs*
+
 # Logs
 *.log
 *.out
