@@ -44,6 +44,7 @@ Thumbs.db
 
 # NFS temp files
 .nfs*
+.panfs*
 
 # Logs
 *.log
