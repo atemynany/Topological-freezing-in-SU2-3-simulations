@@ -26,7 +26,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR"
 BUILD_DIR="$PROJECT_DIR/build"
-RESULTS_DIR="$PROJECT_DIR/data/results"
+RESULTS_DIR="${HEATBATH_RESULTS_DIR:-$PROJECT_DIR/data/results}"
 CONDA_ENV="master_thesis"
 
 GAUGE_GROUP="su2"
