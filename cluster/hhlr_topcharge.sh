@@ -7,14 +7,14 @@
 #SBATCH --cpus-per-task=40
 #SBATCH --mem=0
 #SBATCH --time=00-12:00:00
-#SBATCH --output=/home/mesonqcd/barros/SU2_calc/Topological-freezing-in-SU2-3-simulations/logs/topcharge_%j.out
-#SBATCH --error=/home/mesonqcd/barros/SU2_calc/Topological-freezing-in-SU2-3-simulations/logs/topcharge_%j.err
+#SBATCH --output=/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs/topcharge_%j.out
+#SBATCH --error=/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs/topcharge_%j.err
 
 # Purge the environment to prevent dynamic linking conflicts
 module purge
 
 # Set working directory
-cd /home/mesonqcd/barros/SU2_calc/Topological-freezing-in-SU2-3-simulations
+cd /work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations
 mkdir -p logs
 
 # Topcharge measurement is single-threaded per run; parallelism comes from --jobs
