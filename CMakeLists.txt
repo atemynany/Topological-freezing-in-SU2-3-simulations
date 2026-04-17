@@ -388,6 +388,25 @@ if(BUILD_TESTING)
             ${MATH_LIBRARY}
     )
 
+    # --- Test: SU(3) Topological Charge ---
+    add_executable(test_topcharge_su3
+        tests/test_topcharge_su3.cc
+        src/instanton.cc
+    )
+
+    target_include_directories(test_topcharge_su3
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/_Utility/include
+    )
+
+    target_link_libraries(test_topcharge_su3
+        PRIVATE
+            su2_utility
+            Catch2::Catch2WithMain
+            ${MATH_LIBRARY}
+    )
+
     # Register tests with CTest
     # Using simple test registration to avoid issues with special characters in test names
     add_test(NAME test_heatbath COMMAND test_heatbath)
@@ -396,6 +415,7 @@ if(BUILD_TESTING)
     add_test(NAME test_smearing COMMAND test_smearing)
     add_test(NAME test_plaquette COMMAND test_plaquette)
     add_test(NAME test_gauge_invariance COMMAND test_gauge_invariance)
+    add_test(NAME test_topcharge_su3 COMMAND test_topcharge_su3)
 endif()
 
 # ==============================================================================

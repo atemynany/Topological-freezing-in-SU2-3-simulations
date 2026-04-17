@@ -149,36 +149,35 @@ inline void su3_field_strength(double *F, const double *gf, int it, int ix, int 
     }
 }
 
-// Local topological charge density (un-normalized)
-// q = -ε_μνρσ Tr(F_μν F_ρσ) = -2[Tr(F_01 F_23) - Tr(F_02 F_13) + Tr(F_03 F_12)]
+// Local topological charge density (un-normalized).
+// q(x) = Tr(F_01 F_23) - Tr(F_02 F_13) + Tr(F_03 F_12)
+// Total Q is divided by 4π² in the caller; the ε-tensor's combinatorial
+// factor of 8 cancels the 1/(32π²) of the continuum definition.
 inline double su3_local_topcharge_density(const double *gf, int it, int ix, int iy, int iz) {
     alignas(32) double F01[18], F23[18];
     alignas(32) double F02[18], F13[18];
     alignas(32) double F03[18], F12[18];
     alignas(32) double prod[18];
-    
+
     su3_field_strength(F01, gf, it, ix, iy, iz, 0, 1);
     su3_field_strength(F23, gf, it, ix, iy, iz, 2, 3);
     su3_field_strength(F02, gf, it, ix, iy, iz, 0, 2);
     su3_field_strength(F13, gf, it, ix, iy, iz, 1, 3);
     su3_field_strength(F03, gf, it, ix, iy, iz, 0, 3);
     su3_field_strength(F12, gf, it, ix, iy, iz, 1, 2);
-    
+
     double q = 0.0;
-    
-    // Tr(F_01 F_23)
+
     su3_eq_su3_ti_su3(prod, F01, F23);
-    q -= su3_re_tr(prod);
-    
-    // -Tr(F_02 F_13)
-    su3_eq_su3_ti_su3(prod, F02, F13);
     q += su3_re_tr(prod);
-    
-    // Tr(F_03 F_12)
-    su3_eq_su3_ti_su3(prod, F03, F12);
+
+    su3_eq_su3_ti_su3(prod, F02, F13);
     q -= su3_re_tr(prod);
-    
-    return 2.0 * q;  // factor of 2 from ε-tensor
+
+    su3_eq_su3_ti_su3(prod, F03, F12);
+    q += su3_re_tr(prod);
+
+    return q;
 }
 
 // Total topological charge: Q = (1/4π²) Σ_x q(x)
