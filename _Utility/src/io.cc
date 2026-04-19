@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "geometry.hh"
 #include "linear_algebra.hh"
@@ -189,57 +190,69 @@ void read_gauge_field_header(double *gauge_field, const char *filename, const in
 
 void write_gauge_field(double *gauge_field, const char *filename, const int T, const int L, const char *header)
 {
-  char string1[1000];
-
-
-  FILE *fd;
-
-  if((fd = fopen(filename, "w")) == NULL)
-    {
-      fprintf(stderr, "Error: void write_gauge_field(...!\n");
-      exit(EXIT_FAILURE);
-    }
-
-
-  fprintf(fd, "# %s\n", header);
-  fprintf(fd, "BEGIN\n");
-
+  const int MAX_RETRIES = 5;
+  const unsigned int RETRY_SLEEP_SEC = 5;
 
   int it, ix, iy, iz, mu;
 
   for(it = 0; it < T; it++)
+    for(ix = 0; ix < L; ix++)
+      for(iy = 0; iy < L; iy++)
+        for(iz = 0; iz < L; iz++)
+          for(mu = 0; mu < 4; mu++)
+            {
+              double h[4];
+              h_from_cm(h, gauge_field + ggi(get_index(it, ix, iy, iz, T, L), mu));
+              if(fabs(h[0]*h[0] + h[1]*h[1] + h[2]*h[2] + h[3]*h[3] - 1.0) > 0.0000000001)
+                {
+                  fprintf(stderr, "Error: void write_gauge_field(...!\n");
+                  fprintf(stderr, "  it = %2d, ix = %2d, iy = %2d, iz = %2d, mu = %2d   -->   h^2 = %.6lf.\n", it, ix, iy, iz, mu, h[0]*h[0] + h[1]*h[1] + h[2]*h[2] + h[3]*h[3]);
+                  exit(EXIT_FAILURE);
+                }
+            }
+
+  for(int attempt = 1; attempt <= MAX_RETRIES; attempt++)
     {
-      for(ix = 0; ix < L; ix++)
-	{
-	  for(iy = 0; iy < L; iy++)
-	    {
-	      for(iz = 0; iz < L; iz++)
-		{
-		  for(mu = 0; mu < 4; mu++)
-		    {
-  double h[4];
-  h_from_cm(h, gauge_field + ggi(get_index(it, ix, iy, iz, T, L), mu));
+      FILE *fd = fopen(filename, "w");
+      if(fd == NULL)
+        {
+          fprintf(stderr, "Warning: write_gauge_field fopen failed (attempt %d/%d): %s\n", attempt, MAX_RETRIES, filename);
+          if(attempt == MAX_RETRIES)
+            {
+              fprintf(stderr, "Error: void write_gauge_field(...!\n");
+              exit(EXIT_FAILURE);
+            }
+          sleep(RETRY_SLEEP_SEC);
+          continue;
+        }
 
-  if(fabs(h[0]*h[0] + h[1]*h[1] + h[2]*h[2] + h[3]*h[3] - 1.0) > 0.0000000001)
-    {
-      fprintf(stderr, "Error: void write_gauge_field(...!\n");
-      fprintf(stderr, "  it = %2d, ix = %2d, iy = %2d, iz = %2d, mu = %2d   -->   h^2 = %.6lf.\n", it, ix, iy, iz, mu, h[0]*h[0] + h[1]*h[1] + h[2]*h[2] + h[3]*h[3]);
-      exit(EXIT_FAILURE);
+      int write_ok = 1;
+      if(fprintf(fd, "# %s\n", header) < 0) write_ok = 0;
+      if(write_ok && fprintf(fd, "BEGIN\n") < 0) write_ok = 0;
+
+      for(it = 0; it < T && write_ok; it++)
+        for(ix = 0; ix < L && write_ok; ix++)
+          for(iy = 0; iy < L && write_ok; iy++)
+            for(iz = 0; iz < L && write_ok; iz++)
+              for(mu = 0; mu < 4 && write_ok; mu++)
+                {
+                  double h[4];
+                  h_from_cm(h, gauge_field + ggi(get_index(it, ix, iy, iz, T, L), mu));
+                  if(fwrite(h, sizeof(double), 4, fd) != 4) write_ok = 0;
+                }
+
+      if(fclose(fd) != 0) write_ok = 0;
+
+      if(write_ok) return;
+
+      fprintf(stderr, "Warning: write_gauge_field write failed (attempt %d/%d): %s\n", attempt, MAX_RETRIES, filename);
+      if(attempt == MAX_RETRIES)
+        {
+          fprintf(stderr, "Error: void write_gauge_field(...!\n");
+          exit(EXIT_FAILURE);
+        }
+      sleep(RETRY_SLEEP_SEC);
     }
-
-  if(fwrite(h, sizeof(double), 4, fd) != 4)
-    {
-      fprintf(stderr, "Error: void write_gauge_field(...!\n");
-      exit(EXIT_FAILURE);
-    }
-		    }
-		}
-	    }
-	}
-    }
-
-
-  fclose(fd);
 }
 
 
