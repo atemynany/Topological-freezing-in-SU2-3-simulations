@@ -205,6 +205,24 @@ target_link_libraries(meas_topcharge
         $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
 )
 
+# --- Fused SU(2) Heatbath + In-Memory Topological Charge ---
+add_executable(heatbath_topcharge_su2
+    src/heatbath_topcharge_su2.cc
+)
+
+target_include_directories(heatbath_topcharge_su2
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/_Utility/include
+)
+
+target_link_libraries(heatbath_topcharge_su2
+    PRIVATE
+        su2_utility
+        ${MATH_LIBRARY}
+        $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
+)
+
 # --- Instanton Topological Charge Computation ---
 add_executable(compute_instanton_Q
     src/compute_instanton_Q.cc
@@ -422,7 +440,7 @@ endif()
 # Installation
 # ==============================================================================
 
-install(TARGETS mc_heatbath meas_topcharge compute_instanton_Q
+install(TARGETS mc_heatbath meas_topcharge heatbath_topcharge_su2 compute_instanton_Q
     RUNTIME DESTINATION bin
 )
 
