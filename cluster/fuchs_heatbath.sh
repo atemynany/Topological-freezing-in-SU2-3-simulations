@@ -19,4 +19,4 @@ export OMP_PROC_BIND=spread
 export OMP_PLACES=cores
 
 bash run_heatbath_scan.sh --su2 --skip-build --jobs 20
-# Discovers all input/setup_*_su2.txt files automatically
+# Discovers all input/heatbath_input/setup_*_su2.txt files automatically

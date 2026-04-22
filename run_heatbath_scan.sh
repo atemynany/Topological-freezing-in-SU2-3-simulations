@@ -2,7 +2,7 @@
 # ==============================================================================
 # run_heatbath_scan.sh  —  Phase 1: generate gauge configs for all beta values
 # ==============================================================================
-# Discovers all input/setup_*_${GAUGE_GROUP}.txt files and runs heatbath for
+# Discovers all input/heatbath_input/setup_*_${GAUGE_GROUP}.txt files and runs heatbath for
 # every (setup_file, beta) combination. Each setup file contains lattice params
 # and one or more "beta X.X" lines.
 #
@@ -121,10 +121,10 @@ EOF
 # ==============================================================================
 # Discover setup files
 # ==============================================================================
-SETUP_FILES=("$PROJECT_DIR"/input/setup_*_${GAUGE_GROUP}.txt)
+SETUP_FILES=("$PROJECT_DIR"/input/heatbath_input/setup_*_${GAUGE_GROUP}.txt)
 
 if [ ! -f "${SETUP_FILES[0]}" ]; then
-    log_error "No setup files found matching input/setup_*_${GAUGE_GROUP}.txt"
+    log_error "No setup files found matching input/heatbath_input/setup_*_${GAUGE_GROUP}.txt"
     exit 1
 fi
 

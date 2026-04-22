@@ -1,0 +1,15 @@
+# ==============================================================================
+# SU(2) fused heatbath + topcharge setup: 22x16^3 open
+# exclude_boundary_slices = (T_open - T_periodic)/2 = (22-16)/2 = 3
+# ==============================================================================
+
+T                       22
+L                       16
+start_type              cold
+boundary                open
+num_sweeps              40000
+save_interval           100
+exclude_boundary_slices 3
+
+# Beta values (each becomes a separate run)
+beta 2.5

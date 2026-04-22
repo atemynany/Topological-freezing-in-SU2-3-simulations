@@ -25,5 +25,5 @@ export OMP_PROC_BIND=spread
 export OMP_PLACES=cores
 
 bash run_heatbath_topcharge_scan.sh --skip-build --jobs 1
-# Discovers all input/setup_*_su2.txt files automatically.
+# Discovers all input/heatbath_topcharge_input/setup_*_su2.txt files automatically.
 # Use --exclude "T65\|T81" to skip specific lattices, same pattern as fuchs_topcharge.sh.

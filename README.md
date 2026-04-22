@@ -47,11 +47,28 @@ CMake auto-detects macOS and sets up the right flags. If you installed `libomp` 
 ./scripts/run_tests.sh
 ```
 
-Six test suites: `test_heatbath`, `test_linear_algebra`, `test_topcharge`, `test_smearing`, `test_plaquette`, `test_gauge_invariance`.
+Seven test suites: `test_heatbath`, `test_linear_algebra`, `test_topcharge`, `test_topcharge_su3`, `test_smearing`, `test_plaquette`, `test_gauge_invariance`.
+
+Parity check for the fused SU(2) pipeline (outside CTest):
+
+```bash
+./scripts/test_parity_heatbath_topcharge.sh      # legacy vs fused, OMP=1
+```
+
+Quick smoke-test input files for the fused binary:
+
+```bash
+./build/bin/heatbath_topcharge_su2 -i input/tests_input/setup_test_16x16_periodic_su2.txt
+./build/bin/heatbath_topcharge_su2 -i input/tests_input/setup_test_16x16_open_su2.txt
+```
+
+500-sweep runs, β=2.5, 16⁴. Outputs land in `data/results/test_16x16_{periodic,open}_b2.5/`.
 
 ## Main Workflow
 
-The simulation runs in two phases: heatbath (config generation) then topological charge measurement.
+### Two-phase pipeline (default, SU(2) and SU(3))
+
+Heatbath (config generation) then topological charge measurement.
 
 ```bash
 ./run_heatbath_scan.sh --su2                # Phase 1: generate configs
@@ -64,7 +81,26 @@ The simulation runs in two phases: heatbath (config generation) then topological
 ./run_topcharge_scan.sh --su2 --exclude "T65\|T81"  # skip specific ensembles
 ```
 
-Setup files in `input/setup_*_su2.txt` / `input/setup_*_su3.txt` define lattice parameters and beta values. Each file contains one lattice configuration; multiple `beta` lines produce multiple runs. `--su2`/`--su3` discovers all matching setup files automatically.
+### Fused pipeline (SU(2), in-memory, no gauge configs written)
+
+For SU(2) scans where you don't need persisted gauge configs, use the fused binary `heatbath_topcharge_su2`. It runs heatbath and measures Q on an APE-smeared scratch copy at every `save_interval`, writing only `plaquette.dat`, `topcharge.dat`, and `topcharge_timeslice.dat`.
+
+```bash
+./run_heatbath_topcharge_scan.sh            # discovers input/heatbath_topcharge_input/setup_*_su2.txt
+./run_heatbath_topcharge_scan.sh --jobs 4
+./run_heatbath_topcharge_scan.sh --dry-run
+./run_heatbath_topcharge_scan.sh --exclude "T65\|T81"
+```
+
+Parity with the two-phase pipeline is verified at single-thread determinism (`scripts/test_parity_heatbath_topcharge.sh`): plaquette bit-identical, max |ΔQ| = 0. Multi-thread heatbath trajectories are nondeterministic by design.
+
+Setup files live in three subdirs of `input/`:
+
+- `input/heatbath_input/` — production setups for the two-phase pipeline (`setup_*_su{2,3}_finished.txt`) plus `topcharge_params_su{2,3}.txt`
+- `input/heatbath_topcharge_input/` — setups for the fused SU(2) pipeline (drop `setup_*_su2.txt` files here)
+- `input/tests_input/` — small smoke-test setups (e.g. `setup_test_16x16_periodic_su2.txt`)
+
+Each setup file contains one lattice configuration; multiple `beta` lines produce multiple runs. `--su2`/`--su3` discovers all matching setup files automatically in the relevant subdir.
 
 Results saved to `data/results/` and plots to `output/figures_analysis/`.
 
@@ -75,8 +111,9 @@ Results saved to `data/results/` and plots to `output/figures_analysis/`.
 rm -rf build && ./scripts/build.sh release
 
 # Submit jobs
-sbatch cluster/fuchs_heatbath.sh     # heatbath scan
-sbatch cluster/fuchs_topcharge.sh    # topcharge measurement
+sbatch cluster/fuchs_heatbath.sh            # two-phase: heatbath scan
+sbatch cluster/fuchs_topcharge.sh           # two-phase: topcharge measurement
+sbatch cluster/fuchs_heatbath_topcharge.sh  # fused SU(2) (no disk configs)
 
 # Monitor progress
 tail -1 data/results/T*_su2/output/plaquette.dat   # check sweep number
@@ -98,14 +135,15 @@ Sync results to local (run from local machine):
 | `mc_heatbath_su3` | SU(3) heatbath config generation (OpenMP checkerboard + overrelaxation) |
 | `meas_topcharge` | SU(2) topological charge measurement |
 | `meas_topcharge_su3` | SU(3) topological charge measurement |
+| `heatbath_topcharge_su2` | Fused SU(2) heatbath + in-memory topcharge (no gauge configs written) |
 | `compute_instanton_Q` | Instanton topological charge computation |
 
 ## Input Files
 
-- `input/setup_*_su2.txt` — SU(2) setup files (lattice params + beta values)
-- `input/setup_*_su3.txt` — SU(3) setup files
-- `input/topcharge_params_su2.txt` — Topcharge measurement params (smearing, boundary exclusion)
-- `input/topcharge_params_su3.txt` — SU(3) topcharge params
+- `input/heatbath_input/setup_*_su2.txt` / `setup_*_su3.txt` — setups for the two-phase pipeline (lattice params + beta values)
+- `input/heatbath_input/topcharge_params_su2.txt` / `_su3.txt` — topcharge measurement params (smearing, boundary exclusion); also read by the fused SU(2) pipeline
+- `input/heatbath_topcharge_input/setup_*_su2.txt` — setups for the fused SU(2) pipeline
+- `input/tests_input/setup_test_*_su2.txt` — smoke-test setups for the fused binary
 
 The topcharge scan script auto-detects periodic vs open boundary conditions from the run directory name (`_periodic_` or `_open_`). For open BC runs, `exclude_boundary_slices_open` from the param file is applied; periodic runs use 0.
 
@@ -125,12 +163,12 @@ beta 2.7
 
 ## Output
 
-- `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}_{su2|su3}/` — Per-run results
-  - `configs/` — Gauge configurations
-  - `output/topcharge.dat` — Q measurements (APE-smeared)
-  - `output/plaquette[_su3].dat` — Plaquette history (every sweep)
-  - `output/therm_topcharge.dat` — Q per sweep for thermalization monitoring
-  - `run_info.txt` — Run metadata
+`data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}_{su2|su3}/`:
+- `output/plaquette[_su3].dat` — Plaquette history (every sweep)
+- `output/topcharge.dat` — Q measurements (APE-smeared)
+- `output/topcharge_timeslice.dat` — Per-timeslice q(t)
+- `configs/` — Gauge configurations (two-phase scan only; absent in fused SU(2) runs)
+- `input.txt`, `run_info.txt`, `*.log` — Input, metadata, stdout
 
 ## Analysis
 
@@ -149,6 +187,7 @@ Key outputs from `analysis.py`:
 ├── scripts/              # Build, run, and analysis scripts
 ├── analysis/             # Python analysis and plotting
 ├── input/                # Setup files and topcharge params
-├── run_heatbath_scan.sh  # Phase 1: config generation
-└── run_topcharge_scan.sh # Phase 2: topcharge measurement
+├── run_heatbath_scan.sh           # Phase 1: config generation
+├── run_topcharge_scan.sh          # Phase 2: topcharge measurement
+└── run_heatbath_topcharge_scan.sh # SU(2) fused pipeline (no disk configs)
 ```

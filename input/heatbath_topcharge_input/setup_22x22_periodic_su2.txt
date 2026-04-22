@@ -1,0 +1,13 @@
+# ==============================================================================
+# SU(2) fused heatbath + topcharge setup: 22x22^3 periodic
+# ==============================================================================
+
+T                   22
+L                   22
+start_type          cold
+boundary            periodic
+num_sweeps          40000
+save_interval       100
+
+# Beta values (each becomes a separate run)
+beta 2.6

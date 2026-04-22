@@ -56,16 +56,13 @@ Thumbs.db
 # Input files (user-specific, tracked files whitelisted)
 input/*
 !input/.gitkeep
-!input/base_params_su2.txt
-!input/base_params_su3.txt
-!input/beta_scan_su2.txt
-!input/beta_scan_su3.txt
-!input/lattice_su2.txt
-!input/lattice_su3.txt
-!input/topcharge_params_su2.txt
-!input/topcharge_params_su3.txt
-!input/setup_*.txt
 !input/instanton.txt
+!input/heatbath_input/
+!input/heatbath_input/**
+!input/heatbath_topcharge_input/
+!input/heatbath_topcharge_input/**
+!input/tests_input/
+!input/tests_input/**
 
 # Output folder structure (keep dirs, ignore content)
 !output/.gitkeep

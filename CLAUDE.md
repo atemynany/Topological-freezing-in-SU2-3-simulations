@@ -22,7 +22,15 @@ Executables go to `build/bin/`, library to `build/lib/`.
 ./scripts/run_tests.sh test_topcharge  # Single test suite by name (-R pattern)
 ```
 
-Auto-builds if `build/` is missing. Six test suites: `test_heatbath`, `test_linear_algebra`, `test_topcharge`, `test_smearing`, `test_plaquette`, `test_gauge_invariance`.
+Auto-builds if `build/` is missing. Seven test suites: `test_heatbath`, `test_linear_algebra`, `test_topcharge`, `test_topcharge_su3`, `test_smearing`, `test_plaquette`, `test_gauge_invariance`.
+
+Parity check for the fused SU(2) pipeline (not part of CTest):
+
+```bash
+./scripts/test_parity_heatbath_topcharge.sh   # legacy vs fused, OMP=1 forced
+```
+
+Forces `OMP_NUM_THREADS=1` because multi-thread heatbath is nondeterministic (checkerboard scheduling affects RNG draw order). Expected: plaquette bit-identical, max |ΔQ|=0, max |Δq(t)|=0.
 
 ## Simulation Workflow
 
@@ -37,7 +45,28 @@ Two-phase workflow: heatbath (config generation) then topological charge measure
 ./run_topcharge_scan.sh --su2 --jobs 4     # parallel
 ```
 
-Setup files: `input/setup_*_su2.txt` / `input/setup_*_su3.txt` define lattice params and beta values. Topcharge params: `input/topcharge_params_su2.txt` / `_su3.txt` (smearing, boundary exclusion). The topcharge scan auto-detects periodic vs open BC from the run directory name and sets `exclude_boundary_slices` accordingly.
+Input files live in three subdirs of `input/`:
+
+- `input/heatbath_input/` — two-phase pipeline setups (`setup_*_su{2,3}_finished.txt`) and topcharge params (`topcharge_params_su{2,3}.txt`); the fused pipeline also reads `topcharge_params_su2.txt` from here
+- `input/heatbath_topcharge_input/` — fused SU(2) pipeline setups (`setup_*_su2.txt`)
+- `input/tests_input/` — smoke-test setups for the fused binary
+
+The topcharge scan auto-detects periodic vs open BC from the run directory name and sets `exclude_boundary_slices` accordingly.
+
+### Fused SU(2) pipeline (in-memory, no configs on disk)
+
+`heatbath_topcharge_su2` runs heatbath and measures Q on an APE-smeared scratch copy at every `save_interval`. Only `plaquette.dat`, `topcharge.dat`, `topcharge_timeslice.dat` are written — the gauge field never hits disk. Merges `setup_*_su2.txt` with `topcharge_params_su2.txt` automatically.
+
+```bash
+./run_heatbath_topcharge_scan.sh                 # all setup_*_su2.txt
+./run_heatbath_topcharge_scan.sh --jobs 4
+./run_heatbath_topcharge_scan.sh --exclude "T65\|T81"
+./run_heatbath_topcharge_scan.sh --dry-run
+```
+
+Cluster: `cluster/fuchs_heatbath_topcharge.sh`, `cluster/hhlr_heatbath_topcharge.sh`. Both run single multi-threaded jobs (not parallel single-core) because smearing + topcharge are OMP-parallel.
+
+Source: `src/heatbath_topcharge_su2.cc`. SU(3) fused variant not implemented.
 
 ## Cluster (Fuchs HPC)
 
@@ -97,10 +126,6 @@ Both SU(2) and SU(3) simulations use `extern` globals for lattice dimensions (`T
 
 Both SU(2) and SU(3) heatbath use checkerboard (even/odd) site decomposition for thread-safe OpenMP parallel sweeps. Per-thread RNG seeding via `rlxd_init(2, seed + tid * 997)`. The SU(3) heatbath also parallelizes overrelaxation sweeps. For small lattices (below ~32^4), `OMP_NUM_THREADS=1` is faster due to thread synchronization overhead.
 
-### Thermalization topcharge
-
-Both heatbath programs output `therm_topcharge.dat` (Q measured every sweep on an APE-smeared copy of the gauge field). Smearing params `smear_steps` (default 40) and `smear_alpha` (default 0.5) are configurable via input file.
-
 ### Data layout
 
 - SU(2): link at `(site, mu)` → 8 contiguous doubles at offset `(4*site + mu) * 8`
@@ -113,7 +138,9 @@ Open BC (Lüscher-Schaefer): temporal plaquettes at `t=0` and `t=T-1` weighted b
 
 ### Data flow
 
-`mc_heatbath[_su3]` → `configs/conf_*.bin` + `plaquette.dat` + `therm_topcharge.dat` → `detect_thermalization.py` → `meas_topcharge[_su3]` → `topcharge[_su3].dat` → `analysis.py`
+Two-phase: `mc_heatbath[_su3]` → `configs/conf_*.bin` + `plaquette.dat` → `detect_thermalization.py` → `meas_topcharge[_su3]` → `topcharge[_su3].dat` → `analysis.py`
+
+Fused SU(2): `heatbath_topcharge_su2` → `plaquette.dat` + `topcharge.dat` + `topcharge_timeslice.dat` → `analysis.py` (no `configs/`)
 
 Results per run: `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}/`
 

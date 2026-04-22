@@ -3,9 +3,9 @@
 # run_heatbath_topcharge_scan.sh  —  Fused SU(2) heatbath + in-memory topcharge
 # ==============================================================================
 # Replaces run_heatbath_scan.sh + run_topcharge_scan.sh for SU(2) when you don't
-# want to persist gauge configs to disk. Discovers input/setup_*_su2.txt files,
-# merges each with input/topcharge_params_su2.txt, and runs heatbath_topcharge_su2
-# for every (setup_file, beta) combination.
+# want to persist gauge configs to disk. Discovers input/heatbath_topcharge_input/setup_*_su2.txt
+# files, merges each with input/heatbath_input/topcharge_params_su2.txt, and runs
+# heatbath_topcharge_su2 for every (setup_file, beta) combination.
 #
 # Usage:
 #   ./run_heatbath_topcharge_scan.sh [options]
@@ -25,7 +25,7 @@ BUILD_DIR="$PROJECT_DIR/build"
 RESULTS_DIR="${HEATBATH_RESULTS_DIR:-$PROJECT_DIR/data/results}"
 
 BINARY="heatbath_topcharge_su2"
-TOPCHARGE_PARAMS="$PROJECT_DIR/input/topcharge_params_su2.txt"
+TOPCHARGE_PARAMS="$PROJECT_DIR/input/heatbath_input/topcharge_params_su2.txt"
 
 DRY_RUN=false
 SKIP_BUILD=false
@@ -75,8 +75,14 @@ create_input_file() {
     local smear_alpha=$(read_param "smear_alpha" "$TOPCHARGE_PARAMS")
     local exclude_boundary_slices_open=$(read_param "exclude_boundary_slices_open" "$TOPCHARGE_PARAMS")
 
+    # Per-ensemble override in the setup file takes priority over the global default.
+    # Convention: open setup files carry exclude_boundary_slices = (T_open - T_periodic)/2.
+    local setup_exclude=$(read_param "exclude_boundary_slices" "$setup_file")
+
     local exclude_boundary_slices=0
-    if [ "$boundary" = "open" ]; then
+    if [ -n "$setup_exclude" ]; then
+        exclude_boundary_slices="$setup_exclude"
+    elif [ "$boundary" = "open" ]; then
         exclude_boundary_slices="${exclude_boundary_slices_open:-0}"
     fi
 
@@ -111,9 +117,9 @@ if [ ! -f "$TOPCHARGE_PARAMS" ]; then
     exit 1
 fi
 
-SETUP_FILES=("$PROJECT_DIR"/input/setup_*_su2.txt)
+SETUP_FILES=("$PROJECT_DIR"/input/heatbath_topcharge_input/setup_*_su2.txt)
 if [ ! -f "${SETUP_FILES[0]}" ]; then
-    log_error "No setup files found matching input/setup_*_su2.txt"
+    log_error "No setup files found matching input/heatbath_topcharge_input/setup_*_su2.txt"
     exit 1
 fi
 
@@ -185,7 +191,7 @@ run_single_beta() {
     local L_SIZE=$(read_param "L" "$SETUP_FILE")
     local BOUNDARY=$(read_param "boundary" "$SETUP_FILE"); BOUNDARY=${BOUNDARY:-periodic}
 
-    local RUN_NAME="T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed${SEED}_su2_inmem"
+    local RUN_NAME="T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed${SEED}_su2"
     local RUN_DIR="$RESULTS_DIR/$RUN_NAME"
     local RUN_OUTPUT_DIR="$RUN_DIR/output"
 
@@ -238,7 +244,7 @@ if [ "$DRY_RUN" = true ]; then
         SETUP="${JOB_SETUP[$i]}"; BETA="${JOB_BETA[$i]}"; SEED="${SEEDS[$i]}"
         T_SIZE=$(read_param "T" "$SETUP"); L_SIZE=$(read_param "L" "$SETUP")
         BOUNDARY=$(read_param "boundary" "$SETUP"); BOUNDARY=${BOUNDARY:-periodic}
-        RUN_NAME="T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed${SEED}_su2_inmem"
+        RUN_NAME="T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_seed${SEED}_su2"
         echo "  Would create: $RESULTS_DIR/$RUN_NAME"
         echo "    Setup: $(basename "$SETUP"), beta=$BETA, seed=$SEED"
     done

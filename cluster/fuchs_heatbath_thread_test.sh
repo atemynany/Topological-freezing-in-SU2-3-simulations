@@ -24,8 +24,8 @@ NUM_SWEEPS=10
 SAVE_INTERVAL=1
 
 SETUP_FILES=(
-    "input/setup_41x41_periodic_su2.txt"
-    "input/setup_57x41_open_su2.txt"
+    "input/heatbath_input/setup_41x41_periodic_su2_finished.txt"
+    "input/heatbath_input/setup_57x41_open_su2_finished.txt"
 )
 
 HEATBATH_BIN="build/bin/mc_heatbath"

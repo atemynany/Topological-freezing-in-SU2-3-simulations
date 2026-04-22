@@ -45,9 +45,12 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
 
     sorted_runs = sorted(runs, key=lambda x: x.beta)
 
-    # Global y-range across all runs so panels are comparable
-    global_min = int(min(r.Q_rescaled.min() for r in sorted_runs))
-    global_max = int(max(r.Q_rescaled.max() for r in sorted_runs))
+    # Global y-range across all runs so panels are comparable.
+    # Use floor/ceil (not int, which truncates toward zero and clips negative open-BC values).
+    raw_min = min(r.Q_rescaled.min() for r in sorted_runs)
+    raw_max = max(r.Q_rescaled.max() for r in sorted_runs)
+    global_min = int(np.floor(raw_min))
+    global_max = int(np.ceil(raw_max))
     pad = 0.5
 
     for idx, run_data in enumerate(sorted_runs):
@@ -100,38 +103,56 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
 
     sorted_runs = sorted(runs, key=lambda x: x.beta)
 
-    # Global x-range across all runs so panels are comparable
-    global_min = int(min(r.Q_rescaled.min() for r in sorted_runs)) - 1
-    global_max = int(max(r.Q_rescaled.max() for r in sorted_runs)) + 1
-    bins = np.arange(global_min - 0.5, global_max + 1.5, 1)
+    # Global x-range across all runs so panels are comparable.
+    # For periodic, Q_rescaled is already rounded; for open, Q_rescaled is continuous.
+    # Include the unrounded alpha*Q_raw in the range so rug lines are never clipped.
+    q_mins = [min(r.Q_rescaled.min(), (r.alpha * r.Q_raw).min()) for r in sorted_runs]
+    q_maxs = [max(r.Q_rescaled.max(), (r.alpha * r.Q_raw).max()) for r in sorted_runs]
+    global_min = int(np.floor(min(q_mins))) - 1
+    global_max = int(np.ceil(max(q_maxs))) + 1
+
+    int_bins  = np.arange(global_min - 0.5, global_max + 1.5, 1)   # periodic
+    fine_bins = np.linspace(global_min - 0.5, global_max + 0.5, 40)  # open
 
     for idx, run_data in enumerate(sorted_runs):
         row, col = idx // n_cols, idx % n_cols
         ax = axes[row, col]
 
-        Q = run_data.Q_rescaled
-        Q_unrounded = run_data.alpha * run_data.Q_raw
+        Q_cont = run_data.alpha * run_data.Q_raw
 
-        # Rounded values: full-width bars with low opacity
-        rounded_label = r'$Q_{\rm rounded}$' if idx == 0 else None
-        counts, bin_edges, _ = ax.hist(Q, bins=bins, density=False,
-            color='steelblue', edgecolor='steelblue', linewidth=0.5, alpha=0.2,
-            label=rounded_label)
+        if boundary == 'periodic':
+            Q_rounded = run_data.Q_rescaled
+            rounded_label = r'$Q_{\rm rounded}$' if idx == 0 else None
+            counts, bin_edges, _ = ax.hist(Q_rounded, bins=int_bins, density=False,
+                color='steelblue', edgecolor='steelblue', linewidth=0.5, alpha=0.3,
+                label=rounded_label)
 
-        # Unrounded values: step histogram with higher opacity
-        unrounded_label = r'$\alpha \hat{Q}$' if idx == 0 else None
-        ax.hist(Q_unrounded, bins=bins, density=False,
-            color='steelblue', edgecolor='steelblue', linewidth=1.5, alpha=0.8,
-            histtype='step', label=unrounded_label)
+            # Fine-binned histogram of unrounded alpha*Q_raw — same style as open
+            cont_label = r'$\alpha \hat{Q}$ (unrounded)' if idx == 0 else None
+            ax.hist(Q_cont, bins=fine_bins, density=False,
+                color='steelblue', edgecolor='steelblue', linewidth=1.2, alpha=0.7,
+                label=cont_label)
 
-        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            fit_x_min, fit_x_max = global_min - 1, global_max + 1
+            fit_Q_for_mean = Q_rounded
+        else:  # open — continuous Q, no rounding
+            cont_label = r'$\alpha \hat{Q}$' if idx == 0 else None
+            counts, bin_edges, _ = ax.hist(Q_cont, bins=fine_bins, density=False,
+                color='steelblue', edgecolor='steelblue', linewidth=1.2, alpha=0.7,
+                label=cont_label)
+
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            fit_x_min, fit_x_max = global_min - 1, global_max + 1
+            fit_Q_for_mean = Q_cont
+
         try:
-            sigma0 = max(np.std(Q), 0.5)
+            sigma0 = max(np.std(fit_Q_for_mean), 0.5)
             if np.sum(counts > 0) >= 3 and sigma0 > 0.1:
                 popt, _ = curve_fit(gaussian, bin_centers, counts,
-                    p0=[np.mean(Q), sigma0, counts.max()],
+                    p0=[np.mean(fit_Q_for_mean), sigma0, counts.max()],
                     bounds=([-np.inf, 0.1, 0], [np.inf, np.inf, np.inf]))
-                x_fit = np.linspace(global_min - 1, global_max + 1, 200)
+                x_fit = np.linspace(fit_x_min, fit_x_max, 200)
                 fit_label = 'Gaussian fit' if idx == 0 else None
                 ax.plot(x_fit, gaussian(x_fit, *popt), 'r-', linewidth=1.5, label=fit_label)
         except:

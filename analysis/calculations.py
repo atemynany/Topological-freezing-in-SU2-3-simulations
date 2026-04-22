@@ -319,15 +319,10 @@ def parse_input_file(run_dir: str) -> dict:
     return info
 
 
-def load_run_data(run_dir: str, gauge_group: str = "su2", min_sweeps: int = 1000) -> Optional[RunData]:
+def load_run_data(run_dir: str, gauge_group: str = "su2") -> Optional[RunData]:
     """Load all data from a run directory."""
     info = parse_input_file(run_dir)
-    
-    num_sweeps = int(info.get('num_sweeps', 0))
-    if num_sweeps < min_sweeps:
-        return None
-    
-    # Parse boundary from directory name (e.g., T16_L16_b2.50_open_seed12345_su2)
+
     dirname = os.path.basename(run_dir)
     if '_open_' in dirname:
         boundary = 'open'
@@ -335,18 +330,18 @@ def load_run_data(run_dir: str, gauge_group: str = "su2", min_sweeps: int = 1000
         boundary = 'periodic'
     else:
         boundary = info.get('boundary', 'periodic')
-    
+
     candidates = [
         os.path.join(run_dir, "output", "topcharge.dat"),
         os.path.join(run_dir, "output", f"topcharge_{gauge_group}.dat"),
     ]
     topcharge_file = next((f for f in candidates if os.path.exists(f)), None)
-    
+
     if not topcharge_file:
         return None
-    
+
     Q_raw = load_topcharge(topcharge_file)
-    if len(Q_raw) < 50:
+    if len(Q_raw) == 0:
         return None
     
     if boundary == 'open':

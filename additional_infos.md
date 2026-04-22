@@ -77,28 +77,6 @@ exclude_boundary_slices 0    # set > 0 for open BC runs (typically 1–2)
 
 ---
 
-## 3. Thermalization vs Production Q — Why They Differ
-
-Both heatbath programs now measure Q on an **APE-smeared copy** of the gauge field at every sweep (`therm_topcharge.dat`). The smearing parameters (`smear_steps`, default 40; `smear_alpha`, default 0.5) are configurable via the input file. The production analysis uses separately APE-smeared Q from saved configurations.
-
-| | Thermalization Q | Production Q |
-|---|---|---|
-| Smearing | `smear_steps` APE steps (default 40) | Configurable APE steps |
-| Measured | Every sweep | Every `save_interval` sweeps |
-| Integer-quantized | Approximately | Yes (after smearing) |
-| Alpha rescaling | Not applied | Applied (α ≈ 0.9) |
-| Purpose | Thermalization monitor | Physics (χ_t, τ_int) |
-
-The smearing is applied to a temporary in-memory copy — the stored gauge field is unchanged. Smearing must be applied to the gauge field before computing Q — it cannot be applied to Q values retroactively, because smearing is a non-local operation on the SU(N) link matrices.
-
-**The workflow:**
-```
-mc_heatbath[_su3]  →  therm_topcharge.dat  (APE-smeared, thermalization monitor)
-meas_topcharge[_su3]  →  topcharge[_su3].dat  (APE-smeared, production physics)
-```
-
----
-
 ## 4. Scale Setting Utilities (`scale_set.ipynb`)
 
 Three utility functions added to the notebook for interactive use:

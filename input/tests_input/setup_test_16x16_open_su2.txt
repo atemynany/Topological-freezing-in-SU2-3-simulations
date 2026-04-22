@@ -1,0 +1,31 @@
+# ==============================================================================
+# test_setup_16x16_open_su2.txt
+# ==============================================================================
+# Smoke-test input for heatbath_topcharge_su2 (fused SU(2) pipeline).
+# 16^4 lattice, open BC (Luescher-Schaefer), beta=2.5. Short run.
+#
+# Run:
+#   ./build/bin/heatbath_topcharge_su2 -i input/test_setup_16x16_open_su2.txt
+#
+# Outputs written to data/results/test_16x16_open_b2.5/:
+#   plaquette.dat  topcharge.dat  topcharge_timeslice.dat
+# ==============================================================================
+
+T                        16
+L                        16
+beta                     2.5
+seed                     20260423
+start_type               cold
+boundary                 open
+
+num_sweeps               500
+save_interval            50
+
+smear_steps              15
+smear_interval           15
+smear_alpha              0.3
+
+# Open BC: drop 2 time slices per boundary from Q summation
+exclude_boundary_slices  2
+
+output_dir               data/results/test_16x16_open_b2.5/
