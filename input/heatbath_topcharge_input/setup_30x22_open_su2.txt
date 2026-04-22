@@ -9,6 +9,12 @@ start_type              cold
 boundary                open
 num_sweeps              40000
 save_interval           100
+
+# Topcharge measurement (per-ensemble override of topcharge_params_su2.txt)
+# Records Q at smear steps 5, 10, 15 with APE alpha=0.3.
+smear_steps             15
+smear_interval          5
+smear_alpha             0.3
 exclude_boundary_slices 4
 
 # Beta values (each becomes a separate run)
