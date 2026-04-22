@@ -273,7 +273,8 @@ int main(int argc, char *argv[]) {
     // Set global lattice dimensions
     T = params.T;
     L = params.L;
-    
+    open_boundary_conditions = (params.boundary == "open");
+
     // Initialize random number generator
     InitializeRand(params.seed);
     
