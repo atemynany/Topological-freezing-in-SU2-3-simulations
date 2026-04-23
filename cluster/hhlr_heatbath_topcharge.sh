@@ -7,20 +7,21 @@
 #SBATCH --cpus-per-task=40
 #SBATCH --mem=0
 #SBATCH --time=11-00:00:00
-#SBATCH --output=/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs/hb_tc_%j.out
-#SBATCH --error=/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs/hb_tc_%j.err
+#SBATCH --output=/home/mesonqcd/barros/SU2_Calc/Topological-freezing-in-SU2-3-simulations/logs/hb_tc_%j.out
+#SBATCH --error=/home/mesonqcd/barros/SU2_Calc/Topological-freezing-in-SU2-3-simulations/logs/hb_tc_%j.err
 
 # Fused SU(2) heatbath + in-memory topological charge scan (HHLR).
-# No gauge-config files are written — per ensemble only plaquette.dat,
-# topcharge.dat, topcharge_timeslice.dat. Uses the same thread layout as
-# hhlr_heatbath.sh because smearing + topcharge are also OMP-parallel.
+# Working directory and results live in $HOME — no gauge configs are written;
+# per ensemble only plaquette.dat, topcharge.dat, topcharge_timeslice.dat.
+# Uses the same thread layout as hhlr_heatbath.sh because smearing + topcharge
+# are also OMP-parallel.
 
 module purge
 
-export HEATBATH_RESULTS_DIR=/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/data/results
-mkdir -p /work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs
+export HEATBATH_RESULTS_DIR=/home/mesonqcd/barros/SU2_Calc/Topological-freezing-in-SU2-3-simulations/data/results
+mkdir -p /home/mesonqcd/barros/SU2_Calc/Topological-freezing-in-SU2-3-simulations/logs
 
-cd /home/mesonqcd/barros/SU_Calc/Topological-freezing-in-SU2-3-simulations
+cd /home/mesonqcd/barros/SU2_Calc/Topological-freezing-in-SU2-3-simulations
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export OMP_PROC_BIND=spread
