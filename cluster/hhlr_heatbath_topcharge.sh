@@ -27,5 +27,6 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export OMP_PROC_BIND=spread
 export OMP_PLACES=cores
 
-bash run_heatbath_topcharge_scan.sh --skip-build --jobs 1
-# Use --exclude "T65\|T81" to skip specific lattices, same pattern as hhlr_topcharge.sh.
+bash run_heatbath_topcharge_scan.sh --skip-build --jobs 1 --exclude "_later|_finished"
+# --exclude uses bash ERE (plain | for alternation). "_later" skips the larger lattices
+# (41^4 and up); "_finished" is a defensive guard for setup files flagged as done.

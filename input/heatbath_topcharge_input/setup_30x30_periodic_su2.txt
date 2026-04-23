@@ -18,3 +18,4 @@ exclude_boundary_slices 0
 
 # Beta values (each becomes a separate run)
 beta 2.7
+beta 2.7
