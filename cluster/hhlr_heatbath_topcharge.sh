@@ -1,14 +1,14 @@
 #!/bin/bash
 #SBATCH --account=mesonqcd
 #SBATCH --job-name=lqcd_hb_tc
-#SBATCH --partition=general2
+#SBATCH --partition=general1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=40
 #SBATCH --mem=0
-#SBATCH --time=11-00:00:00
+#SBATCH --time=14-00:00:00
 #SBATCH --output=/home/mesonqcd/barros/SU2_Calc/Topological-freezing-in-SU2-3-simulations/logs/hb_tc_%j.out
-#SBATCH --error=/home/mesonqcd/barros/SU2_Calc/Topological-freezing-in-SU2-3-simulations/logs/hb_tc_%j.err
+#SBATCH --error=/home/mesonqcd/barros/SU2_Calc/Topological-freezing-in-SU2-3-simulations/logs/hb_tc_%j.err 
 
 # Fused SU(2) heatbath + in-memory topological charge scan (HHLR).
 # Working directory and results live in $HOME — no gauge configs are written;

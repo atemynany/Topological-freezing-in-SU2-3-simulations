@@ -1,13 +1,13 @@
 # ==============================================================================
-# SU(2) fused heatbath + topcharge setup: 159x115^3 open
-# exclude_boundary_slices = (T_open - T_periodic)/2 = (159-115)/2 = 22
+# SU(2) fused heatbath + topcharge setup: 57x41^3 open
+# exclude_boundary_slices = (T_open - T_periodic)/2 = (57-41)/2 = 8
 # ==============================================================================
 
-T                       159
-L                       115
+T                       57
+L                       41
 start_type              cold
 boundary                open
-num_sweeps              5000
+num_sweeps              40000
 save_interval           100
 
 # Topcharge measurement (per-ensemble override of topcharge_params_su2.txt)
@@ -15,7 +15,8 @@ save_interval           100
 smear_steps             15
 smear_interval          5
 smear_alpha             0.3
-exclude_boundary_slices 22
+exclude_boundary_slices 8
 
 # Beta values (each becomes a separate run)
-beta 3.15
+beta 2.8
+beta 2.8

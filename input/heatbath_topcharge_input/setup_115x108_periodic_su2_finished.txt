@@ -1,9 +1,9 @@
 # ==============================================================================
-# SU(2) fused heatbath + topcharge setup: 115x115^3 periodic
+# SU(2) fused heatbath + topcharge setup: 115x108^3 periodic
 # ==============================================================================
 
 T                       115
-L                       115
+L                       108
 start_type              cold
 boundary                periodic
 num_sweeps              5000
