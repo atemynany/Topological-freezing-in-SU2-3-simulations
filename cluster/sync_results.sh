@@ -10,7 +10,8 @@
 # ==============================================================================
 
 REMOTE="barros@fuchs.hhlr-gu.de"
-REMOTE_DIR="/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/data/results/"
+#REMOTE_DIR="/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/data/results/"
+REMOTE_DIR="/home/mesonqcd/barros/SU2_Calc/Topological-freezing-in-SU2-3-simulations/data/results"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_DIR="$(dirname "$SCRIPT_DIR")/data/results/"
