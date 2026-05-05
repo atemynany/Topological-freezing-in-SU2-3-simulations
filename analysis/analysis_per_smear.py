@@ -115,7 +115,7 @@ def print_table(results: List[AnalysisResult], gauge_group: str, smear: int):
 
 
 def run_for_smear(runs_master: List[RunData], gauge_group: str,
-                  output_root: str, smear: int):
+                  output_root: str, smear: int, bin_ref: int = 4):
     out_dir = os.path.join(output_root, f"smear{smear}")
     os.makedirs(out_dir, exist_ok=True)
     print(f"\n--- smear = {smear}  ->  {out_dir}")
@@ -150,25 +150,47 @@ def run_for_smear(runs_master: List[RunData], gauge_group: str,
     if all_runs:
         plot_thermalization_comparison(all_runs, out_dir, gauge_group)
 
+    # Constant-physical-subvolume binning. Two scales:
+    #   analysis n_bin = round(a_ref / a)               → density / susc / tauint plots
+    #   mctime  n_bin = round(bin_ref * a_ref / a)      → mctime line plot only
+    # Reference is the smallest-β run (coarsest a).
+    spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+    all_runs_for_ref = runs_periodic + runs_open
+    ref_beta = min(rd.beta for rd in all_runs_for_ref) if all_runs_for_ref else None
+    a_ref = spacing(ref_beta) if ref_beta is not None else None
+    if a_ref is not None:
+        print(f"  subvolume reference: smallest β = {ref_beta}, a_ref = {a_ref:.4f} fm  "
+              f"(mctime bin_ref = {bin_ref} → ≈ {bin_ref * a_ref:.4f} fm)")
+
+    def _n_bin_for(beta: float) -> int:
+        if a_ref is None:
+            return 1
+        return max(1, int(round(a_ref / spacing(beta))))
+
+    def _n_bin_mctime_for(beta: float) -> int:
+        if a_ref is None:
+            return 1
+        return max(1, int(round(bin_ref * a_ref / spacing(beta))))
+
     # plot_timeslice_mctime_grid loads timeslice data internally without a
     # smear arg, so pin the loader to this smear level for the duration.
-    spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
-    n_bin = 1
     orig_loader = tsa.load_timeslice_data
     tsa.load_timeslice_data = lambda fp, smear=None, _orig=orig_loader, _s=smear: _orig(fp, smear=_s)
     try:
         for runs_grp, boundary in [(runs_periodic, "periodic"), (runs_open, "open")]:
-            ts_files, ts_results, ts_runs = [], [], []
+            ts_files, ts_results, ts_runs, ts_nbins, ts_nbins_mctime = [], [], [], [], []
             for rd in sorted(runs_grp, key=lambda x: x.beta):
                 ts_file = os.path.join(rd.run_dir, "output", "topcharge_timeslice.dat")
                 if not os.path.isfile(ts_file):
                     continue
                 a_fm = spacing(rd.beta)
+                n_bin_run = _n_bin_for(rd.beta)
+                n_bin_mctime = _n_bin_mctime_for(rd.beta)
                 try:
                     res = analyse_timeslices(
                         ts_file,
                         lattice_spacing_fm=a_fm,
-                        n_bin=n_bin,
+                        n_bin=n_bin_run,
                         smear=smear,
                         open_bc=(rd.boundary == "open"),
                         ensemble=f"b{rd.beta}_{rd.boundary}",
@@ -179,10 +201,17 @@ def run_for_smear(runs_master: List[RunData], gauge_group: str,
                 ts_files.append(ts_file)
                 ts_results.append(res)
                 ts_runs.append(rd)
+                ts_nbins.append(n_bin_run)
+                ts_nbins_mctime.append(n_bin_mctime)
 
             if ts_runs:
+                print(f"  [{boundary}] analysis n_bin: " +
+                      ", ".join(f"β={r.beta}->{nb}" for r, nb in zip(ts_runs, ts_nbins)))
+                print(f"  [{boundary}] mctime   n_bin: " +
+                      ", ".join(f"β={r.beta}->{nb}" for r, nb in zip(ts_runs, ts_nbins_mctime)))
                 plot_timeslice_density_grid(ts_results, ts_runs, out_dir, gauge_group, boundary)
-                plot_timeslice_mctime_grid(ts_files, ts_runs, n_bin, out_dir, gauge_group, boundary)
+                plot_timeslice_mctime_grid(ts_files, ts_runs, ts_nbins_mctime,
+                                           out_dir, gauge_group, boundary)
                 plot_timeslice_susceptibility_grid(ts_results, ts_runs, out_dir, gauge_group, boundary)
                 plot_timeslice_tauint_grid(ts_results, ts_runs, out_dir, gauge_group, boundary)
                 plot_timeslice_susceptibility_cropped(ts_results, ts_runs, out_dir, gauge_group, boundary)
@@ -202,6 +231,10 @@ def main():
     parser.add_argument("--smear", type=int, action="append",
                         help="Restrict to a specific smear level (repeatable). "
                              "Default: every level detected in the data.")
+    parser.add_argument("--bin-ref", type=int, default=4,
+                        help="Bin width (in raw timeslices) for the smallest-β run. "
+                             "Other runs are binned to match the same physical thickness. "
+                             "Default: 4.")
     args = parser.parse_args()
 
     gauge_group = "su3" if args.su3 else "su2"
@@ -242,7 +275,7 @@ def main():
     print(f"Processing: {smear_levels}\n")
 
     for s in smear_levels:
-        run_for_smear(runs_master, gauge_group, output_root, s)
+        run_for_smear(runs_master, gauge_group, output_root, s, bin_ref=args.bin_ref)
 
     print(f"\nDone. Per-smear plots under: {output_root}/smear<level>/")
 

@@ -37,11 +37,11 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
 
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
 
-    n_cols = 1
-    n_rows = n
+    n_cols = 2 if n >= 2 else 1
+    n_rows = (n + n_cols - 1) // n_cols
 
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7, 3 * n_rows))
-    axes = np.array(axes).reshape(-1, 1)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7 * n_cols, 3 * n_rows))
+    axes = np.array(axes).flatten()
 
     sorted_runs = sorted(runs, key=lambda x: x.beta)
 
@@ -54,7 +54,7 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
     pad = 0.5
 
     for idx, run_data in enumerate(sorted_runs):
-        ax = axes[idx, 0]
+        ax = axes[idx]
 
         Q = run_data.Q_rescaled
         mc_time = np.arange(len(Q))
@@ -74,7 +74,10 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
         ax.tick_params(labelsize=8)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
-    
+
+    for j in range(n, len(axes)):
+        axes[j].set_visible(False)
+
     plt.tight_layout()
     filepath = os.path.join(output_dir, f"Q_vs_mctime_{gauge_group}_{boundary}.png")
     plt.savefig(filepath, dpi=200)

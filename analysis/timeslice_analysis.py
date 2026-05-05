@@ -363,7 +363,9 @@ def plot_timeslice_density_grid(ts_results: list, runs: list, output_dir: str,
     y_max = max(np.max(np.abs(res["means"]) + res["errors"]) for res, _ in pairs)
     y_lim = (-y_max * 1.15, y_max * 1.15)
 
-    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    n_cols = 2 if n >= 2 else 1
+    n_rows = (n + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7 * n_cols, 3 * n_rows))
     axes = np.array(axes).flatten()
 
     for idx, (res, run_data) in enumerate(pairs):
@@ -413,10 +415,13 @@ def plot_timeslice_density_grid(ts_results: list, runs: list, output_dir: str,
         if idx == 0:
             legend_handles = [h_data] + ([h_excl] if h_excl is not None else [])
 
-    # Shared legend outside top-right of first panel
-    axes[0].legend(legend_handles, [h.get_label() for h in legend_handles],
-                   loc='upper left', bbox_to_anchor=(1.02, 1.0),
-                   fontsize=7, frameon=False)
+    for j in range(n, len(axes)):
+        axes[j].set_visible(False)
+
+    # Shared legend outside top-right of last top-row panel
+    axes[n_cols - 1].legend(legend_handles, [h.get_label() for h in legend_handles],
+                            loc='upper left', bbox_to_anchor=(1.02, 1.0),
+                            fontsize=7, frameon=False)
 
     plt.tight_layout()
     out = os.path.join(output_dir, f"timeslice_density_{gauge_group}_{boundary}.png")
@@ -460,7 +465,9 @@ def plot_timeslice_density_comparison(
     y_lim = (-y_max * 1.15, y_max * 1.15)
 
     n = len(all_betas)
-    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    n_cols = 2 if n >= 2 else 1
+    n_rows = (n + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7 * n_cols, 3 * n_rows))
     axes = np.array(axes).flatten()
 
     x_offset = 0.25  # lattice units offset between BC types
@@ -525,9 +532,12 @@ def plot_timeslice_density_comparison(
         if idx == 0:
             first_handles = legend_handles
 
-    axes[0].legend(first_handles, [h.get_label() for h in first_handles],
-                   loc='upper left', bbox_to_anchor=(1.02, 1.0),
-                   fontsize=7, frameon=False)
+    for j in range(n, len(axes)):
+        axes[j].set_visible(False)
+
+    axes[n_cols - 1].legend(first_handles, [h.get_label() for h in first_handles],
+                            loc='upper left', bbox_to_anchor=(1.02, 1.0),
+                            fontsize=7, frameon=False)
 
     plt.tight_layout()
     out = os.path.join(output_dir, f"timeslice_density_comparison_{gauge_group}.png")
@@ -536,75 +546,69 @@ def plot_timeslice_density_comparison(
     print(f"Saved: {os.path.basename(out)}")
 
 
-def plot_timeslice_mctime_grid(ts_files: list, runs: list, n_bin: int,
+def plot_timeslice_mctime_grid(ts_files: list, runs: list, n_bin,
                                 output_dir: str, gauge_group: str, boundary: str):
-    """Grid of q(t) vs MC time, one panel per run. A,B,C labels + a title.
-    Each binned time slice is a separate coloured line; one shared legend."""
+    """Grid of q(t) vs MC time, one panel per run.
+
+    n_bin can be:
+      - int: same bin width for every run (legacy)
+      - list[int] aligned with runs: per-run bin width (e.g. for constant
+        physical subvolume across betas).
+    """
     from calculations import lattice_spacing_su2, lattice_spacing_su3
     import os
 
-    valid = [(f, r) for f, r in zip(ts_files, runs) if f is not None]
+    if isinstance(n_bin, (list, tuple, np.ndarray)):
+        nb_list = [int(x) for x in n_bin]
+    else:
+        nb_list = [int(n_bin)] * len(runs)
+
+    valid = [(f, r, nb) for f, r, nb in zip(ts_files, runs, nb_list) if f is not None]
     n = len(valid)
     if n == 0:
         return
 
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
 
-    # Pre-compute consistent colormap from first file
-    t_values_ref, _ = load_timeslice_data(valid[0][0])
-    t_centres_ref, _ = bin_timeslices(t_values_ref, np.zeros((1, len(t_values_ref))), n_bin)
-    n_bins = len(t_centres_ref)
-    cmap = plt.cm.tab20 if n_bins <= 20 else plt.cm.turbo
-    colors = [cmap(i / max(1, n_bins - 1)) for i in range(n_bins)]
-
-    def bin_label(j):
-        lo = t_values_ref[j * n_bin]
-        hi = t_values_ref[min(j * n_bin + n_bin - 1, len(t_values_ref) - 1)]
-        return f"$t={int(lo)}$" if n_bin == 1 else f"$t\\in[{lo},{hi}]$"
-
-    # Pre-load all data to compute global y-range
-    all_q_binned = []
-    for ts_file, _ in valid:
+    # Pre-load and bin every run with its own n_bin
+    binned = []   # (run_data, nb, q_binned)
+    for ts_file, run_data, nb in valid:
         t_v, q_m = load_timeslice_data(ts_file)
-        _, q_b = bin_timeslices(t_v, q_m, n_bin)
-        all_q_binned.append(q_b)
-    global_abs = max(np.abs(q_b).max() for q_b in all_q_binned)
+        _, q_b = bin_timeslices(t_v, q_m, nb)
+        binned.append((run_data, nb, q_b))
+
+    global_abs = max(np.abs(q_b).max() for _, _, q_b in binned)
     y_lim = (-global_abs * 1.15, global_abs * 1.15)
 
-    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    n_cols = 2 if n >= 2 else 1
+    n_rows = (n + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7 * n_cols, 3 * n_rows))
     axes = np.array(axes).flatten()
 
-    legend_handles = []
-    for idx, ((ts_file, run_data), q_binned) in enumerate(zip(valid, all_q_binned)):
+    for idx, (run_data, nb, q_binned) in enumerate(binned):
         ax = axes[idx]
+        n_bins_run = q_binned.shape[1]
+        cmap = plt.cm.tab20 if n_bins_run <= 20 else plt.cm.turbo
         mc_time = np.arange(q_binned.shape[0])
 
-        for j in range(n_bins):
-            y = q_binned[:, j]
-            col_color = colors[j]
-            h, = ax.plot(mc_time, y, lw=0.8, color=col_color, alpha=0.3, zorder=2,
-                         label=bin_label(j))
-            ax.scatter(mc_time, y, s=3, color=col_color, alpha=0.8, zorder=3)
-            if idx == 0:
-                legend_handles.append(h)
+        for j in range(n_bins_run):
+            col = cmap(j / max(1, n_bins_run - 1))
+            ax.plot(mc_time, q_binned[:, j], lw=0.8, color=col, alpha=0.3, zorder=2)
+            ax.scatter(mc_time, q_binned[:, j], s=3, color=col, alpha=0.8, zorder=3)
 
         ax.axhline(0, color='grey', lw=0.6, ls='--')
         ax.set_ylim(y_lim)
         a = lattice_spacing(run_data.beta)
-        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        title = f'$a = {a:.4f}$ fm' + (f'  ($n_{{\\mathrm{{bin}}}}={nb}$)' if nb != 1 else '')
+        ax.set_title(title, fontsize=10)
         ax.set_xlabel('MC time', fontsize=9)
         ax.set_ylabel(r'$q(t)$', fontsize=9)
         ax.tick_params(labelsize=8)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
 
-    # Shared legend outside the top axes panel, no gap
-    leg = axes[0].legend(legend_handles, [h.get_label() for h in legend_handles],
-                         loc='upper left', bbox_to_anchor=(1.02, 1.0),
-                         fontsize=7, frameon=False, ncol=max(1, n_bins // 8))
-    for h in leg.legend_handles:
-        h.set_alpha(1.0)
-        h.set_linewidth(2.0)
+    for j in range(n, len(axes)):
+        axes[j].set_visible(False)
 
     plt.tight_layout()
     out = os.path.join(output_dir, f"timeslice_mctime_{gauge_group}_{boundary}.png")
@@ -626,7 +630,9 @@ def plot_timeslice_susceptibility_grid(ts_results: list, runs: list, output_dir:
 
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
 
-    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    n_cols = 2 if n >= 2 else 1
+    n_rows = (n + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7 * n_cols, 3 * n_rows))
     axes = np.array(axes).flatten()
 
     for idx, (res, run_data) in enumerate(pairs):
@@ -666,9 +672,12 @@ def plot_timeslice_susceptibility_grid(ts_results: list, runs: list, output_dir:
         _apply_axis_style(ax, x_integer=True)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
-        if idx == 0:
+        if idx == n_cols - 1:
             ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
                   fontsize=7, frameon=False, handlelength=1.4, labelspacing=0.3)
+
+    for j in range(n, len(axes)):
+        axes[j].set_visible(False)
 
     plt.tight_layout()
     out = os.path.join(output_dir, f"timeslice_susceptibility_{gauge_group}_{boundary}.png")
@@ -690,7 +699,9 @@ def plot_timeslice_tauint_grid(ts_results: list, runs: list, output_dir: str,
 
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
 
-    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    n_cols = 2 if n >= 2 else 1
+    n_rows = (n + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7 * n_cols, 3 * n_rows))
     axes = np.array(axes).flatten()
 
     for idx, (res, run_data) in enumerate(pairs):
@@ -719,9 +730,12 @@ def plot_timeslice_tauint_grid(ts_results: list, runs: list, output_dir: str,
         _apply_axis_style(ax, x_integer=True)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
-        if idx == 0:
+        if idx == n_cols - 1:
             ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
                   fontsize=7, frameon=False, handlelength=1.4, labelspacing=0.3)
+
+    for j in range(n, len(axes)):
+        axes[j].set_visible(False)
 
     plt.tight_layout()
     out = os.path.join(output_dir, f"timeslice_tauint_{gauge_group}_{boundary}.png")
@@ -743,7 +757,9 @@ def plot_timeslice_susceptibility_cropped(ts_results: list, runs: list, output_d
 
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
 
-    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    n_cols = 2 if n >= 2 else 1
+    n_rows = (n + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7 * n_cols, 3 * n_rows))
     axes = np.array(axes).flatten()
 
     for idx, (res, run_data) in enumerate(pairs):
@@ -776,9 +792,12 @@ def plot_timeslice_susceptibility_cropped(ts_results: list, runs: list, output_d
         _apply_axis_style(ax, x_integer=True)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
-        if idx == 0:
+        if idx == n_cols - 1:
             ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
                   fontsize=7, frameon=False, handlelength=1.4, labelspacing=0.3)
+
+    for j in range(n, len(axes)):
+        axes[j].set_visible(False)
 
     plt.tight_layout()
     out = os.path.join(output_dir, f"timeslice_susceptibility_cropped_{gauge_group}_{boundary}.png")
@@ -800,7 +819,9 @@ def plot_timeslice_tauint_cropped(ts_results: list, runs: list, output_dir: str,
 
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
 
-    fig, axes = plt.subplots(n, 1, figsize=(7, 3 * n))
+    n_cols = 2 if n >= 2 else 1
+    n_rows = (n + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7 * n_cols, 3 * n_rows))
     axes = np.array(axes).flatten()
 
     for idx, (res, run_data) in enumerate(pairs):
@@ -823,9 +844,12 @@ def plot_timeslice_tauint_cropped(ts_results: list, runs: list, output_dir: str,
         _apply_axis_style(ax, x_integer=True)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
-        if idx == 0:
+        if idx == n_cols - 1:
             ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
                   fontsize=7, frameon=False, handlelength=1.4, labelspacing=0.3)
+
+    for j in range(n, len(axes)):
+        axes[j].set_visible(False)
 
     plt.tight_layout()
     out = os.path.join(output_dir, f"timeslice_tauint_cropped_{gauge_group}_{boundary}.png")
