@@ -18,8 +18,8 @@ seed                     20260423
 start_type               cold
 boundary                 open
 
-num_sweeps               500
-save_interval            50
+num_sweeps               1000
+save_interval            10
 
 smear_steps              15
 smear_interval           15
