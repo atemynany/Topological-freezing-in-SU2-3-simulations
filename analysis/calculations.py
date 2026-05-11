@@ -403,12 +403,9 @@ def analyze_run(run_data: RunData) -> AnalysisResult:
 
     chi_t_fourth_root_a = (chi_t_lattice ** 0.25) * HBAR_C if chi_t_lattice > 0 else 0.0
     
-    try:
-        autocorr = autocorrelation(Q2, name=f"Q2_b{run_data.beta}")
-        tau_int = autocorr.tau_int
-        dtau_int = autocorr.dtau_int
-    except:
-        tau_int, dtau_int = 0.5, 0.0
+    autocorr = autocorrelation(Q2, name=f"Q2_b{run_data.beta}")
+    tau_int = autocorr.tau_int
+    dtau_int = autocorr.dtau_int
     
     return AnalysisResult(
         beta=run_data.beta, boundary=run_data.boundary,

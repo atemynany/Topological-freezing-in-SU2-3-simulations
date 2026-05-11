@@ -238,44 +238,40 @@ def plot_susceptibility_combined(results_periodic: List[AnalysisResult],
     print(f"Saved: {os.path.basename(filepath)}")
 
 
-def plot_tau_int_combined(results_periodic: List[AnalysisResult], 
+def plot_tau_int_combined(results_periodic: List[AnalysisResult],
                            results_open: List[AnalysisResult],
                            output_dir: str, gauge_group: str):
     """Plot tau_int vs lattice spacing."""
     fig, ax = plt.subplots(figsize=(8, 5))
-    
+
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
-    
-    point_counter = 1
+
     for results, label, marker, color in [
         (results_periodic, 'Periodic', 'o', 'steelblue'),
         (results_open, 'Open', 's', 'darkorange')
     ]:
         if len(results) == 0:
             continue
-        
+
         betas = np.array([r.beta for r in results])
         tau_int = np.array([r.tau_int for r in results])
         dtau_int = np.array([r.dtau_int for r in results])
         a_values = np.array([lattice_spacing(b) for b in betas])
-        
+
         idx = np.argsort(a_values)[::-1]
         a_values, tau_int, dtau_int = a_values[idx], tau_int[idx], dtau_int[idx]
-        
+
         ax.errorbar(a_values, tau_int, yerr=dtau_int, fmt=marker, markersize=7,
                     linestyle='none', capsize=3, color=color, label=label)
-        
-        # Add numeric labels to each point
-        for i, (x, y) in enumerate(zip(a_values, tau_int)):
-            ax.annotate(str(point_counter), (x, y), textcoords='offset points',
-                        xytext=(3, 3), fontsize=7, color=color)
-            point_counter += 1
-    
+
+    ax.axhline(0.5, linestyle='--', color='gray', linewidth=1, alpha=0.7,
+               zorder=1, label=r'$\tau_{\rm int}=0.5$')
+
     ax.set_xlabel(r'$a$ (fm)')
     ax.set_ylabel(r'$\tau_{\rm int}(Q^2)$')
     ax.legend(frameon=False)
     ax.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
     filepath = os.path.join(output_dir, f"tau_int_{gauge_group}.png")
     plt.savefig(filepath, dpi=200)
