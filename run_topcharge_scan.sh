@@ -12,13 +12,13 @@
 # Options:
 #   --su2           SU(2) gauge group (default)
 #   --su3           SU(3) gauge group
-#   --open          Open boundary conditions (used for dir matching)
 #   --dry-run       Preview without executing
 #   --skip-build    Skip build step
-#   --beta-file     Custom beta scan file
-#   --params-file   Custom base parameters file
+#   --topcharge-file FILE
+#                   Custom topcharge parameter file
 #   --parallel      Run all beta values in parallel (uses all CPUs)
 #   --jobs N        Run up to N beta values in parallel
+#   --exclude PAT   Skip run directories whose path matches regex PAT
 #
 # Requires run dirs from:
 #   ./run_heatbath_scan.sh [--su2|--su3] [same options]
@@ -29,7 +29,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR"
 BUILD_DIR="$PROJECT_DIR/build"
-RESULTS_DIR="$PROJECT_DIR/data/results"
+RESULTS_DIR="${HEATBATH_RESULTS_DIR:-$PROJECT_DIR/data/results}"
 
 GAUGE_GROUP="su2"
 DRY_RUN=false
@@ -151,7 +151,10 @@ run_topcharge_beta() {
 
     # Patch input.txt with topcharge params
     local START_CONF END_CONF CONF_STEP SMEAR_STEPS SMEAR_ALPHA SMEAR_INTERVAL EXCLUDE_BC_OPEN
-    START_CONF=$(read_param "start_conf"                   "$TOPCHARGE_FILE_PARAMS")
+    # Prefer the thermalization cut written by run_heatbath_scan.sh; fall back to
+    # the shared params file for legacy run directories.
+    START_CONF=$(read_param "start_conf"                   "$TEMP_INPUT")
+    START_CONF=${START_CONF:-$(read_param "start_conf"     "$TOPCHARGE_FILE_PARAMS")}
     END_CONF=$(read_param "end_conf"                       "$TOPCHARGE_FILE_PARAMS")
     CONF_STEP=$(read_param "conf_step"                     "$TOPCHARGE_FILE_PARAMS")
     SMEAR_STEPS=$(read_param "smear_steps"                 "$TOPCHARGE_FILE_PARAMS")

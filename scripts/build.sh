@@ -2,7 +2,7 @@
 # ==============================================================================
 # build.sh
 # ==============================================================================
-# Build script for SU(2) Topological Charge simulation.
+# Build script for SU(2)/SU(3) Topological Charge simulation.
 # Compiles the project using CMake.
 #
 # Usage:
@@ -42,7 +42,7 @@ case "$BUILD_TYPE" in
 esac
 
 echo "=============================================="
-echo "Building SU(2) Topological Charge Simulation"
+echo "Building SU(2)/SU(3) Topological Charge Simulation"
 echo "=============================================="
 echo "Build type: ${BUILD_TYPE}"
 echo "Project root: ${PROJECT_ROOT}"
@@ -73,13 +73,20 @@ echo "Build complete!"
 echo "=============================================="
 echo "Executables:"
 echo "  - ${BUILD_DIR}/bin/mc_heatbath"
+echo "  - ${BUILD_DIR}/bin/mc_heatbath_su3"
 echo "  - ${BUILD_DIR}/bin/meas_topcharge"
+echo "  - ${BUILD_DIR}/bin/meas_topcharge_su3"
+echo "  - ${BUILD_DIR}/bin/heatbath_topcharge_su2"
+echo "  - ${BUILD_DIR}/bin/compute_instanton_Q"
 echo ""
 echo "Test executables:"
 echo "  - ${BUILD_DIR}/bin/test_heatbath"
 echo "  - ${BUILD_DIR}/bin/test_linear_algebra"
 echo "  - ${BUILD_DIR}/bin/test_topcharge"
+echo "  - ${BUILD_DIR}/bin/test_topcharge_su3"
 echo "  - ${BUILD_DIR}/bin/test_smearing"
+echo "  - ${BUILD_DIR}/bin/test_plaquette"
+echo "  - ${BUILD_DIR}/bin/test_gauge_invariance"
 echo ""
 echo "To run tests: cd ${BUILD_DIR} && ctest --output-on-failure"
 echo "=============================================="

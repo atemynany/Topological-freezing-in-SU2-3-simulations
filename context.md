@@ -154,6 +154,7 @@ Thermalization plot per gauge group (saved to `output/figures_analysis/`):
 |------|---------|-------|
 | `topcharge.dat` (SU2) | `smear_step conf Q plaquette` | 4 columns |
 | `topcharge_su3.dat` | `conf smear_step Q` | 3 columns |
+| `topcharge_timeslice.dat` | `smear_step conf t q_t` | per-timeslice topological charge density |
 | `plaquette[_su3].dat` | `sweep plaquette` | every sweep |
 
 ---

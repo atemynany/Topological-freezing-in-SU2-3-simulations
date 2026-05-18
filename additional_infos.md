@@ -6,6 +6,36 @@
 
 ### Fixed
 
+**APE smearing index guard used `index_mt_3` as a boolean** (`_Utility/src/smearing_techniques.cc`)
+
+Three spatial-link smearing branches checked `index_mt_3` instead of
+`index_mt_3 >= 0`. In periodic runs that could skip a valid link when the
+computed offset was exactly zero; in open-boundary runs it could treat `-1` as
+true. Fixed all three checks. After rebuilding, the full CTest suite passes.
+
+**Detected thermalization cut was not preserved for topcharge scans** (`run_heatbath_scan.sh`, `run_topcharge_scan.sh`)
+
+`run_heatbath_scan.sh` detected `START_CONF` from plaquette thermalization and
+wrote it to `run_info.txt`, but the generated `input.txt` did not contain
+`start_conf`. Then `run_topcharge_scan.sh` re-patched `input.txt` using the
+shared topcharge parameter file, so the per-run thermalization cut could be lost.
+Fixed by writing `start_conf` into the heatbath-generated `input.txt` and making
+the topcharge scan prefer that per-run value, falling back to the shared params
+file only for legacy runs.
+
+**Parallel scan failures are reported without aborting completed work** (`run_heatbath_scan.sh`, `run_topcharge_scan.sh`, `run_heatbath_topcharge_scan.sh`)
+
+Parallel mode counts failed child jobs and prints a warning, but deliberately
+does not exit with status 1 at the end. This keeps long production scans from
+wasting resources when most jobs completed successfully; inspect the per-run log
+files for the failed subset and rerun only those ensembles.
+
+**Build metadata still described an SU(2)-only project** (`CMakeLists.txt`, `scripts/build.sh`)
+
+The build already produced SU(3) executables, but the project name, install
+targets, and build-script executable list were stale. Updated them to include
+SU(2) and SU(3) binaries consistently.
+
 **chi_t used `Q_raw²` instead of `Q_rescaled²`** (`analysis/calculations.py`)
 
 `Q_raw` is the smeared but not-yet-rescaled float value (e.g. −2.71). `Q_rescaled = round(α · Q_raw)` is the integer-rounded charge (e.g. −2). The susceptibility, tau_int, and histograms must all use the same Q. Since `Q_raw ≈ Q_rescaled / α`, using `Q_raw²` inflated chi_t by `1/α²` (≈ +24% for α = 0.898) and chi_t^(1/4) by ≈ +6%. Fixed to use `Q_rescaled²` everywhere in `analyze_run()`.
@@ -18,7 +48,7 @@
 
 **`chi_t_fourth_root_a` dimensional chain** — the division by `a` happens in `plotting_code.py` (`chi_fourth_MeV = chi_fourth_a / a_values`). The stored intermediate `chi_t_fourth_root_a = (chi_t_lattice)^(1/4) · ℏc` has units MeV·fm; dividing by `a` [fm] gives MeV. Correct.
 
-**`start_conf` not filtering in analysis** — `run_beta_scan.sh` writes the detected `start_conf` into the measurement input file, so `meas_topcharge[_su3]` only processes post-thermalization configs. The `topcharge[_su3].dat` file already excludes thermalization data. The analysis-side `start_conf` is redundant but not harmful.
+**`start_conf` not filtering in analysis** — the measurement binaries process only the configuration range written into each run's `input.txt`. Analysis-side `start_conf` is metadata only and does not need to filter the already-produced `topcharge[_su3].dat` files.
 
 **SU(3) link projection (`su3_proj`)** — the Gram-Schmidt approach (normalise row 0, orthogonalise and normalise row 1, construct row 2 as the conjugate cross-product) is the standard correct method for projecting onto SU(3). Verified mathematically sound.
 

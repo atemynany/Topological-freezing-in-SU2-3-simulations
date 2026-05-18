@@ -101,6 +101,7 @@ start_type          ${start_type:-cold}
 boundary            ${boundary:-periodic}
 num_sweeps          ${num_sweeps:-1000}
 save_interval       ${save_interval:-10}
+start_conf          ${start_conf:-50}
 EOF
 
     if [ "$GAUGE_GROUP" = "su3" ] && [ -n "$overrelax_steps" ]; then
