@@ -180,7 +180,8 @@ def analyse_timeslices(filepath: str,
                        ensemble: str = "ens",
                        S: float = 1.5,
                        open_bc: bool = False,
-                       n_exclude: int = 2) -> dict:
+                       n_exclude: int = 2,
+                       alpha: float = 1.0) -> dict:
     """Load, bin, and compute Gamma-method errors for timeslice charge density.
 
     Parameters
@@ -193,6 +194,8 @@ def analyse_timeslices(filepath: str,
     S                  : Gamma method S parameter
     open_bc            : if True, shade excluded boundary regions in plots
     n_exclude          : number of slices excluded per boundary (for shading only)
+    alpha              : multiplicative Q-renormalisation (same one used for the
+                         global chi_t); applied as alpha^2 to chi_tilde(t)
 
     Returns
     -------
@@ -204,16 +207,25 @@ def analyse_timeslices(filepath: str,
 
     t_phys = t_centres * lattice_spacing_fm  # physical time in fm
 
-    # Per-timeslice susceptibility: chi_tilde(t) = <q(t)^2> / V_tilde
-    # V_tilde = L^3 * n_bin (spatial volume times number of binned slices)
+    # Per-timeslice susceptibility (integrated slice-slice correlator):
+    #   chi_tilde(t) = alpha^2 <q(t) Q> / V_tilde,   Q = sum_t' q(t')
+    # This equals sum_t' <q(t) q(t')>, the genuine contribution of slice t to
+    # chi_t = <Q^2>/V, so (1/T) sum_t chi_tilde(t)/V_tilde reproduces chi_t.
+    # NOTE: the naive diagonal <q(t)^2> is *not* the susceptibility -- it is the
+    # UV-dominated contact term of the q-q correlator, roughly a-independent in
+    # lattice units, so dividing it by a^4 makes chi^(1/4) spuriously grow ~1/a.
+    # For open BC the timeslice file already holds only the bulk slices, so Q
+    # here matches the boundary-excluded Q in topcharge.dat.
+    Q_total = q_matrix.sum(axis=1)
+    a2 = alpha ** 2
     n_bins = q_binned.shape[1]
     chi_tilde = np.zeros(n_bins)
     chi_tilde_err = np.zeros(n_bins)
     for j in range(n_bins):
-        q2_obs = pe.Obs([q_binned[:, j]**2], [ensemble])
-        q2_obs.gamma_method(S=S)
-        chi_tilde[j] = q2_obs.value
-        chi_tilde_err[j] = q2_obs.dvalue
+        qQ_obs = pe.Obs([a2 * q_binned[:, j] * Q_total], [ensemble])
+        qQ_obs.gamma_method(S=S)
+        chi_tilde[j] = qQ_obs.value
+        chi_tilde_err[j] = qQ_obs.dvalue
 
     # Per-timeslice integrated autocorrelation time
     tau_int_ts = np.zeros(n_bins)
@@ -599,7 +611,7 @@ def plot_timeslice_mctime_grid(ts_files: list, runs: list, n_bin,
         ax.axhline(0, color='grey', lw=0.6, ls='--')
         ax.set_ylim(y_lim)
         a = lattice_spacing(run_data.beta)
-        title = f'$a = {a:.4f}$ fm' + (f'  ($n_{{\\mathrm{{bin}}}}={nb}$)' if nb != 1 else '')
+        title = f'$a = {a:.4f}$ fm' + (f',  $n_{{\\mathrm{{bin}}}}={nb}$' if nb != 1 else '')
         ax.set_title(title, fontsize=10)
         ax.set_xlabel('MC time', fontsize=9)
         ax.set_ylabel(r'$q(t)$', fontsize=9)
@@ -617,9 +629,102 @@ def plot_timeslice_mctime_grid(ts_files: list, runs: list, n_bin,
     print(f"Saved: {os.path.basename(out)}")
 
 
+def _edge_bulk_split(nt: int, n_edge_per_side: int = None) -> tuple[list, list, int]:
+    """Split nt timeslice indices into an 'edge' set (k nearest each end, both
+    ends pooled) and a 'bulk' set (the rest).
+
+    k defaults to nt // 4, so for nt = 16 the edge has 8 slices (4 + 4) and the
+    bulk the central 8.  Returns (edge_idx, bulk_idx, k).
+    """
+    k = (nt // 4) if n_edge_per_side is None else int(n_edge_per_side)
+    k = max(0, min(k, nt // 2))
+    if k == 0 or 2 * k >= nt:
+        # too few slices to make a meaningful split — everything is "bulk"
+        return [], list(range(nt)), 0
+    edge_idx = list(range(k)) + list(range(nt - k, nt))
+    bulk_idx = list(range(k, nt - k))
+    return edge_idx, bulk_idx, k
+
+
+def plot_timeslice_edge_bulk_mctime_grid(ts_files: list, runs: list, output_dir: str,
+                                          gauge_group: str, boundary: str,
+                                          n_edge_per_side: int = None):
+    """Grid of q(t) vs MC time, one panel per run, timeslices split into two
+    distance-from-boundary groups (2 curves per panel):
+
+      q_edge(MC) = sum of the k outermost slices at each temporal end (2k total)
+      q_bulk(MC) = sum of the remaining central slices
+
+    For T = 16 and the default k = nt//4 = 4: q_edge sums the 4 slices nearest
+    each end (8 total), q_bulk sums the middle 8.  Applies to both periodic and
+    open BC (for open the file already excludes the true boundary slices, so the
+    'edge' set is the near-boundary bulk slices).
+    """
+    from calculations import lattice_spacing_su2, lattice_spacing_su3
+    import os
+
+    valid = [(f, r) for f, r in zip(ts_files, runs) if f is not None]
+    n = len(valid)
+    if n == 0:
+        return
+
+    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+
+    series = []  # (run_data, k, nt, q_edge[config], q_bulk[config])
+    for ts_file, run_data in valid:
+        _, q_m = load_timeslice_data(ts_file)
+        nt = q_m.shape[1]
+        edge_idx, bulk_idx, k = _edge_bulk_split(nt, n_edge_per_side)
+        q_edge = q_m[:, edge_idx].sum(axis=1) if edge_idx else np.zeros(q_m.shape[0])
+        q_bulk = q_m[:, bulk_idx].sum(axis=1) if bulk_idx else np.zeros(q_m.shape[0])
+        series.append((run_data, k, nt, q_edge, q_bulk))
+
+    global_abs = max(max(np.abs(qe).max(), np.abs(qb).max()) for _, _, _, qe, qb in series)
+    if not np.isfinite(global_abs) or global_abs == 0:
+        global_abs = 1.0
+    y_lim = (-global_abs * 1.15, global_abs * 1.15)
+
+    n_cols = 2 if n >= 2 else 1
+    n_rows = (n + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7 * n_cols, 3 * n_rows))
+    axes = np.array(axes).flatten()
+
+    for idx, (run_data, k, nt, q_edge, q_bulk) in enumerate(series):
+        ax = axes[idx]
+        mc_time = np.arange(len(q_bulk))
+
+        ax.plot(mc_time, q_edge, lw=0.8, color='tomato', alpha=0.3, zorder=2)
+        ax.scatter(mc_time, q_edge, s=4, color='tomato', alpha=0.85, zorder=4,
+                   label='edge (outer slices)')
+        ax.plot(mc_time, q_bulk, lw=0.8, color='steelblue', alpha=0.3, zorder=2)
+        ax.scatter(mc_time, q_bulk, s=4, color='steelblue', alpha=0.85, zorder=3,
+                   label='bulk (central slices)')
+
+        ax.axhline(0, color='grey', lw=0.6, ls='--')
+        ax.set_ylim(y_lim)
+        a = lattice_spacing(run_data.beta)
+        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_xlabel('MC time', fontsize=9)
+        ax.set_ylabel(r'$q(t)$ summed over group', fontsize=9)
+        ax.tick_params(labelsize=8)
+        ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
+                fontsize=11, va='top', ha='left')
+        if idx == 0:
+            ax.legend(loc='upper left', fontsize=8, frameon=False)
+
+    for j in range(n, len(axes)):
+        axes[j].set_visible(False)
+
+    plt.tight_layout()
+    out = os.path.join(output_dir, f"timeslice_edge_bulk_mctime_{gauge_group}_{boundary}.png")
+    plt.savefig(out, dpi=200, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {os.path.basename(out)}")
+
+
 def plot_timeslice_susceptibility_grid(ts_results: list, runs: list, output_dir: str,
                                        gauge_group: str, boundary: str):
-    """Grid of per-timeslice susceptibility chi_tilde(t) = <q(t)^2> / V_tilde."""
+    """Grid of per-timeslice susceptibility chi_tilde(t) = alpha^2 <q(t) Q> / V_tilde."""
     from calculations import lattice_spacing_su2, lattice_spacing_su3, HBAR_C
     import os
 

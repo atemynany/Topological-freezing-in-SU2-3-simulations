@@ -208,16 +208,18 @@ def plot_susceptibility_combined(results_periodic: List[AnalysisResult],
         
         betas = np.array([r.beta for r in results])
         chi_fourth_a = np.array([r.chi_t_fourth_root_a for r in results])
+        chi_fourth_a_err = np.array([r.chi_t_fourth_root_a_err for r in results])
         a_values = np.array([lattice_spacing(b) for b in betas])
-        
+
         idx = np.argsort(a_values)[::-1]
-        a_values, chi_fourth_a = a_values[idx], chi_fourth_a[idx]
-        
+        a_values, chi_fourth_a, chi_fourth_a_err = a_values[idx], chi_fourth_a[idx], chi_fourth_a_err[idx]
+
         chi_fourth_MeV = chi_fourth_a / a_values
-        
-        ax.plot(a_values, chi_fourth_MeV, marker, markersize=7, linestyle='none',
-                color=color, label=label)
-        
+        chi_fourth_MeV_err = chi_fourth_a_err / a_values   # Gamma-method error on χ_t^{1/4}
+
+        ax.errorbar(a_values, chi_fourth_MeV, yerr=chi_fourth_MeV_err, fmt=marker,
+                    markersize=7, linestyle='none', capsize=3, color=color, label=label)
+
         # Add numeric labels to each point
         for i, (x, y) in enumerate(zip(a_values, chi_fourth_MeV)):
             ax.annotate(str(point_counter), (x, y), textcoords='offset points',

@@ -26,6 +26,7 @@ from plotting_code import (
 from timeslice_analysis import (
     analyse_timeslices,
     plot_timeslice_density_grid, plot_timeslice_mctime_grid,
+    plot_timeslice_edge_bulk_mctime_grid,
     plot_timeslice_susceptibility_grid, plot_timeslice_tauint_grid,
     plot_timeslice_susceptibility_cropped, plot_timeslice_tauint_cropped,
 )
@@ -113,7 +114,7 @@ def main():
 
     # Timeslice grid plots — collect results per boundary group
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
-    n_bin = 1
+    n_bin = 2  # group 2 consecutive slices per evaluation point (subvolume = 2*L^3)
     for runs_group, boundary in [(runs_periodic, "periodic"), (runs_open, "open")]:
         ts_files, ts_results, ts_runs = [], [], []
         for run_data in sorted(runs_group, key=lambda x: x.beta):
@@ -128,6 +129,7 @@ def main():
                     lattice_spacing_fm=a_fm,
                     n_bin=n_bin,
                     open_bc=open_bc,
+                    alpha=run_data.alpha,
                     ensemble=f"b{run_data.beta}_{run_data.boundary}",
                 )
             except Exception as e:
@@ -140,6 +142,7 @@ def main():
         if ts_runs:
             plot_timeslice_density_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
             plot_timeslice_mctime_grid(ts_files, ts_runs, n_bin, output_dir, gauge_group, boundary)
+            plot_timeslice_edge_bulk_mctime_grid(ts_files, ts_runs, output_dir, gauge_group, boundary)
             plot_timeslice_susceptibility_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
             plot_timeslice_tauint_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
             plot_timeslice_susceptibility_cropped(ts_results, ts_runs, output_dir, gauge_group, boundary)
