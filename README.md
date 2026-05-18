@@ -171,11 +171,27 @@ beta 2.7
 ## Output
 
 `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}_{su2|su3}/`:
-- `output/plaquette[_su3].dat` — Plaquette history (every sweep)
+- `output/plaquette[_su3].dat` — Plaquette and Wilson action density history (every sweep)
 - `output/topcharge.dat` — Q measurements (APE-smeared)
 - `output/topcharge_timeslice.dat` — Per-timeslice q(t)
 - `configs/` — Gauge configurations (two-phase scan only; absent in fused SU(2) runs)
 - `input.txt`, `run_info.txt`, `*.log` — Input, metadata, stdout
+
+For the heatbath plaquette history, the columns are:
+
+```text
+sweep  average_plaquette  action_density
+```
+
+The action density is computed from the normalized average plaquette using the
+4D Wilson gauge-action relation:
+
+```text
+s = 6 * beta * (1 - <P>)
+```
+
+The shared C++ helper is `avg_action_density(beta, avg_plaquette)` in
+`include/action_density.hh`.
 
 ## Analysis
 
