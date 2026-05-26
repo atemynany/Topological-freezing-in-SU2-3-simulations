@@ -7,7 +7,7 @@
 
 # Configuration range
 start_conf          100         # First config to measure (must match save_interval)
-end_conf            40000       # Last config to measure
+end_conf            10000       # Last config to measure
 conf_step           100         # Step between configs (must match save_interval)
 
 # APE smearing
@@ -16,5 +16,5 @@ smear_interval      15          # Output Q every N smearing steps
 smear_alpha         0.3         # APE smearing parameter alpha
 
 # Boundary exclusion (applied only to open BC runs)
-exclude_boundary_slices_open 3  # Time slices excluded per boundary for open BC
+exclude_boundary_slices_open 40  # Time slices excluded per boundary for open BC
 # ==============================================================================

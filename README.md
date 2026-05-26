@@ -9,6 +9,7 @@ Works on **Linux** and **macOS** (including Apple Silicon).
 - CMake ≥ 3.16
 - C++17 compiler (GCC, Clang, or Apple Clang)
 - Python 3: numpy, matplotlib, pyerrors
+- Optional: Rust toolchain + `maturin` (only if you want to use the `rust_analysis/` accelerator)
 
 ### macOS extras
 
@@ -104,24 +105,46 @@ Each setup file contains one lattice configuration; multiple `beta` lines produc
 
 Results saved to `data/results/` and plots to `output/figures_analysis/`.
 
-## Cluster (Fuchs HPC)
+## Cluster (Fuchs / HHLR-Goethe)
+
+Two cluster targets are supported, each with its own `sbatch` wrapper. Build once on the login node before submitting:
 
 ```bash
-# On the cluster login node — build once before submitting
 rm -rf build && ./scripts/build.sh release
-
-# Submit jobs
-sbatch cluster/fuchs_heatbath.sh            # two-phase: heatbath scan
-sbatch cluster/fuchs_topcharge.sh           # two-phase: topcharge measurement
-sbatch cluster/fuchs_heatbath_topcharge.sh  # fused SU(2) (no disk configs)
-
-# Monitor progress
-tail -1 data/results/T*_su2/output/plaquette.dat   # check sweep number
-squeue -u barros                                     # job status
-sacct                                                # job history
 ```
 
-Sync results to local (run from local machine):
+### Fuchs HPC
+
+```bash
+sbatch cluster/fuchs_heatbath.sh             # two-phase: heatbath scan
+sbatch cluster/fuchs_topcharge.sh            # two-phase: topcharge measurement
+sbatch cluster/fuchs_heatbath_topcharge.sh   # fused SU(2) (no disk configs)
+sbatch cluster/fuchs_heatbath_thread_test.sh # OpenMP thread-scaling test
+sbatch cluster/fuchs_continue.sh             # resume specific runs from existing input.txt
+```
+
+### HHLR-Goethe
+
+The HHLR scripts run from `/home` (binary) but write outputs to `/work` via `HEATBATH_RESULTS_DIR`:
+
+```bash
+sbatch cluster/hhlr_heatbath.sh             # two-phase: heatbath scan (40 cores, 11 days)
+sbatch cluster/hhlr_topcharge.sh            # two-phase: topcharge measurement
+sbatch cluster/hhlr_heatbath_topcharge.sh   # fused SU(2)
+sbatch cluster/hhlr_continue.sh             # resume specific runs (edit the input.txt list inside)
+```
+
+The `*_continue.sh` scripts re-launch `mc_heatbath` against existing `data/results/.../input.txt` files — useful when a job hits the wall-time and you want to extend a run without re-thermalising. Edit the script to point at the runs you want to resume.
+
+### Monitoring
+
+```bash
+tail -1 data/results/T*_su2/output/plaquette.dat   # check sweep number
+squeue -u barros                                   # job status
+sacct                                              # job history
+```
+
+### Syncing results to local
 
 ```bash
 ./cluster/sync_results.sh
@@ -172,10 +195,40 @@ beta 2.7
 
 ## Analysis
 
+```bash
+python3 analysis/analysis.py --su2          # main pipeline (one figure set)
+python3 analysis/analysis.py --su3
+python3 analysis/analysis_per_smear.py --su2  # one figure set per APE smear level
+```
+
 Key outputs from `analysis.py`:
 - **χ_t^(1/4) vs β** — Susceptibility (should match ~200 MeV for SU(2))
 - **τ_int(Q²) vs β** — Autocorrelation time (increases with β → freezing)
 - **Q histograms** — Distribution narrowing indicates freezing
+- **q(t) timeslice density** — Spatial topcharge density via `timeslice_analysis.py`
+
+`analysis_per_smear.py` auto-detects every APE smearing level present in `topcharge.dat` and writes each set of figures into `output/figures_analysis/smear<N>/`. Useful when comparing how the susceptibility plateau and τ_int depend on smearing depth.
+
+Standalone helpers (do not need the full pipeline):
+- `analysis/plot_topcharge.py` — Q vs smearing steps / MC time from a raw `topcharge.dat`
+- `analysis/analyze_topcharge.py` — jackknife mean / error / bias on Q
+- `scale_set.ipynb` — SU(2) and SU(3) lattice-spacing scale-setting formulas (arXiv:1811.02800 and hep-lat/0108008)
+
+### Optional: Rust analysis extension
+
+`rust_analysis/` is a PyO3 module (`qcd_analysis`) that provides parallelised, hot-path replacements for the slow Python routines: `find_optimal_alpha`, `jackknife_error`, `bootstrap_alpha`, `bootstrap_q2`. Build with maturin:
+
+```bash
+cd rust_analysis
+maturin develop --release         # installs qcd_analysis into the active Python env
+```
+
+The Python analysis falls back to its pure-Python implementations if the module is not installed.
+
+### Supplementary docs
+
+- `context.md` — physics goal, observables, and pipeline summary
+- `additional_infos.md` — bug-scan notes and design decisions worth knowing before editing the analysis
 
 ## Project Structure
 
@@ -186,7 +239,12 @@ Key outputs from `analysis.py`:
 ├── tests/                # Catch2 unit tests
 ├── scripts/              # Build, run, and analysis scripts
 ├── analysis/             # Python analysis and plotting
+├── rust_analysis/        # Optional Rust+PyO3 accelerator (qcd_analysis)
+├── cluster/              # SLURM scripts for Fuchs and HHLR-Goethe
 ├── input/                # Setup files and topcharge params
+├── scale_set.ipynb                # Lattice-spacing scale-setting notebook
+├── context.md                     # Physics + pipeline summary
+├── additional_infos.md            # Bug-scan notes and design decisions
 ├── run_heatbath_scan.sh           # Phase 1: config generation
 ├── run_topcharge_scan.sh          # Phase 2: topcharge measurement
 └── run_heatbath_topcharge_scan.sh # SU(2) fused pipeline (no disk configs)
