@@ -105,7 +105,7 @@ Implemented in `src/MC_heatbath_su3.cc`. Uses the **Cabibbo-Marinari** decomposi
 **OpenMP parallelization**: The SU(3) heatbath uses checkerboard (even/odd) site decomposition for thread-safe parallel sweeps. Sites are classified by parity `(t+x+y+z) % 2` at startup. Each half-sweep updates only even or odd sites, so no two threads touch neighboring links simultaneously. Both the heatbath and overrelaxation loops are parallelized this way. Per-thread RNG seeding uses `rlxd_init(2, seed + tid * 997)`.
 
 Both programs:
-- Write the plaquette at every sweep to `plaquette[_su3].dat`
+- Write the plaquette and Wilson action density at every sweep to `plaquette[_su3].dat`
 - Save gauge configurations every `save_interval` sweeps
 - Validate all input parameters at startup
 
@@ -154,7 +154,8 @@ Thermalization plot per gauge group (saved to `output/figures_analysis/`):
 |------|---------|-------|
 | `topcharge.dat` (SU2) | `smear_step conf Q plaquette` | 4 columns |
 | `topcharge_su3.dat` | `conf smear_step Q` | 3 columns |
-| `plaquette[_su3].dat` | `sweep plaquette` | every sweep |
+| `topcharge_timeslice.dat` | `smear_step conf t q_t` | per-timeslice topological charge density |
+| `plaquette[_su3].dat` | `sweep plaquette action_density` | every heatbath sweep; `s = 6 beta (1 - <P>)` |
 
 ---
 

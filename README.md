@@ -8,7 +8,7 @@ Works on **Linux** and **macOS** (including Apple Silicon).
 
 - CMake ≥ 3.16
 - C++17 compiler (GCC, Clang, or Apple Clang)
-- Python 3: numpy, matplotlib, pyerrors
+- Python 3: numpy, scipy, matplotlib, pyerrors
 - Optional: Rust toolchain + `maturin` (only if you want to use the `rust_analysis/` accelerator)
 
 ### macOS extras
@@ -81,6 +81,13 @@ Heatbath (config generation) then topological charge measurement.
 ./run_topcharge_scan.sh --su3 --jobs 4      # parallel
 ./run_topcharge_scan.sh --su2 --exclude "T65\|T81"  # skip specific ensembles
 ```
+
+`run_heatbath_scan.sh` detects thermalization from the plaquette history and writes
+the resulting `start_conf` to both `input.txt` and `run_info.txt`. The topcharge
+scan preserves that per-run value and only falls back to
+`input/heatbath_input/topcharge_params_su*.txt` for legacy runs without
+`start_conf`. Set `HEATBATH_RESULTS_DIR=/path/to/results` to redirect both scan
+phases to a non-default results directory.
 
 ### Fused pipeline (SU(2), in-memory, no gauge configs written)
 
@@ -187,21 +194,45 @@ beta 2.7
 ## Output
 
 `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}_{su2|su3}/`:
-- `output/plaquette[_su3].dat` — Plaquette history (every sweep)
+- `output/plaquette[_su3].dat` — Plaquette and Wilson action density history (every sweep)
 - `output/topcharge.dat` — Q measurements (APE-smeared)
 - `output/topcharge_timeslice.dat` — Per-timeslice q(t)
 - `configs/` — Gauge configurations (two-phase scan only; absent in fused SU(2) runs)
 - `input.txt`, `run_info.txt`, `*.log` — Input, metadata, stdout
 
-## Analysis
+For the heatbath plaquette history, the columns are:
 
-```bash
-python3 analysis/analysis.py --su2          # main pipeline (one figure set)
-python3 analysis/analysis.py --su3
-python3 analysis/analysis_per_smear.py --su2  # one figure set per APE smear level
+```text
+sweep  average_plaquette  action_density
 ```
 
-Key outputs from `analysis.py`:
+The action density is computed from the normalized average plaquette using the
+4D Wilson gauge-action relation:
+
+```text
+s = 6 * beta * (1 - <P>)
+```
+
+The shared C++ helper is `avg_action_density(beta, avg_plaquette)` in
+`include/action_density.hh`.
+
+## Analysis
+
+Run the standard analysis:
+
+```bash
+python3 analysis/analysis.py --su2
+python3 analysis/analysis.py --su3
+```
+
+Or generate one figure set per detected APE smearing level:
+
+```bash
+python3 analysis/analysis_per_smear.py --su2
+python3 analysis/analysis_per_smear.py --su3 --smear 20
+```
+
+Key outputs:
 - **χ_t^(1/4) vs β** — Susceptibility (should match ~200 MeV for SU(2))
 - **τ_int(Q²) vs β** — Autocorrelation time (increases with β → freezing)
 - **Q histograms** — Distribution narrowing indicates freezing
@@ -229,6 +260,34 @@ The Python analysis falls back to its pure-Python implementations if the module 
 
 - `context.md` — physics goal, observables, and pipeline summary
 - `additional_infos.md` — bug-scan notes and design decisions worth knowing before editing the analysis
+
+The analysis uses the Gamma method via `pyerrors` for autocorrelation-aware
+errors. Periodic-boundary runs use integer-rounded `Q_re`; open-boundary runs use
+the continuous `alpha * Q` because global Q is not quantized with open temporal
+boundaries.
+
+## Git and SSH Remote
+
+The repository is configured for SSH pushes to GitHub:
+
+```bash
+git remote -v
+# origin  git@github.com:atemynany/Topological-freezing-in-SU2-3-simulations.git
+```
+
+If VS Code prints a line like `refs/heads/master refs/remotes/master`, that is
+only a ref query. The tracked upstream should be `master -> origin/master`; check
+or repair it with:
+
+```bash
+git branch -vv
+git branch --set-upstream-to=origin/master master
+git remote set-url origin git@github.com:atemynany/Topological-freezing-in-SU2-3-simulations.git
+ssh -T git@github.com
+```
+
+SSH keys themselves live outside the repository in `~/.ssh/` and must be added to
+the GitHub account. This repo should not store private keys.
 
 ## Project Structure
 

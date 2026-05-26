@@ -34,6 +34,7 @@ from plotting_code import (
 from timeslice_analysis import (
     analyse_timeslices,
     plot_timeslice_density_grid, plot_timeslice_mctime_grid,
+    plot_timeslice_edge_bulk_mctime_grid,
     plot_timeslice_susceptibility_grid, plot_timeslice_tauint_grid,
     plot_timeslice_susceptibility_cropped, plot_timeslice_tauint_cropped,
 )
@@ -151,21 +152,25 @@ def run_for_smear(runs_master: List[RunData], gauge_group: str,
         plot_thermalization_comparison(all_runs, out_dir, gauge_group)
 
     # Constant-physical-subvolume binning. Two scales:
-    #   analysis n_bin = round(a_ref / a)               → density / susc / tauint plots
+    #   analysis n_bin = base_n_bin * round(a_ref / a)  → density / susc / tauint plots
     #   mctime  n_bin = round(bin_ref * a_ref / a)      → mctime line plot only
-    # Reference is the smallest-β run (coarsest a).
+    # Reference is the smallest-β run (coarsest a). base_n_bin=2 means each
+    # evaluation point on the coarsest lattice covers 2 slices (subvolume 2*L^3),
+    # i.e. a T=16 lattice gives 8 points instead of 16; finer lattices scale up
+    # to keep the physical subvolume constant.
+    base_n_bin = 2
     spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
     all_runs_for_ref = runs_periodic + runs_open
     ref_beta = min(rd.beta for rd in all_runs_for_ref) if all_runs_for_ref else None
     a_ref = spacing(ref_beta) if ref_beta is not None else None
     if a_ref is not None:
         print(f"  subvolume reference: smallest β = {ref_beta}, a_ref = {a_ref:.4f} fm  "
-              f"(mctime bin_ref = {bin_ref} → ≈ {bin_ref * a_ref:.4f} fm)")
+              f"(base_n_bin = {base_n_bin}, mctime bin_ref = {bin_ref} → ≈ {bin_ref * a_ref:.4f} fm)")
 
     def _n_bin_for(beta: float) -> int:
         if a_ref is None:
-            return 1
-        return max(1, int(round(a_ref / spacing(beta))))
+            return base_n_bin
+        return base_n_bin * max(1, int(round(a_ref / spacing(beta))))
 
     def _n_bin_mctime_for(beta: float) -> int:
         if a_ref is None:
@@ -193,6 +198,7 @@ def run_for_smear(runs_master: List[RunData], gauge_group: str,
                         n_bin=n_bin_run,
                         smear=smear,
                         open_bc=(rd.boundary == "open"),
+                        alpha=rd.alpha,
                         ensemble=f"b{rd.beta}_{rd.boundary}",
                     )
                 except Exception as e:
@@ -212,6 +218,7 @@ def run_for_smear(runs_master: List[RunData], gauge_group: str,
                 plot_timeslice_density_grid(ts_results, ts_runs, out_dir, gauge_group, boundary)
                 plot_timeslice_mctime_grid(ts_files, ts_runs, ts_nbins_mctime,
                                            out_dir, gauge_group, boundary)
+                plot_timeslice_edge_bulk_mctime_grid(ts_files, ts_runs, out_dir, gauge_group, boundary)
                 plot_timeslice_susceptibility_grid(ts_results, ts_runs, out_dir, gauge_group, boundary)
                 plot_timeslice_tauint_grid(ts_results, ts_runs, out_dir, gauge_group, boundary)
                 plot_timeslice_susceptibility_cropped(ts_results, ts_runs, out_dir, gauge_group, boundary)

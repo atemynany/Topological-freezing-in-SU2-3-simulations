@@ -95,7 +95,7 @@ void APE_Smearing_all(double *smeared_gauge_field, int T, int L, double APE_smea
   index_pz_2 = ggi(get_index(it, ix, iy, iz+1, T, L), 1);
   index_pz_3 = ggi(get_index(it, ix+1, iy, iz, T, L), 3);
 
-if (index_mt_1>=0 && index_mt_2>=0 && index_mt_3 && index_pt_2>=0){
+if (index_mt_1>=0 && index_mt_2>=0 && index_mt_3>=0 && index_pt_2>=0){
 
   U = smeared_gauge_field + index;	
   cm_eq_zero(U);
@@ -205,7 +205,7 @@ cm_pl_eq_cm(U, M2);
   index_pz_2 = ggi(get_index(it, ix, iy, iz+1, T, L), 2);
   index_pz_3 = ggi(get_index(it, ix, iy+1, iz, T, L), 3);
 
-if (index_mt_1>=0 && index_mt_2>=0 && index_mt_3 && index_pt_2>=0){
+if (index_mt_1>=0 && index_mt_2>=0 && index_mt_3>=0 && index_pt_2>=0){
 
   U = smeared_gauge_field + index;
   cm_eq_zero(U);
@@ -315,7 +315,7 @@ cm_pl_eq_cm(U, M2);
   index_py_2 = ggi(get_index(it, ix, iy+1, iz, T, L), 3);
   index_py_3 = ggi(get_index(it, ix, iy, iz+1, T, L), 2);
 
-if (index_mt_1>=0 && index_mt_2>=0 && index_mt_3 && index_pt_2>=0){
+if (index_mt_1>=0 && index_mt_2>=0 && index_mt_3>=0 && index_pt_2>=0){
 
   U = smeared_gauge_field + index; 
   cm_eq_zero(U);

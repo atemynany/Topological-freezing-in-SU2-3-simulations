@@ -292,7 +292,9 @@ class AnalysisResult:
     Q_mean: float
     Q2_mean: float
     chi_t_lattice: float
+    chi_t_lattice_err: float
     chi_t_fourth_root_a: float
+    chi_t_fourth_root_a_err: float
     tau_int: float
     dtau_int: float
     alpha: float
@@ -398,22 +400,31 @@ def analyze_run(run_data: RunData) -> AnalysisResult:
     volume = run_data.T * run_data.L ** 3
     Q = run_data.Q_rescaled.astype(float)
     Q2 = Q ** 2
-    Q2_mean = np.mean(Q2)
-    chi_t_lattice = Q2_mean / volume
 
-    chi_t_fourth_root_a = (chi_t_lattice ** 0.25) * HBAR_C if chi_t_lattice > 0 else 0.0
-    
-    try:
-        autocorr = autocorrelation(Q2, name=f"Q2_b{run_data.beta}")
-        tau_int = autocorr.tau_int
-        dtau_int = autocorr.dtau_int
-    except:
-        tau_int, dtau_int = 0.5, 0.0
-    
+    # ⟨Q²⟩ and its error via the Gamma method (pyerrors), so χ_t inherits a
+    # proper autocorrelation-aware error bar.
+    autocorr = autocorrelation(Q2, name=f"Q2_b{run_data.beta}")
+    Q2_mean = autocorr.value          # == np.mean(Q2)
+    Q2_err  = autocorr.error          # Gamma-method error on ⟨Q²⟩
+    tau_int = autocorr.tau_int
+    dtau_int = autocorr.dtau_int
+
+    chi_t_lattice = Q2_mean / volume
+    chi_t_lattice_err = Q2_err / volume
+
+    if chi_t_lattice > 0:
+        chi_t_fourth_root_a = (chi_t_lattice ** 0.25) * HBAR_C
+        chi_t_fourth_root_a_err = 0.25 * chi_t_lattice ** (-0.75) * chi_t_lattice_err * HBAR_C
+    else:
+        chi_t_fourth_root_a = 0.0
+        chi_t_fourth_root_a_err = 0.0
+
     return AnalysisResult(
         beta=run_data.beta, boundary=run_data.boundary,
         Q_mean=np.mean(Q), Q2_mean=Q2_mean,
-        chi_t_lattice=chi_t_lattice, chi_t_fourth_root_a=chi_t_fourth_root_a,
+        chi_t_lattice=chi_t_lattice, chi_t_lattice_err=chi_t_lattice_err,
+        chi_t_fourth_root_a=chi_t_fourth_root_a,
+        chi_t_fourth_root_a_err=chi_t_fourth_root_a_err,
         tau_int=tau_int, dtau_int=dtau_int,
         alpha=run_data.alpha, n_conf=len(Q)
     )

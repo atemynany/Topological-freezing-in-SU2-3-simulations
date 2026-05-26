@@ -10,9 +10,9 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(SU2_TopologicalCharge
+project(SU23_TopologicalCharge
     VERSION 1.0.0
-    DESCRIPTION "SU(2) Lattice Gauge Theory Topological Charge Simulation"
+    DESCRIPTION "SU(2)/SU(3) Lattice Gauge Theory Topological Charge Simulation"
     LANGUAGES C CXX
 )
 
@@ -440,7 +440,13 @@ endif()
 # Installation
 # ==============================================================================
 
-install(TARGETS mc_heatbath meas_topcharge heatbath_topcharge_su2 compute_instanton_Q
+install(TARGETS
+    mc_heatbath
+    mc_heatbath_su3
+    meas_topcharge
+    meas_topcharge_su3
+    heatbath_topcharge_su2
+    compute_instanton_Q
     RUNTIME DESTINATION bin
 )
 
@@ -464,7 +470,7 @@ install(DIRECTORY include/
 # ==============================================================================
 
 message(STATUS "")
-message(STATUS "=== SU(2) Topological Charge Build Configuration ===")
+message(STATUS "=== SU(2)/SU(3) Topological Charge Build Configuration ===")
 message(STATUS "Build type:        ${CMAKE_BUILD_TYPE}")
 message(STATUS "C compiler:        ${CMAKE_C_COMPILER}")
 message(STATUS "C++ compiler:      ${CMAKE_CXX_COMPILER}")

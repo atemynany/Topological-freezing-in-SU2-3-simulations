@@ -36,6 +36,7 @@ extern "C" {
 }
 
 #include "Plaquette.hh"
+#include "action_density.hh"
 #include "progressbar.hh"
 #include "smearing_techniques.hh"
 #include "topcharge_su2.hh"
@@ -346,6 +347,7 @@ int main(int argc, char **argv)
     }
 
     double P = Average_Plaquette(gauge_field, T, L);
+    double action_density = avg_action_density(params.beta, P);
     std::cout << "Initial <P> = " << P << std::endl;
 
     // Output files
@@ -355,8 +357,8 @@ int main(int argc, char **argv)
         std::cerr << "Error: Cannot open plaquette file: " << plaq_filename << std::endl;
         return EXIT_FAILURE;
     }
-    fprintf(plaq_file, "# Sweep  Plaquette\n");
-    fprintf(plaq_file, "%5d %+.10e\n", 0, P);
+    fprintf(plaq_file, "# Sweep  Plaquette  ActionDensity\n");
+    fprintf(plaq_file, "%5d %+.10e %+.10e\n", 0, P, action_density);
 
     std::string tc_filename = params.output_dir + "topcharge.dat";
     std::ofstream tc_file(tc_filename);
@@ -492,7 +494,8 @@ int main(int argc, char **argv)
         }
 
         P = Average_Plaquette(gauge_field, T, L);
-        fprintf(plaq_file, "%5d %+.10e\n", sweep, P);
+        action_density = avg_action_density(params.beta, P);
+        fprintf(plaq_file, "%5d %+.10e %+.10e\n", sweep, P, action_density);
         fflush(plaq_file);
 
         double progress = static_cast<double>(sweep) / params.num_sweeps;
