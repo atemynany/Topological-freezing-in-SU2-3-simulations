@@ -1,0 +1,20 @@
+# ==============================================================================
+# SU(2) fused heatbath + topcharge setup: 160x80^3 periodic
+# ==============================================================================
+
+T                       160
+L                       80
+start_type              cold
+boundary                periodic
+num_sweeps              5000
+save_interval           100
+
+# Topcharge measurement (per-ensemble override of topcharge_params_su2.txt)
+# Records Q only at smear step 15 with APE alpha=0.3.
+smear_steps             15
+smear_interval          15
+smear_alpha             0.3
+exclude_boundary_slices 0
+
+# Beta values (each becomes a separate run)
+beta 3.15

@@ -80,12 +80,14 @@ create_input_file() {
     [ -z "$smear_alpha" ] && smear_alpha=$(read_param "smear_alpha" "$TOPCHARGE_PARAMS")
     local exclude_boundary_slices_open=$(read_param "exclude_boundary_slices_open" "$TOPCHARGE_PARAMS")
 
-    local setup_exclude=$(read_param "exclude_boundary_slices" "$setup_file")
     local exclude_boundary_slices=0
-    if [ -n "$setup_exclude" ]; then
-        exclude_boundary_slices="$setup_exclude"
-    elif [ "$boundary" = "open" ]; then
-        exclude_boundary_slices="${exclude_boundary_slices_open:-0}"
+    if [ "$boundary" = "open" ]; then
+        local setup_exclude=$(read_param "exclude_boundary_slices" "$setup_file")
+        if [ -n "$setup_exclude" ]; then
+            exclude_boundary_slices="$setup_exclude"
+        else
+            exclude_boundary_slices="${exclude_boundary_slices_open:-0}"
+        fi
     fi
 
     cat > "$output_file" << EOF
