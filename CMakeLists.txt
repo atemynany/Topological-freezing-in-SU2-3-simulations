@@ -205,6 +205,24 @@ target_link_libraries(meas_topcharge
         $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
 )
 
+# --- SU(2) Action Density Measurement From Saved Configurations ---
+add_executable(meas_action_density_su2
+    src/meas_action_density_su2.cc
+)
+
+target_include_directories(meas_action_density_su2
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/_Utility/include
+)
+
+target_link_libraries(meas_action_density_su2
+    PRIVATE
+        su2_utility
+        ${MATH_LIBRARY}
+        $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>
+)
+
 # --- Fused SU(2) Heatbath + In-Memory Topological Charge ---
 add_executable(heatbath_topcharge_su2
     src/heatbath_topcharge_su2.cc
