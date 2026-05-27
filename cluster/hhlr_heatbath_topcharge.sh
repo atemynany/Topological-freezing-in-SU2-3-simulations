@@ -13,7 +13,8 @@
 
 # Fused SU(2) heatbath + in-memory topological charge scan (HHLR).
 # Working directory and results live in $HOME — no gauge configs are written;
-# per ensemble only plaquette.dat, topcharge.dat, topcharge_timeslice.dat.
+# per ensemble only plaquette.dat, action_density.dat, topcharge.dat,
+# topcharge_timeslice.dat.
 # Uses the same thread layout as hhlr_heatbath.sh because smearing + topcharge
 # are also OMP-parallel.
 

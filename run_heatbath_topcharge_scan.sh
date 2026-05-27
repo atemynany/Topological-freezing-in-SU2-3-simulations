@@ -26,6 +26,9 @@ RESULTS_DIR="${HEATBATH_RESULTS_DIR:-$PROJECT_DIR/data/results}"
 
 BINARY="heatbath_topcharge_su2"
 TOPCHARGE_PARAMS="$PROJECT_DIR/input/heatbath_input/topcharge_params_su2.txt"
+if [ ! -f "$TOPCHARGE_PARAMS" ] && [ -f "${TOPCHARGE_PARAMS%.txt}_finished.txt" ]; then
+    TOPCHARGE_PARAMS="${TOPCHARGE_PARAMS%.txt}_finished.txt"
+fi
 
 DRY_RUN=false
 SKIP_BUILD=false
@@ -231,6 +234,7 @@ run_dir             $RUN_DIR
 
 # Files
 plaquette_file      $RUN_OUTPUT_DIR/plaquette.dat
+action_density_file $RUN_OUTPUT_DIR/action_density.dat
 topcharge_file      $RUN_OUTPUT_DIR/topcharge.dat
 timeslice_file      $RUN_OUTPUT_DIR/topcharge_timeslice.dat
 EOF

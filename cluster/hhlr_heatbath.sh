@@ -18,7 +18,7 @@ export HEATBATH_RESULTS_DIR=/work/mesonqcd/barros/SU23_freezing/Topological-free
 mkdir -p /work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs
 
 # Set working directory to home (binary lives here)
-cd /home/mesonqcd/barros/SU_Calc/Topological-freezing-in-SU2-3-simulations
+cd /home/mesonqcd/barros/SU2_Calc/Topological-freezing-in-SU2-3-simulations
 
 # Explicitly map OpenMP threads to the requested physical cores
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK

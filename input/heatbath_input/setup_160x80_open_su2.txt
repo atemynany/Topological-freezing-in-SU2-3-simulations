@@ -1,0 +1,9 @@
+T                   160
+L                   80
+start_type          hot
+boundary            open
+num_sweeps          10000
+save_interval       100
+
+# Beta values (each becomes a separate run)
+beta 3.15

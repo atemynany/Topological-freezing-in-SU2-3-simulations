@@ -50,9 +50,11 @@ done
 if [ "$GAUGE_GROUP" = "su3" ]; then
     HEATBATH_BIN="mc_heatbath_su3"
     PLAQ_FILE="plaquette_su3.dat"
+    ACTION_FILE="action_density_su3.dat"
 else
     HEATBATH_BIN="mc_heatbath"
     PLAQ_FILE="plaquette.dat"
+    ACTION_FILE="action_density.dat"
 fi
 
 GAUGE_GROUP_UPPER=$(echo "$GAUGE_GROUP" | tr '[:lower:]' '[:upper:]')
@@ -274,6 +276,7 @@ run_dir             $RUN_DIR
 
 # Files
 plaquette_file      $RUN_OUTPUT_DIR/$PLAQ_FILE
+action_density_file $RUN_OUTPUT_DIR/$ACTION_FILE
 config_dir          $RUN_CONFIG_DIR
 EOF
 
