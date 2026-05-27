@@ -370,6 +370,15 @@ int main(int argc, char **argv) {
     fprintf(plaq_file, "# Sweep  Plaquette  ActionDensity\n");
     fprintf(plaq_file, "%5d %+.10e %+.10e\n", 0, P, action_density);
 
+    std::string action_filename = params.output_dir + "action_density_su3.dat";
+    FILE *action_file = fopen(action_filename.c_str(), "w");
+    if (action_file == nullptr) {
+        std::cerr << "Error: Cannot open action density file: " << action_filename << std::endl;
+        return EXIT_FAILURE;
+    }
+    fprintf(action_file, "# Sweep  ActionDensity\n");
+    fprintf(action_file, "%5d %+.10e\n", 0, action_density);
+
     const int volume = T_size * L_size * L_size * L_size;
     const int L3 = L_size * L_size * L_size;
 
@@ -416,7 +425,9 @@ int main(int argc, char **argv) {
         P = su3_average_plaquette(gauge_field_su3, T_size, L_size);
         action_density = avg_action_density(params.beta, P);
         fprintf(plaq_file, "%5d %+.10e %+.10e\n", sweep, P, action_density);
+        fprintf(action_file, "%5d %+.10e\n", sweep, action_density);
         fflush(plaq_file);
+        fflush(action_file);
 
         progress_bar(static_cast<double>(sweep) / params.num_sweeps);
 
@@ -433,10 +444,12 @@ int main(int argc, char **argv) {
     std::cout << "Final <P> = " << P << std::endl;
 
     fclose(plaq_file);
+    fclose(action_file);
     su3_gauge_field_free(&gauge_field_su3);
 
     std::cout << "========================================\n";
     std::cout << "Plaquette:       " << plaq_filename << "\n";
+    std::cout << "Action density:  " << action_filename << "\n";
     std::cout << "Configs:         " << params.config_dir << "\n";
     std::cout << "========================================\n";
 

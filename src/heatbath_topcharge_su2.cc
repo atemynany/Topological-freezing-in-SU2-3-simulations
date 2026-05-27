@@ -360,6 +360,15 @@ int main(int argc, char **argv)
     fprintf(plaq_file, "# Sweep  Plaquette  ActionDensity\n");
     fprintf(plaq_file, "%5d %+.10e %+.10e\n", 0, P, action_density);
 
+    std::string action_filename = params.output_dir + "action_density.dat";
+    FILE *action_file = fopen(action_filename.c_str(), "w");
+    if (action_file == nullptr) {
+        std::cerr << "Error: Cannot open action density file: " << action_filename << std::endl;
+        return EXIT_FAILURE;
+    }
+    fprintf(action_file, "# Sweep  ActionDensity\n");
+    fprintf(action_file, "%5d %+.10e\n", 0, action_density);
+
     std::string tc_filename = params.output_dir + "topcharge.dat";
     std::ofstream tc_file(tc_filename);
     if (!tc_file.is_open()) {
@@ -496,7 +505,9 @@ int main(int argc, char **argv)
         P = Average_Plaquette(gauge_field, T, L);
         action_density = avg_action_density(params.beta, P);
         fprintf(plaq_file, "%5d %+.10e %+.10e\n", sweep, P, action_density);
+        fprintf(action_file, "%5d %+.10e\n", sweep, action_density);
         fflush(plaq_file);
+        fflush(action_file);
 
         double progress = static_cast<double>(sweep) / params.num_sweeps;
         progress_bar(progress);
@@ -510,6 +521,7 @@ int main(int argc, char **argv)
     std::cout << "Completed " << params.num_sweeps << " sweeps, final <P> = " << P << std::endl;
 
     fclose(plaq_file);
+    fclose(action_file);
     tc_file.close();
     ts_file.close();
     Gauge_Field_Free(&gauge_field);
@@ -517,6 +529,7 @@ int main(int argc, char **argv)
 
     std::cout << "========================================" << std::endl;
     std::cout << "Plaquette history:   " << plaq_filename << std::endl;
+    std::cout << "Action density:      " << action_filename << std::endl;
     std::cout << "Topological charge:  " << tc_filename << std::endl;
     std::cout << "Per-timeslice q(t):  " << ts_filename << std::endl;
     std::cout << "========================================" << std::endl;

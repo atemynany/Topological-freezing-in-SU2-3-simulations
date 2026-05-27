@@ -320,6 +320,28 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    std::string action_filename = params.output_dir + "action_density.dat";
+    FILE *action_file;
+    if (params.start_type == "continue") {
+        struct stat action_stat;
+        const bool has_action_history =
+            stat(action_filename.c_str(), &action_stat) == 0 && action_stat.st_size > 0;
+        action_file = fopen(action_filename.c_str(), "a");
+        if (action_file != nullptr && !has_action_history) {
+            fprintf(action_file, "# Sweep  ActionDensity\n");
+        }
+    } else {
+        action_file = fopen(action_filename.c_str(), "w");
+        if (action_file != nullptr) {
+            fprintf(action_file, "# Sweep  ActionDensity\n");
+            fprintf(action_file, "%5d %+.10e\n", 0, action_density);
+        }
+    }
+    if (action_file == nullptr) {
+        std::cerr << "Error: Cannot open action density file: " << action_filename << std::endl;
+        return EXIT_FAILURE;
+    }
+
     const int L3 = L * L * L;
 
     for (int sweep = start_sweep + 1; sweep <= params.num_sweeps; sweep++) {
@@ -440,7 +462,9 @@ int main(int argc, char **argv)
         P = Average_Plaquette(gauge_field, T, L);
         action_density = avg_action_density(params.beta, P);
         fprintf(plaq_file, "%5d %+.10e %+.10e\n", sweep, P, action_density);
+        fprintf(action_file, "%5d %+.10e\n", sweep, action_density);
         fflush(plaq_file);
+        fflush(action_file);
 
         double progress = static_cast<double>(sweep) / params.num_sweeps;
         progress_bar(progress);
@@ -462,11 +486,13 @@ int main(int argc, char **argv)
     std::cout << "Completed " << params.num_sweeps << " sweeps, final <P> = " << P << std::endl;
 
     fclose(plaq_file);
+    fclose(action_file);
     Gauge_Field_Free(&gauge_field);
     
     std::cout << "========================================" << std::endl;
     std::cout << "Simulation complete." << std::endl;
     std::cout << "Plaquette history: " << plaq_filename << std::endl;
+    std::cout << "Action density:    " << action_filename << std::endl;
     std::cout << "Configurations:    " << params.config_dir << std::endl;
     std::cout << "========================================" << std::endl;
     

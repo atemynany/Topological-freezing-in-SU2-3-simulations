@@ -58,6 +58,9 @@ done
 # ==============================================================================
 if [ -z "$TOPCHARGE_FILE_PARAMS" ]; then
     TOPCHARGE_FILE_PARAMS="input/heatbath_input/topcharge_params_${GAUGE_GROUP}.txt"
+    if [ ! -f "$TOPCHARGE_FILE_PARAMS" ] && [ -f "${TOPCHARGE_FILE_PARAMS%.txt}_finished.txt" ]; then
+        TOPCHARGE_FILE_PARAMS="${TOPCHARGE_FILE_PARAMS%.txt}_finished.txt"
+    fi
 fi
 
 if [ "$GAUGE_GROUP" = "su3" ]; then
