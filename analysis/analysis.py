@@ -30,6 +30,7 @@ from timeslice_analysis import (
     plot_timeslice_susceptibility_grid, plot_timeslice_tauint_grid,
     plot_timeslice_susceptibility_cropped, plot_timeslice_tauint_cropped,
 )
+from action_density_analysis import analyze_action_density
 
 
 def print_table(results: List[AnalysisResult], gauge_group: str):
@@ -111,6 +112,7 @@ def main():
     all_runs = runs_periodic + runs_open
     if all_runs:
         plot_thermalization_comparison(all_runs, output_dir, gauge_group)
+        analyze_action_density(all_runs, output_dir, gauge_group)
 
     # Timeslice grid plots — collect results per boundary group
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3

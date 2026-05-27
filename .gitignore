@@ -20,7 +20,8 @@ data/results/*
 # Output (generated files)
 output/configs_su2/
 output/configs_su3/
-output/figures_*/
+output/figures_*/*
+!output/figures_*/.gitignore
 output/instanton/
 *.dat
 *.bin
