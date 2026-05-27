@@ -22,7 +22,7 @@ fi
 
 SETUP_FILE=""
 BETA=""
-TARGET_Q="1.0"
+TARGET_Q=""
 Q_TOL="0.1"
 MAX_TRIES="100"
 CANDIDATE_SWEEPS="100"
@@ -41,8 +41,8 @@ Usage:
   $0 --setup FILE --beta BETA [options]
 
 Options:
-  --target-q Q              Accepted hot-sector target (default: 1.0)
-  --q-tol EPS               Accept if |Q - target| <= EPS (default: 0.1)
+  --target-q Q              Accepted hot-sector target (default: any integer)
+  --q-tol EPS               Accept if |Q - nearest int| <= EPS (default: 0.1)
   --max-tries N             Maximum hot candidates to try (default: 100)
   --candidate-sweeps N      Sweeps before checking each hot candidate (default: 100)
   --production-sweeps N     Production sweeps (default: setup num_sweeps)
@@ -106,6 +106,15 @@ abs_diff_leq() {
     }'
 }
 
+abs_diff_nearest_int_leq() {
+    awk -v q="$1" -v tol="$2" 'BEGIN {
+        n = q < 0 ? int(q - 0.5) : int(q + 0.5)
+        d = q - n
+        if (d < 0) d = -d
+        exit(d <= tol ? 0 : 1)
+    }'
+}
+
 T_SIZE=$(read_param "T" "$SETUP_FILE"); T_SIZE=${T_SIZE:-16}
 L_SIZE=$(read_param "L" "$SETUP_FILE"); L_SIZE=${L_SIZE:-16}
 BOUNDARY=$(read_param "boundary" "$SETUP_FILE"); BOUNDARY=${BOUNDARY:-periodic}
@@ -132,7 +141,8 @@ RUN_STAMP="$(date +%Y%m%d_%H%M%S)"
 BASE_NAME="qtarget_T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_${RUN_STAMP}_su2"
 BASE_DIR="$RESULTS_DIR/$BASE_NAME"
 CANDIDATE_ROOT="$BASE_DIR/hot_candidates"
-HOT_DIR="$BASE_DIR/hot_Q${TARGET_Q}"
+TARGET_LABEL=${TARGET_Q:-int}
+HOT_DIR="$BASE_DIR/hot_${TARGET_LABEL}"
 
 write_heatbath_input() {
     local input_file="$1"
@@ -189,11 +199,11 @@ echo "SU(2) accepted-hot Q-sector ensemble driver"
 echo "  setup:              $SETUP_FILE"
 echo "  beta:               $BETA"
 echo "  lattice:            ${T_SIZE}x${L_SIZE}^3 $BOUNDARY"
-echo "  target hot Q:       $TARGET_Q +/- $Q_TOL"
-echo "  production sweeps:  $PRODUCTION_SWEEPS"
-echo "  output:             $BASE_DIR"
-
-if [ "$DRY_RUN" = true ]; then
+    if [ -n "$TARGET_Q" ]; then
+        echo "  target hot Q:       $TARGET_Q +/- $Q_TOL"
+    else
+        echo "  target hot Q:       any integer +/- $Q_TOL"
+    fi
     exit 0
 fi
 
@@ -227,12 +237,21 @@ for TRY in $(seq 1 "$MAX_TRIES"); do
     Q_VALUE=$(awk 'NF >= 3 && $1 !~ /^#/ {q=$3} END {print q}' "$TRY_DIR/topcharge/topcharge.dat")
     echo "[hot try $TRY/$MAX_TRIES] Q=$Q_VALUE"
 
-    if [ -n "$Q_VALUE" ] && abs_diff_leq "$Q_VALUE" "$TARGET_Q" "$Q_TOL"; then
-        ACCEPTED_Q="$Q_VALUE"
-        ACCEPTED_SEED="$SEED"
-        ACCEPTED_CONF="$TRY_DIR/configs/conf.${CANDIDATE_CONF}"
-        ACCEPTED_DIR="$TRY_DIR"
-        break
+    if [ -n "$Q_VALUE" ]; then
+        if [ -n "$TARGET_Q" ]; then
+            accept=false
+            abs_diff_leq "$Q_VALUE" "$TARGET_Q" "$Q_TOL" && accept=true
+        else
+            accept=false
+            abs_diff_nearest_int_leq "$Q_VALUE" "$Q_TOL" && accept=true
+        fi
+        if [ "$accept" = true ]; then
+            ACCEPTED_Q="$Q_VALUE"
+            ACCEPTED_SEED="$SEED"
+            ACCEPTED_CONF="$TRY_DIR/configs/conf.${CANDIDATE_CONF}"
+            ACCEPTED_DIR="$TRY_DIR"
+            break
+        fi
     fi
 done
 
@@ -259,7 +278,7 @@ beta                   $BETA
 T                      $T_SIZE
 L                      $L_SIZE
 boundary               $BOUNDARY
-target_q               $TARGET_Q
+target_q               ${TARGET_Q:-any integer}
 q_tolerance            $Q_TOL
 accepted_q             $ACCEPTED_Q
 accepted_seed          $ACCEPTED_SEED
