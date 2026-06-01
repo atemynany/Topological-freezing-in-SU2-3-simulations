@@ -246,13 +246,12 @@ def plot_fit(fit: FitResult, output_path: str, title: str = "") -> None:
     print(f"Saved: {output_path}")
 
 
-def _collect_results(gauge_group: str, results_dir: str):
+def _collect_results(gauge_group: str, results_dirs):
     """Mirror analysis.main()'s loader so this script runs standalone."""
-    import glob
     from calculations import analyze_run, load_run_data
+    from result_paths import find_run_dirs
 
-    run_dirs = sorted(glob.glob(
-        os.path.join(results_dir, f"T*_L*_b*_*_seed*_{gauge_group}")))
+    run_dirs = find_run_dirs(results_dirs, gauge_group)
 
     results_periodic, results_open = [], []
     for run_dir in run_dirs:
@@ -287,7 +286,7 @@ if __name__ == "__main__":
         "--points", required=True,
         help="comma-separated list of point indices from tau_int_<gauge>.png "
              "(e.g. '7,8,9,10')")
-    parser.add_argument("--results-dir", default=None)
+    parser.add_argument("--results-dir", action="append", default=None)
     parser.add_argument("--n-boot", type=int, default=4000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--plot", default=None,
@@ -299,9 +298,10 @@ if __name__ == "__main__":
 
     gauge = "su2" if args.su2 else "su3"
     base_dir = os.path.dirname(script_dir)
-    results_dir = args.results_dir or os.path.join(base_dir, "data", "results")
+    from result_paths import resolve_results_dirs
+    results_dirs = resolve_results_dirs(base_dir, args.results_dir)
 
-    results_periodic, results_open = _collect_results(gauge, results_dir)
+    results_periodic, results_open = _collect_results(gauge, results_dirs)
     indices = [int(x) for x in args.points.split(",") if x.strip()]
 
     fit = fit_selected(results_periodic, results_open, indices,

@@ -1,0 +1,2666 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SU23 Freezing Project Overview</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f7f4;
+      --panel: #ffffff;
+      --ink: #202124;
+      --muted: #62676f;
+      --line: #d8d9d2;
+      --accent: #25636b;
+      --accent-soft: #e2eff0;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header {
+      padding: 32px max(28px, 6vw) 24px;
+      background: #1e3538;
+      color: white;
+    }
+    header h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 4vw, 44px);
+      letter-spacing: 0;
+    }
+    header p {
+      max-width: 980px;
+      margin: 6px 0 0;
+      color: #dce8e9;
+    }
+    main {
+      padding: 24px max(18px, 4vw) 48px;
+    }
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 22px;
+    }
+    nav a, .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    section {
+      margin: 24px 0;
+      padding-top: 8px;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+    h3 {
+      margin: 18px 0 8px;
+      font-size: 17px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto auto;
+      gap: 10px;
+      align-items: center;
+      margin: 14px 0 20px;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(8px);
+      padding: 10px 0;
+    }
+    .toolbar input, .toolbar select, .toolbar button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: white;
+      color: var(--ink);
+      min-height: 36px;
+      padding: 0 10px;
+      font: inherit;
+    }
+    .toolbar button {
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+      font-weight: 700;
+    }
+    .guide {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 12px;
+    }
+    .guide article {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .guide h3 {
+      margin-top: 0;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .stat b {
+      display: block;
+      font-size: 24px;
+    }
+    table {
+      border-collapse: collapse;
+      min-width: 920px;
+      width: 100%;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 7px 8px;
+      text-align: left;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+    th {
+      background: #f0f1ec;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      cursor: pointer;
+      user-select: none;
+    }
+    a {
+      color: var(--accent);
+    }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    pre {
+      margin: 10px 0 0;
+      padding: 12px;
+      overflow-x: auto;
+      background: #f4f5f2;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      max-height: 360px;
+    }
+    .figures {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    figure {
+      margin: 0;
+      padding: 10px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    figure img {
+      width: 100%;
+      height: 220px;
+      object-fit: contain;
+      background: white;
+      border: 1px solid #ecece8;
+    }
+    figcaption {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+      display: grid;
+      gap: 4px;
+    }
+    figcaption b {
+      color: var(--ink);
+      font-size: 13px;
+    }
+    figcaption code {
+      color: #455;
+      white-space: normal;
+    }
+    details {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin: 8px 0;
+    }
+    summary {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .note {
+      color: var(--muted);
+      max-width: 980px;
+    }
+    .doc-card {
+      margin: 12px 0;
+      padding: 14px;
+    }
+    .doc-card summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    .doc-card summary span {
+      font-size: 17px;
+      color: var(--ink);
+    }
+    .doc-outline {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: #f4f8f8;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+    .doc-outline ul {
+      margin: 0;
+      padding-left: 18px;
+      columns: 2;
+    }
+    .doc-pre {
+      white-space: pre-wrap;
+      max-height: 520px;
+    }
+    .background-lead {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .background-lead article {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .background-lead h3 {
+      margin-top: 0;
+    }
+    .hidden-by-filter {
+      display: none !important;
+    }
+    .empty-note {
+      display: none;
+      color: var(--muted);
+      padding: 12px 0;
+    }
+    @media (max-width: 760px) {
+      .toolbar {
+        grid-template-columns: 1fr;
+        position: static;
+      }
+      figure img {
+        height: 180px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SU23 Freezing Project Overview</h1>
+    <p>Generated at 2026-06-01 11:29:14 from the files currently present in this workspace.</p>
+    <p>This page summarizes input configurations, synced result roots, loaded analysis runs, generated figures, and text outputs.</p>
+  </header>
+  <main>
+    <nav>
+      <a href="#background">Background</a>
+      <a href="#workflow">Workflow</a>
+      <a href="#guide">Guide</a>
+      <a href="#runs">Runs</a>
+      <a href="#inputs">Inputs</a>
+      <a href="#tools">Tools</a>
+      <a href="#figures">Figures</a>
+      <a href="#outputs">Text Outputs</a>
+      <a href="#regenerate">Regenerate</a>
+    </nav>
+    <div class="toolbar">
+      <input id="globalSearch" type="search" placeholder="Search runs, figures, inputs, scripts...">
+      <select id="quickFilter" aria-label="Quick filter">
+        <option value="">All content</option>
+        <option value="qtarget">qtarget / hot ensemble</option>
+        <option value="periodic">periodic</option>
+        <option value="open">open</option>
+        <option value="b3.15">beta 3.15</option>
+        <option value="smear">per-smear</option>
+        <option value="action_density">action density</option>
+        <option value="timeslice">timeslice</option>
+      </select>
+      <button type="button" id="clearFilters">Clear</button>
+    </div>
+
+    <section id="background">
+      <h2>Project Background From Documentation</h2>
+      <div class="background-lead">
+        <article>
+          <h3>Physics Aim</h3>
+          <p>This project studies topological freezing in pure-gauge SU(2) and SU(3) lattice gauge theory by measuring topological susceptibility and integrated autocorrelation times as the lattice spacing is reduced.</p>
+        </article>
+        <article>
+          <h3>Core Observable</h3>
+          <p>Topological charge is measured after APE smearing with a clover discretisation. The analysis rescales near-integer smeared charges using an alpha estimator before computing <code>&lt;Q^2&gt;</code>, susceptibility, and autocorrelation times.</p>
+        </article>
+        <article>
+          <h3>Boundary Comparison</h3>
+          <p>Periodic boundaries preserve topological sectors and can freeze at fine lattice spacing. Open temporal boundaries allow topological charge flow through the boundary, reducing freezing but requiring boundary-slice exclusions.</p>
+        </article>
+        <article>
+          <h3>Production Pipeline</h3>
+          <p>The code supports two-phase heatbath plus topcharge scans and a fused SU(2) heatbath/topcharge workflow. Cluster output is synced into <code>results_home</code> and <code>results_work</code>, then analyzed locally.</p>
+        </article>
+      </div>
+      <p class="note">The full Markdown documentation is embedded below. Open or collapse each document as needed; the global search also searches inside these blocks.</p>
+      
+            <details class="doc-card search-card" open>
+              <summary>
+                <span>CLAUDE.md</span>
+                <a href="../CLAUDE.md">CLAUDE.md</a>
+              </summary>
+              <div class="doc-outline"><ul><li>Build</li><li>Tests</li><li>Simulation Workflow</li><li>Cluster (Fuchs HPC)</li><li>Analysis</li><li>Architecture</li></ul></div>
+              <pre class="doc-pre"># CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Build
+
+```bash
+./scripts/build.sh release          # Release build (O3, fast-math)
+./scripts/build.sh debug            # Debug build
+```
+
+Requires CMake ≥ 3.16 and a C++17 compiler. On macOS, OpenMP via `brew install libomp` is optional — builds fine without it.
+
+Manual build: `mkdir -p build &amp;&amp; cd build &amp;&amp; cmake -DCMAKE_BUILD_TYPE=Release .. &amp;&amp; cmake --build . --parallel`
+
+Executables go to `build/bin/`, library to `build/lib/`.
+
+## Tests
+
+```bash
+./scripts/run_tests.sh              # All tests (Catch2 via CTest)
+./scripts/run_tests.sh test_topcharge  # Single test suite by name (-R pattern)
+```
+
+Auto-builds if `build/` is missing. Seven test suites: `test_heatbath`, `test_linear_algebra`, `test_topcharge`, `test_topcharge_su3`, `test_smearing`, `test_plaquette`, `test_gauge_invariance`.
+
+Parity check for the fused SU(2) pipeline (not part of CTest):
+
+```bash
+./scripts/test_parity_heatbath_topcharge.sh   # legacy vs fused, OMP=1 forced
+```
+
+Forces `OMP_NUM_THREADS=1` because multi-thread heatbath is nondeterministic (checkerboard scheduling affects RNG draw order). Expected: plaquette bit-identical, max |ΔQ|=0, max |Δq(t)|=0.
+
+## Simulation Workflow
+
+Two-phase workflow: heatbath (config generation) then topological charge measurement.
+
+```bash
+./run_heatbath_scan.sh --su2               # Phase 1: generate configs
+./run_heatbath_scan.sh --su2 --jobs 4      # parallel (4 beta values at once)
+./run_heatbath_scan.sh --su2 --dry-run     # preview without running
+
+./run_topcharge_scan.sh --su2              # Phase 2: measure Q
+./run_topcharge_scan.sh --su2 --jobs 4     # parallel
+```
+
+Input files live in three subdirs of `input/`:
+
+- `input/heatbath_input/` — two-phase pipeline setups (`setup_*_su{2,3}_finished.txt`) and topcharge params (`topcharge_params_su{2,3}.txt`); the fused pipeline also reads `topcharge_params_su2.txt` from here
+- `input/heatbath_topcharge_input/` — fused SU(2) pipeline setups (`setup_*_su2.txt`)
+- `input/tests_input/` — smoke-test setups for the fused binary
+
+The topcharge scan auto-detects periodic vs open BC from the run directory name and sets `exclude_boundary_slices` accordingly.
+
+### Fused SU(2) pipeline (in-memory, no configs on disk)
+
+`heatbath_topcharge_su2` runs heatbath and measures Q on an APE-smeared scratch copy at every `save_interval`. Only `plaquette.dat`, `topcharge.dat`, `topcharge_timeslice.dat` are written — the gauge field never hits disk. Merges `setup_*_su2.txt` with `topcharge_params_su2.txt` automatically.
+
+```bash
+./run_heatbath_topcharge_scan.sh                 # all setup_*_su2.txt
+./run_heatbath_topcharge_scan.sh --jobs 4
+./run_heatbath_topcharge_scan.sh --exclude &quot;T65\|T81&quot;
+./run_heatbath_topcharge_scan.sh --dry-run
+```
+
+Cluster: `cluster/fuchs_heatbath_topcharge.sh`, `cluster/hhlr_heatbath_topcharge.sh`. Both run single multi-threaded jobs (not parallel single-core) because smearing + topcharge are OMP-parallel.
+
+Source: `src/heatbath_topcharge_su2.cc`. SU(3) fused variant not implemented.
+
+## Cluster (Fuchs HPC)
+
+Cluster: `fuchs.hhlr-gu.de`, user `barros`, project dir `/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/`
+
+```bash
+sbatch cluster/fuchs_heatbath.sh    # Submit heatbath scan (48h)
+sbatch cluster/fuchs_topcharge.sh   # Submit topcharge (12 parallel single-core jobs)
+tail -1 data/results/T*_su2/output/plaquette.dat  # Check sweep progress
+squeue -u barros                                   # Job status
+```
+
+`fuchs_topcharge.sh` passes `--exclude &quot;T65\|T81&quot;` to skip ensembles still running heatbath. Remove the flag once those finish.
+
+**Before first submit:** build on the cluster login node:
+```bash
+rm -rf build &amp;&amp; ./scripts/build.sh release
+```
+
+**Sync results to local** (run from local machine, skips binary configs):
+```bash
+./cluster/sync_results.sh
+```
+
+## Analysis
+
+```bash
+python3 analysis/analysis.py --su2     # or --su3
+```
+
+Requires Python 3 with `numpy`, `matplotlib`, `pyerrors` (Conda env `master_thesis`). Output goes to `output/figures_analysis/`.
+
+## Architecture
+
+### Gauge group duality
+
+SU(2) and SU(3) are implemented as parallel but separate codepaths. Each has its own:
+- Heatbath MC: `src/MC_heatbath.cc` (Kennedy-Pendleton + OpenMP checkerboard) / `src/MC_heatbath_su3.cc` (Cabibbo-Marinari + overrelaxation + OpenMP checkerboard)
+- Topcharge measurement: `src/meas_topcharge_su2.cc` / `src/meas_topcharge_su3.cc`
+- Linear algebra: `_Utility/include/linear_algebra.hh` (SU(2), 8 doubles/link) / `include/su3_linear_algebra.hh` (SU(3), 18 doubles/link)
+- Topcharge computation: `include/topcharge_su2.hh` / `include/topcharge_su3.hh`
+
+### Core library (`_Utility/`)
+
+Shared infrastructure for both gauge groups:
+- `fields.hh/cc` — Gauge field allocation (32-byte aligned via `posix_memalign`)
+- `geometry.hh` — Lattice site/link indexing; `ggi(site, mu)` for link offsets
+- `ranlux.hh/cc`, `ranlxd.c`, `ranlxs.c` — RANLUX RNG
+- `smearing_techniques.hh/cc` — APE smearing (+ HYP, FAT variants in `smearing_techniques_all.cc`)
+- `io.hh/cc` — Binary config I/O and parameter parsing
+
+### Global state pattern
+
+Both SU(2) and SU(3) simulations use `extern` globals for lattice dimensions (`T`, `L`), the gauge field pointer, boundary condition flags, and precomputed neighbor tables. These are set once at startup from input files.
+
+### OpenMP parallelization
+
+Both SU(2) and SU(3) heatbath use checkerboard (even/odd) site decomposition for thread-safe OpenMP parallel sweeps. Per-thread RNG seeding via `rlxd_init(2, seed + tid * 997)`. The SU(3) heatbath also parallelizes overrelaxation sweeps. For small lattices (below ~32^4), `OMP_NUM_THREADS=1` is faster due to thread synchronization overhead.
+
+### Data layout
+
+- SU(2): link at `(site, mu)` → 8 contiguous doubles at offset `(4*site + mu) * 8`
+- SU(3): link at `(site, mu)` → 18 contiguous doubles at offset `(4*site + mu) * 18`
+- All linear algebra and topcharge functions are inline for performance
+
+### Boundary conditions
+
+Open BC (Lüscher-Schaefer): temporal plaquettes at `t=0` and `t=T-1` weighted by 0.5 in staple sum. Topcharge measurement excludes configurable boundary slices.
+
+### Data flow
+
+Two-phase: `mc_heatbath[_su3]` → `configs/conf_*.bin` + `plaquette.dat` → `detect_thermalization.py` → `meas_topcharge[_su3]` → `topcharge[_su3].dat` → `analysis.py`
+
+Fused SU(2): `heatbath_topcharge_su2` → `plaquette.dat` + `topcharge.dat` + `topcharge_timeslice.dat` → `analysis.py` (no `configs/`)
+
+Results per run: `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}/`
+
+### Analysis pipeline (`analysis/`)
+
+- `analysis.py` — Entry point, scans `data/results/` for runs
+- `calculations.py` — Core: `RunData`/`AnalysisResult` containers, `find_optimal_alpha()` for Q rescaling, `analyze_run()` for χ_t and τ_int
+- `plotting_code.py` — Publication figures (Q vs MC time, histograms, susceptibility, τ_int)
+- `timeslice_analysis.py` — Spatial topcharge density analysis
+- `autocorrelation.py` — Wraps `pyerrors` Gamma method for integrated autocorrelation time
+
+Key analysis formula: `Q_rescaled = round(α * Q_raw)` where α ≈ 0.9–1.1 found via golden-section search, then `χ_t = ⟨Q²⟩/V`.
+</pre>
+            </details>
+            
+            <details class="doc-card search-card" open>
+              <summary>
+                <span>SU(2)/SU(3) Topological Charge Freezing Study</span>
+                <a href="../README.md">README.md</a>
+              </summary>
+              <div class="doc-outline"><ul><li>Requirements</li><li>Build</li><li>Run Tests</li><li>Main Workflow</li><li>Cluster (Fuchs / HHLR-Goethe)</li><li>Key Executables</li><li>Input Files</li><li>Output</li><li>Analysis</li><li>Git and SSH Remote</li><li>Project Structure</li></ul></div>
+              <pre class="doc-pre"># SU(2)/SU(3) Topological Charge Freezing Study
+
+Monte Carlo simulation of topological charge in SU(2) and SU(3) lattice gauge theory to study topological freezing at fine lattice spacings.
+
+Works on **Linux** and **macOS** (including Apple Silicon).
+
+## Requirements
+
+- CMake ≥ 3.16
+- C++17 compiler (GCC, Clang, or Apple Clang)
+- Python 3: numpy, scipy, matplotlib, pyerrors
+- Optional: Rust toolchain + `maturin` (only if you want to use the `rust_analysis/` accelerator)
+
+### macOS extras
+
+```bash
+# install Xcode command line tools (gives you clang + make)
+xcode-select --install
+
+# install cmake (via Homebrew)
+brew install cmake
+
+# optional: OpenMP support for parallel loops
+brew install libomp
+```
+
+On macOS without `libomp`, everything still compiles and runs — just without OpenMP parallelization. Both SU(2) and SU(3) heatbath use checkerboard (even/odd) decomposition for thread-safe OpenMP parallel sweeps; set `OMP_NUM_THREADS` to control parallelism. For small lattices (below ~32^4), single-threaded is faster due to thread overhead.
+
+## Build
+
+```bash
+./scripts/build.sh release
+```
+
+Or manually:
+
+```bash
+mkdir -p build &amp;&amp; cd build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake --build . --parallel 4
+```
+
+CMake auto-detects macOS and sets up the right flags. If you installed `libomp` via Homebrew, OpenMP is picked up automatically.
+
+## Run Tests
+
+```bash
+./scripts/run_tests.sh
+```
+
+Seven test suites: `test_heatbath`, `test_linear_algebra`, `test_topcharge`, `test_topcharge_su3`, `test_smearing`, `test_plaquette`, `test_gauge_invariance`.
+
+Parity check for the fused SU(2) pipeline (outside CTest):
+
+```bash
+./scripts/test_parity_heatbath_topcharge.sh      # legacy vs fused, OMP=1
+```
+
+Quick smoke-test input files for the fused binary:
+
+```bash
+./build/bin/heatbath_topcharge_su2 -i input/tests_input/setup_test_16x16_periodic_su2.txt
+./build/bin/heatbath_topcharge_su2 -i input/tests_input/setup_test_16x16_open_su2.txt
+```
+
+500-sweep runs, β=2.5, 16⁴. Outputs land in `data/results/test_16x16_{periodic,open}_b2.5/`.
+
+## Main Workflow
+
+### Two-phase pipeline (default, SU(2) and SU(3))
+
+Heatbath (config generation) then topological charge measurement.
+
+```bash
+./run_heatbath_scan.sh --su2                # Phase 1: generate configs
+./run_heatbath_scan.sh --su3                # SU(3) configs
+./run_heatbath_scan.sh --su2 --dry-run      # preview without running
+./run_heatbath_scan.sh --su2 --jobs 4       # parallel (4 jobs)
+
+./run_topcharge_scan.sh --su2               # Phase 2: measure Q
+./run_topcharge_scan.sh --su3 --jobs 4      # parallel
+./run_topcharge_scan.sh --su2 --exclude &quot;T65\|T81&quot;  # skip specific ensembles
+```
+
+`run_heatbath_scan.sh` detects thermalization from the plaquette history and writes
+the resulting `start_conf` to both `input.txt` and `run_info.txt`. The topcharge
+scan preserves that per-run value and only falls back to
+`input/heatbath_input/topcharge_params_su*.txt` for legacy runs without
+`start_conf`. Set `HEATBATH_RESULTS_DIR=/path/to/results` to redirect both scan
+phases to a non-default results directory.
+
+### Fused pipeline (SU(2), in-memory, no gauge configs written)
+
+For SU(2) scans where you don&#x27;t need persisted gauge configs, use the fused binary `heatbath_topcharge_su2`. It runs heatbath and measures Q on an APE-smeared scratch copy at every `save_interval`, writing only `plaquette.dat`, `topcharge.dat`, and `topcharge_timeslice.dat`.
+
+```bash
+./run_heatbath_topcharge_scan.sh            # discovers input/heatbath_topcharge_input/setup_*_su2.txt
+./run_heatbath_topcharge_scan.sh --jobs 4
+./run_heatbath_topcharge_scan.sh --dry-run
+./run_heatbath_topcharge_scan.sh --exclude &quot;T65\|T81&quot;
+```
+
+Parity with the two-phase pipeline is verified at single-thread determinism (`scripts/test_parity_heatbath_topcharge.sh`): plaquette bit-identical, max |ΔQ| = 0. Multi-thread heatbath trajectories are nondeterministic by design.
+
+Setup files live in three subdirs of `input/`:
+
+- `input/heatbath_input/` — production setups for the two-phase pipeline (`setup_*_su{2,3}_finished.txt`) plus `topcharge_params_su{2,3}.txt`
+- `input/heatbath_topcharge_input/` — setups for the fused SU(2) pipeline (drop `setup_*_su2.txt` files here)
+- `input/tests_input/` — small smoke-test setups (e.g. `setup_test_16x16_periodic_su2.txt`)
+
+Each setup file contains one lattice configuration; multiple `beta` lines produce multiple runs. `--su2`/`--su3` discovers all matching setup files automatically in the relevant subdir.
+
+Results saved to `data/results/` and plots to `output/figures_analysis/`.
+
+## Cluster (Fuchs / HHLR-Goethe)
+
+Two cluster targets are supported, each with its own `sbatch` wrapper. Build once on the login node before submitting:
+
+```bash
+rm -rf build &amp;&amp; ./scripts/build.sh release
+```
+
+### Fuchs HPC
+
+```bash
+sbatch cluster/fuchs_heatbath.sh             # two-phase: heatbath scan
+sbatch cluster/fuchs_topcharge.sh            # two-phase: topcharge measurement
+sbatch cluster/fuchs_heatbath_topcharge.sh   # fused SU(2) (no disk configs)
+sbatch cluster/fuchs_heatbath_thread_test.sh # OpenMP thread-scaling test
+sbatch cluster/fuchs_continue.sh             # resume specific runs from existing input.txt
+```
+
+### HHLR-Goethe
+
+The HHLR scripts run from `/home` (binary) but write outputs to `/work` via `HEATBATH_RESULTS_DIR`:
+
+```bash
+sbatch cluster/hhlr_heatbath.sh             # two-phase: heatbath scan (40 cores, 11 days)
+sbatch cluster/hhlr_topcharge.sh            # two-phase: topcharge measurement
+sbatch cluster/hhlr_heatbath_topcharge.sh   # fused SU(2)
+sbatch cluster/hhlr_continue.sh             # resume specific runs (edit the input.txt list inside)
+```
+
+The `*_continue.sh` scripts re-launch `mc_heatbath` against existing `data/results/.../input.txt` files — useful when a job hits the wall-time and you want to extend a run without re-thermalising. Edit the script to point at the runs you want to resume.
+
+### Monitoring
+
+```bash
+tail -1 data/results/T*_su2/output/plaquette.dat   # check sweep number
+squeue -u barros                                   # job status
+sacct                                              # job history
+```
+
+### Syncing results to local
+
+```bash
+./cluster/sync_results.sh
+```
+
+## Key Executables
+
+| Binary | Purpose |
+|--------|---------|
+| `mc_heatbath` | SU(2) heatbath config generation (OpenMP checkerboard) |
+| `mc_heatbath_su3` | SU(3) heatbath config generation (OpenMP checkerboard + overrelaxation) |
+| `meas_topcharge` | SU(2) topological charge measurement |
+| `meas_topcharge_su3` | SU(3) topological charge measurement |
+| `heatbath_topcharge_su2` | Fused SU(2) heatbath + in-memory topcharge (no gauge configs written) |
+| `compute_instanton_Q` | Instanton topological charge computation |
+
+## Input Files
+
+- `input/heatbath_input/setup_*_su2.txt` / `setup_*_su3.txt` — setups for the two-phase pipeline (lattice params + beta values)
+- `input/heatbath_input/topcharge_params_su2.txt` / `_su3.txt` — topcharge measurement params (smearing, boundary exclusion); also read by the fused SU(2) pipeline
+- `input/heatbath_topcharge_input/setup_*_su2.txt` — setups for the fused SU(2) pipeline
+- `input/tests_input/setup_test_*_su2.txt` — smoke-test setups for the fused binary
+
+The topcharge scan script auto-detects periodic vs open boundary conditions from the run directory name (`_periodic_` or `_open_`). For open BC runs, `exclude_boundary_slices_open` from the param file is applied; periodic runs use 0.
+
+Example setup file:
+```
+T                   8
+L                   8
+start_type          cold
+boundary            periodic
+num_sweeps          1000
+save_interval       10
+
+beta 2.3
+beta 2.5
+beta 2.7
+```
+
+## Output
+
+`data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}_{su2|su3}/`:
+- `output/plaquette[_su3].dat` — Plaquette and Wilson action density history (every sweep)
+- `output/topcharge.dat` — Q measurements (APE-smeared)
+- `output/topcharge_timeslice.dat` — Per-timeslice q(t)
+- `configs/` — Gauge configurations (two-phase scan only; absent in fused SU(2) runs)
+- `input.txt`, `run_info.txt`, `*.log` — Input, metadata, stdout
+
+For the heatbath plaquette history, the columns are:
+
+```text
+sweep  average_plaquette  action_density
+```
+
+The action density is computed from the normalized average plaquette using the
+4D Wilson gauge-action relation:
+
+```text
+s = 6 * beta * (1 - &lt;P&gt;)
+```
+
+The shared C++ helper is `avg_action_density(beta, avg_plaquette)` in
+`include/action_density.hh`.
+
+## Analysis
+
+Run the standard analysis:
+
+```bash
+python3 analysis/analysis.py --su2
+python3 analysis/analysis.py --su3
+```
+
+Or generate one figure set per detected APE smearing level:
+
+```bash
+python3 analysis/analysis_per_smear.py --su2
+python3 analysis/analysis_per_smear.py --su3 --smear 20
+```
+
+Key outputs:
+- **χ_t^(1/4) vs β** — Susceptibility (should match ~200 MeV for SU(2))
+- **τ_int(Q²) vs β** — Autocorrelation time (increases with β → freezing)
+- **Q histograms** — Distribution narrowing indicates freezing
+- **q(t) timeslice density** — Spatial topcharge density via `timeslice_analysis.py`
+
+`analysis_per_smear.py` auto-detects every APE smearing level present in `topcharge.dat` and writes each set of figures into `output/figures_analysis/smear&lt;N&gt;/`. Useful when comparing how the susceptibility plateau and τ_int depend on smearing depth.
+
+Standalone helpers (do not need the full pipeline):
+- `analysis/plot_topcharge.py` — Q vs smearing steps / MC time from a raw `topcharge.dat`
+- `analysis/analyze_topcharge.py` — jackknife mean / error / bias on Q
+- `scale_set.ipynb` — SU(2) and SU(3) lattice-spacing scale-setting formulas (arXiv:1811.02800 and hep-lat/0108008)
+
+### Optional: Rust analysis extension
+
+`rust_analysis/` is a PyO3 module (`qcd_analysis`) that provides parallelised, hot-path replacements for the slow Python routines: `find_optimal_alpha`, `jackknife_error`, `bootstrap_alpha`, `bootstrap_q2`. Build with maturin:
+
+```bash
+cd rust_analysis
+maturin develop --release         # installs qcd_analysis into the active Python env
+```
+
+The Python analysis falls back to its pure-Python implementations if the module is not installed.
+
+### Supplementary docs
+
+- `context.md` — physics goal, observables, and pipeline summary
+- `additional_infos.md` — bug-scan notes and design decisions worth knowing before editing the analysis
+
+The analysis uses the Gamma method via `pyerrors` for autocorrelation-aware
+errors. Periodic-boundary runs use integer-rounded `Q_re`; open-boundary runs use
+the continuous `alpha * Q` because global Q is not quantized with open temporal
+boundaries.
+
+## Git and SSH Remote
+
+The repository is configured for SSH pushes to GitHub:
+
+```bash
+git remote -v
+# origin  git@github.com:atemynany/Topological-freezing-in-SU2-3-simulations.git
+```
+
+If VS Code prints a line like `refs/heads/master refs/remotes/master`, that is
+only a ref query. The tracked upstream should be `master -&gt; origin/master`; check
+or repair it with:
+
+```bash
+git branch -vv
+git branch --set-upstream-to=origin/master master
+git remote set-url origin git@github.com:atemynany/Topological-freezing-in-SU2-3-simulations.git
+ssh -T git@github.com
+```
+
+SSH keys themselves live outside the repository in `~/.ssh/` and must be added to
+the GitHub account. This repo should not store private keys.
+
+## Project Structure
+
+```
+├── src/                  # C/C++ simulation sources
+├── include/              # Header files
+├── _Utility/             # Core library (fields, RNG, smearing)
+├── tests/                # Catch2 unit tests
+├── scripts/              # Build, run, and analysis scripts
+├── analysis/             # Python analysis and plotting
+├── rust_analysis/        # Optional Rust+PyO3 accelerator (qcd_analysis)
+├── cluster/              # SLURM scripts for Fuchs and HHLR-Goethe
+├── input/                # Setup files and topcharge params
+├── scale_set.ipynb                # Lattice-spacing scale-setting notebook
+├── context.md                     # Physics + pipeline summary
+├── additional_infos.md            # Bug-scan notes and design decisions
+├── run_heatbath_scan.sh           # Phase 1: config generation
+├── run_topcharge_scan.sh          # Phase 2: topcharge measurement
+└── run_heatbath_topcharge_scan.sh # SU(2) fused pipeline (no disk configs)
+```
+</pre>
+            </details>
+            
+            <details class="doc-card search-card" open>
+              <summary>
+                <span>SU2 Includes Library</span>
+                <a href="../_Utility/README.md">_Utility/README.md</a>
+              </summary>
+              <div class="doc-outline"><ul><li>Build Instructions</li><li>Build Output</li><li>Contents</li><li>Requirements</li><li>Notes</li></ul></div>
+              <pre class="doc-pre"># SU2 Includes Library
+
+Static library containing utility functions for SU(2) lattice gauge theory simulations.
+
+## Build Instructions
+
+```bash
+cd Includes
+mkdir -p build
+cd build
+cmake ..
+make
+```
+
+## Build Output
+
+| File | Location |
+|------|----------|
+| `libsu2_includes.a` | `build/` |
+| Object files (`.o`) | `build/CMakeFiles/su2_includes.dir/` |
+
+## Contents
+
+### Source Files
+
+| File | Description |
+|------|-------------|
+| `fields.cc` | Field operations and manipulations |
+| `io.cc` | Input/output utilities for reading/writing configurations |
+| `ranlux.cc` | C++ wrapper for RANLUX random number generator |
+| `ranlxd.c` | RANLUX double precision RNG |
+| `ranlxs.c` | RANLUX single precision RNG |
+| `smearing_techniques_all.cc` | all available Smearing algorithms (APE, HYP, etc.) |
+| `smearing_techniques.cc` | used Smearning algorithm |
+
+### Header Files
+
+| File | Description |
+|------|-------------|
+| `fields.hh` | Field class definitions |
+| `geometry.hh` | Lattice geometry and indexing |
+| `io.hh` | I/O function declarations |
+| `linear_algebra.hh` | SU(2) matrix operations|
+| `progressbar.hh` | Progress bar utility |
+| `ranlux.hh` | Random number generator interface |
+| `smearing_techniques.hh` | Smearing function declarations |
+
+## Requirements
+
+- CMake ≥ 3.16
+- C++17 compatible compiler
+- Math library (`-lm`)
+
+## Notes
+
+- macOS users: Uncomment `set(CMAKE_OSX_ARCHITECTURES &quot;arm64&quot;)` in `CMakeLists.txt` for Apple Silicon</pre>
+            </details>
+            
+            <details class="doc-card search-card" open>
+              <summary>
+                <span>Additional Notes: Bug Findings &amp; Implementation Details</span>
+                <a href="../additional_infos.md">additional_infos.md</a>
+              </summary>
+              <div class="doc-outline"><ul><li>1. Bug Scan Results</li><li>2. Open Boundary Conditions</li><li>4. Scale Setting Utilities (`scale_set.ipynb`)</li><li>5. Timeslice Topological Charge Density</li></ul></div>
+              <pre class="doc-pre"># Additional Notes: Bug Findings &amp; Implementation Details
+
+---
+
+## 1. Bug Scan Results
+
+### Fixed
+
+**APE smearing index guard used `index_mt_3` as a boolean** (`_Utility/src/smearing_techniques.cc`)
+
+Three spatial-link smearing branches checked `index_mt_3` instead of
+`index_mt_3 &gt;= 0`. In periodic runs that could skip a valid link when the
+computed offset was exactly zero; in open-boundary runs it could treat `-1` as
+true. Fixed all three checks. After rebuilding, the full CTest suite passes.
+
+**Detected thermalization cut was not preserved for topcharge scans** (`run_heatbath_scan.sh`, `run_topcharge_scan.sh`)
+
+`run_heatbath_scan.sh` detected `START_CONF` from plaquette thermalization and
+wrote it to `run_info.txt`, but the generated `input.txt` did not contain
+`start_conf`. Then `run_topcharge_scan.sh` re-patched `input.txt` using the
+shared topcharge parameter file, so the per-run thermalization cut could be lost.
+Fixed by writing `start_conf` into the heatbath-generated `input.txt` and making
+the topcharge scan prefer that per-run value, falling back to the shared params
+file only for legacy runs.
+
+**Parallel scan failures are reported without aborting completed work** (`run_heatbath_scan.sh`, `run_topcharge_scan.sh`, `run_heatbath_topcharge_scan.sh`)
+
+Parallel mode counts failed child jobs and prints a warning, but deliberately
+does not exit with status 1 at the end. This keeps long production scans from
+wasting resources when most jobs completed successfully; inspect the per-run log
+files for the failed subset and rerun only those ensembles.
+
+**Build metadata still described an SU(2)-only project** (`CMakeLists.txt`, `scripts/build.sh`)
+
+The build already produced SU(3) executables, but the project name, install
+targets, and build-script executable list were stale. Updated them to include
+SU(2) and SU(3) binaries consistently.
+
+**chi_t used `Q_raw²` instead of `Q_rescaled²`** (`analysis/calculations.py`)
+
+`Q_raw` is the smeared but not-yet-rescaled float value (e.g. −2.71). `Q_rescaled = round(α · Q_raw)` is the integer-rounded charge (e.g. −2). The susceptibility, tau_int, and histograms must all use the same Q. Since `Q_raw ≈ Q_rescaled / α`, using `Q_raw²` inflated chi_t by `1/α²` (≈ +24% for α = 0.898) and chi_t^(1/4) by ≈ +6%. Fixed to use `Q_rescaled²` everywhere in `analyze_run()`.
+
+---
+
+### Not bugs (investigated and ruled out)
+
+**Topcharge normalization `1/(4π²)`** — correct for SU(N) in the fundamental representation with `Tr(T^a T^b) = δ^{ab}/2`. The local density formula sums over the three independent dual pairs (01,23), (02,13), (03,12), each with a factor of 2 to account for the (μν) and (νμ) contributions. The overall sign is a convention choice (the code defines the local density as `−ε Tr(FF)`).
+
+**`chi_t_fourth_root_a` dimensional chain** — the division by `a` happens in `plotting_code.py` (`chi_fourth_MeV = chi_fourth_a / a_values`). The stored intermediate `chi_t_fourth_root_a = (chi_t_lattice)^(1/4) · ℏc` has units MeV·fm; dividing by `a` [fm] gives MeV. Correct.
+
+**`start_conf` not filtering in analysis** — the measurement binaries process only the configuration range written into each run&#x27;s `input.txt`. Analysis-side `start_conf` is metadata only and does not need to filter the already-produced `topcharge[_su3].dat` files.
+
+**SU(3) link projection (`su3_proj`)** — the Gram-Schmidt approach (normalise row 0, orthogonalise and normalise row 1, construct row 2 as the conjugate cross-product) is the standard correct method for projecting onto SU(3). Verified mathematically sound.
+
+**Progress bar** — `conf_count` increments to `total_confs` on the last iteration, giving progress = 1.0 (100%). Correct.
+
+**Alpha rescaling range [0.8, 1.2]** — all current ensembles have α within this window (observed range: 0.80–1.13). For significantly coarser or finer lattices in the future, this window should be widened. No action needed now.
+
+---
+
+### Design decisions (not bugs, but worth knowing)
+
+**Jackknife ignores autocorrelation** — `jackknife_error()` is documented to ignore autocorrelations. It is only used as a rough secondary estimate alongside the Gamma method. The Gamma method (`autocorrelation.py` via `pyerrors`) is the primary error estimator and correctly accounts for autocorrelations.
+
+**Gamma method `S = 1.5`** — the windowing parameter S = 1.5 is the `pyerrors` default and appropriate for most ensembles. It can be adjusted if the automatic window selection behaves poorly for very long autocorrelations.
+
+**Thermalization detection rounds up** — `detect_thermalization.py` rounds the detected thermalization point up to the nearest `save_interval`. This conservatively discards a few sweeps of already-thermalised data but guarantees no contamination.
+
+---
+
+## 2. Open Boundary Conditions
+
+### What type of BC?
+
+The implementation is the **Lüscher-Schaefer open boundary condition** (Lüscher &amp; Schaefer, JHEP 2011, arXiv:1105.4749). It is **neither Dirichlet nor von Neumann** in the classical PDE sense.
+
+- **Dirichlet** would fix link values at the boundary to a constant (e.g. U = 1). The boundary links here are fully free to update.
+- **von Neumann** sets the normal derivative to zero (no flux). The Lüscher-Schaefer BC is effectively the opposite — it removes the action barrier to topology flowing through the boundary.
+
+### How it is implemented
+
+Temporal plaquettes at `t = 0` and `t = T−1` enter the action with weight **1/2** instead of 1. In the heatbath this is done by multiplying each staple at the boundary by 0.5:
+
+```cpp
+// MC_heatbath_su3.cc  (identical logic in MC_heatbath.cc)
+const bool at_boundary = open_bc &amp;&amp; (it == 0 || it == T_size - 1);
+...
+if (at_boundary) su3_ti_eq_re(T2, 0.5);   // half-weight boundary staple
+```
+
+The factor of 1/2 is physically correct: a bulk plaquette is shared between two adjacent time slices and contributes to both their local actions; a boundary plaquette has only one neighbour, so its natural weight is half.
+
+### Why it cures topological freezing
+
+With **periodic BC**, the topological charge Q is strictly an integer and the sectors Q = 0, ±1, ±2, … are separated by large action barriers that diverge as a → 0. Local updates cannot tunnel between sectors — τ_int diverges.
+
+With **open BC**, the boundary removes the topological sector structure. Topological charge can flow continuously through the temporal boundaries, so Q is no longer quantized globally and the barriers disappear. τ_int remains finite even at fine lattice spacings.
+
+### In the topological charge measurement
+
+The boundary time slices are excluded from the topological charge sum via the `exclude_boundary_slices` parameter. The gauge field near the boundary is affected by the open BC and does not represent bulk physics, so those slices are discarded to avoid contaminating the measurement.
+
+```
+# base_params_su3.txt
+exclude_boundary_slices 0    # set &gt; 0 for open BC runs (typically 1–2)
+```
+
+---
+
+## 4. Scale Setting Utilities (`scale_set.ipynb`)
+
+Three utility functions added to the notebook for interactive use:
+
+### `beta_from_a_su2(a_fm)`
+Analytically inverts `lattice_spacing_su2` by solving the quadratic in `delta_beta = beta - 2.6`:
+
+```
+ln(t0/a²) = 1.285 + 6.409·x - 0.7411·x²   →   quadratic formula
+```
+
+Picks the root closest to the physical regime (beta ~ 2–3).
+
+### `beta_from_a_su3(a_fm)`
+Inverts `lattice_spacing_su3` via `numpy.roots` on the cubic in `delta_beta = beta - 6.0`:
+
+```
+ln(a/r0) = -1.6804 - 1.7331·x + 0.7849·x² - 0.4428·x³
+```
+
+Picks the real root closest to x = 0 (physical regime beta ~ 5.5–6.5).
+
+### `adjust_lattice(T_ref, L_ref, a_ref_fm, a_new_fm, open_bc, n_exclude)`
+Given a reference volume at `a_ref`, computes integer `(T_new, L_new)` at `a_new` that preserve physical volume:
+
+- **Spatial**: `L_new = round(L_ref * a_ref / a_new)` (no boundary effect)
+- **Periodic temporal**: `T_new = round(T_ref * a_ref / a_new)`
+- **Open BC temporal**: physical extent is `T_eff = (T - 2*n_exclude) * a`, so `T_new = round(T_eff_ref * a_ref/a_new) + 2*n_exclude`. `n_exclude` must match `exclude_boundary_slices` in the input file.
+
+---
+
+## 5. Timeslice Topological Charge Density
+
+### C++ output (`meas_topcharge_su2.cc`)
+
+After computing the total Q for each config, `meas_topcharge` now also writes `topcharge_timeslice.dat` in the same output directory:
+
+```
+# smear_steps  config_number  t  q_t
+```
+
+`q_t` is the charge density summed over all spatial sites at timeslice `t`, normalized by `4π²`:
+
+```
+q(t) = (1/4π²) · Σ_{x,y,z} q_local(t,x,y,z)
+```
+
+For open BC, only timeslices `t ∈ [exclude_boundary_slices, T - exclude_boundary_slices)` are written. **No new input parameters required** — the existing `boundary` and `exclude_boundary_slices` fields control this automatically.
+
+### Python analysis (`analysis/timeslice_analysis.py`)
+
+Full pipeline: load → bin → Gamma method errors → plot.
+
+**Key design choice — temporal binning**: because the spatial volume is small, individual timeslice measurements are very noisy. The `n_bin` parameter sums over `n_bin` consecutive slices per bin. Typical values: `n_bin=2` or `3`. Match `n_exclude` in the call to `analyse_timeslices` with `exclude_boundary_slices` in the input file.
+
+**Error estimation**: `pyerrors` Gamma method applied independently to each time bin across MC configurations. Properly accounts for MC autocorrelation (large `tau_int` near freezing). Same `S=1.5` default as the rest of the analysis.
+
+**CLI usage**:
+```bash
+python analysis/timeslice_analysis.py \
+    data/results/T16_L4_b2.50_open_seed12345/output/topcharge_timeslice.dat \
+    --a 0.093 --n-bin 2 --open-bc --n-exclude 2 --output output/figures_analysis/timeslice.pdf
+```
+
+**Programmatic usage**:
+```python
+from analysis.timeslice_analysis import analyse_timeslices, plot_timeslice_density
+
+res = analyse_timeslices(&quot;topcharge_timeslice.dat&quot;, lattice_spacing_fm=0.093,
+                         n_bin=2, open_bc=True, n_exclude=2)
+plot_timeslice_density(res, open_bc=True)
+```
+</pre>
+            </details>
+            
+            <details class="doc-card search-card" open>
+              <summary>
+                <span>Project Context: Topological Charge Freezing in SU(2)/SU(3) Lattice Gauge Theory</span>
+                <a href="../context.md">context.md</a>
+              </summary>
+              <div class="doc-outline"><ul><li>1. Physics Goal</li><li>2. Topological Charge</li><li>3. APE Smearing</li><li>4. Topological Freezing and Critical Slowing Down</li><li>5. Topological Susceptibility</li><li>6. Q Rescaling (Alpha Estimator)</li><li>7. Scale Setting</li><li>8. Autocorrelation Analysis</li><li>9. Monte Carlo Algorithm</li><li>10. Production Topological Charge Measurement</li><li>11. Thermalization</li><li>12. Analysis Pipeline</li><li>13. File Formats</li><li>14. Rust Extension (`rust_analysis/`)</li><li>15. Key References</li></ul></div>
+              <pre class="doc-pre"># Project Context: Topological Charge Freezing in SU(2)/SU(3) Lattice Gauge Theory
+
+This document summarises the theoretical background, implementation, and analysis pipeline for the master thesis project studying topological freezing in pure-gauge SU(2) and SU(3) lattice field theory.
+
+---
+
+## 1. Physics Goal
+
+The project measures the **topological susceptibility** χ_t and the **integrated autocorrelation time** τ_int(Q²) across a range of lattice spacings for both SU(2) and SU(3) pure-gauge theories. The central question is how topological freezing (the inability of the Monte Carlo to tunnel between topological sectors) sets in as the continuum limit is approached, and whether open boundary conditions mitigate it.
+
+---
+
+## 2. Topological Charge
+
+The topological charge Q is an integer-valued observable that characterises the global winding number of a gauge configuration:
+
+$$Q = \frac{1}{32\pi^2} \int d^4x \, \varepsilon_{\mu\nu\rho\sigma} \, \mathrm{Tr}(F_{\mu\nu} F_{\rho\sigma})$$
+
+On the lattice, this is approximated using the **clover (symmetric) discretisation** of F_μν:
+
+$$F_{\mu\nu}^{\text{clover}} = \frac{1}{4}(P_{++} + P_{-+} + P_{--} + P_{+-})$$
+
+where each P is a 1×1 plaquette oriented differently around the site. The field strength is then extracted as the anti-Hermitian part: `(C - C†)/2`. The local charge density sums over dual pairs of field strength components, and the total Q is normalised by 1/(4π²).
+
+Without smearing, the clover Q is dominated by UV lattice noise and not close to an integer. **APE smearing** is applied to the gauge field before measuring Q in production.
+
+---
+
+## 3. APE Smearing
+
+APE smearing iteratively replaces each link with a weighted average of itself and its staples, then projects back to SU(N):
+
+$$U_\mu&#x27;(x) = \mathcal{P}_{SU(N)}\!\left[(1-\alpha)\,U_\mu(x) + \frac{\alpha}{6}\sum_{\nu\neq\mu} V_{\mu\nu}(x)\right]$$
+
+where V_μν is the sum of the two staples in the ν direction. The SU(3) projection uses iterative polar decomposition (via Cayley-Hamilton). Typically 20 steps at α = 0.3 (SU3) or α = 0.45 (SU2) are used. Smearing removes UV noise, making Q converge to near-integer values.
+
+**Important**: smearing is applied to the gauge field. You cannot smear Q values directly. The pipeline is always: gauge field → smear → compute Q.
+
+---
+
+## 4. Topological Freezing and Critical Slowing Down
+
+As β → ∞ (continuum limit, a → 0), the action barriers between topological sectors diverge. Local update algorithms (heatbath, overrelaxation) cannot tunnel between sectors, so Q becomes frozen. The autocorrelation time scales as:
+
+$$\tau_{\text{int}}(Q) \propto a^{-z}, \quad z \approx 5 \text{ (SU(3) pure gauge)}$$
+
+**Open boundary conditions (OBC)** in the temporal direction allow topological charge to flow through the boundaries, breaking the topological sector structure and avoiding the divergence of τ_int. The tradeoff is reduced translational invariance and boundary effects that must be excluded from measurements.
+
+---
+
+## 5. Topological Susceptibility
+
+$$\chi_t = \frac{\langle Q^2 \rangle}{V}, \quad \chi_t^{1/4} \approx 200 \text{ MeV (SU(2))}, \quad \approx 180 \text{ MeV (SU(3))}$$
+
+where V = T·L³ is the lattice volume. In code, χ_t is computed from the rescaled integer charges Q_re (see §6).
+
+---
+
+## 6. Q Rescaling (Alpha Estimator)
+
+Raw smeared Q values are close to but not exactly integers due to residual discretisation errors. A rescaling factor α is found that minimises the deviation from the nearest integer:
+
+$$\alpha^* = \arg\min_\alpha \langle (\alpha Q - \text{round}(\alpha Q))^2 \rangle$$
+
+This is solved via **golden-section search** on [0.8, 1.2]. The rescaled integer charge is then:
+
+$$Q_{\text{re}} = \text{round}(\alpha^* Q)$$
+
+α ≈ 1 for well-smeared configurations. This is only meaningful when Q is close to integers (i.e., after sufficient smearing). Applying it to unsmeared thermalization Q is not physically meaningful.
+
+The Rust extension (`rust_analysis/`) provides a parallel implementation of this search via rayon.
+
+---
+
+## 7. Scale Setting
+
+### SU(3) — Necco-Sommer formula (Sommer scale r₀ = 0.5 fm)
+
+$$\ln\!\left(\frac{a}{r_0}\right) = -1.6804 - 1.7331(\beta-6) + 0.7849(\beta-6)^2 - 0.4428(\beta-6)^3$$
+
+### SU(2) — Gradient flow scale t₀
+
+$$\ln\!\left(\frac{t_0}{a^2}\right) = 1.285 + 6.409(\beta - 2.600) - 0.7411(\beta - 2.600)^2, \quad t_0^{1/2} \approx 0.1065 \text{ fm}$$
+
+Both are implemented in `analysis/calculations.py` as `lattice_spacing_su2/su3(beta)`.
+
+---
+
+## 8. Autocorrelation Analysis
+
+τ_int is estimated using the **Gamma method** (via the `pyerrors` library), which provides an unbiased estimate of the integrated autocorrelation time including the tail contribution. The input observable is Q²_re (the squared rescaled topological charge). τ_int &gt; 0.5 indicates autocorrelations; large τ_int signals freezing.
+
+A Rust-accelerated jackknife error estimate (O(N) via the delete-one identity) is also available in `rust_analysis/`.
+
+---
+
+## 9. Monte Carlo Algorithm
+
+### SU(2) Heatbath
+Implemented in `src/MC_heatbath.cc`. Uses the **Kennedy-Pendleton** algorithm to exactly sample from the heatbath distribution for each SU(2) link. Optionally uses open boundary conditions (temporal links at t=0 and t=T−1 get half-weight staples).
+
+### SU(3) Heatbath
+Implemented in `src/MC_heatbath_su3.cc`. Uses the **Cabibbo-Marinari** decomposition: the SU(3) matrix is updated by cycling through three embedded SU(2) subgroups, each updated with the SU(2) heatbath. Followed by overrelaxation steps (reflect link through the staple sum, stays exactly on SU(3) manifold).
+
+**OpenMP parallelization**: The SU(3) heatbath uses checkerboard (even/odd) site decomposition for thread-safe parallel sweeps. Sites are classified by parity `(t+x+y+z) % 2` at startup. Each half-sweep updates only even or odd sites, so no two threads touch neighboring links simultaneously. Both the heatbath and overrelaxation loops are parallelized this way. Per-thread RNG seeding uses `rlxd_init(2, seed + tid * 997)`.
+
+Both programs:
+- Write the plaquette and Wilson action density at every sweep to `plaquette[_su3].dat`
+- Save gauge configurations every `save_interval` sweeps
+- Validate all input parameters at startup
+
+---
+
+## 10. Production Topological Charge Measurement
+
+`src/meas_topcharge_su3.cc` and `src/meas_topcharge_su2.cc`:
+- Load saved configurations from disk
+- Apply N APE smearing steps to a temporary copy of the gauge field
+- Measure Q on the smeared copy
+- Write `conf smear_step Q` to `topcharge_su3.dat` (SU3) or `smear_step conf Q plaquette` to `topcharge.dat` (SU2)
+- Display a progress bar during the run
+
+The smearing does **not** modify the stored configurations — it operates on an in-memory copy.
+
+---
+
+## 11. Thermalization
+
+Thermalization is detected automatically by `scripts/detect_thermalization.py` using a sliding-window test on the plaquette. The detected `start_conf` is written to `run_info.txt` and used as the starting configuration for the topological charge measurement.
+
+Thermalization plot per gauge group (saved to `output/figures_analysis/`):
+- **`thermalization_comparison_su2/3.png`**: plaquette vs MC sweep for all β values overlaid, with detected thermalization points marked.
+
+---
+
+## 12. Analysis Pipeline
+
+`analysis/analysis.py --su2/--su3`:
+1. Scans `data/results/T*_L*_b*_*_seed*/` for completed runs
+2. Loads `topcharge[_su3].dat` — auto-detects SU2 (4-col) or SU3 (3-col) format
+3. Applies alpha rescaling to get Q_re
+4. Computes χ_t = ⟨Q²_re⟩/V and τ_int via Gamma method
+5. Generates plots — histogram and Q-vs-mctime grids use a **shared axis range** across all β panels so narrowing of distributions with increasing β is visually apparent
+
+`analysis/calculations.py` — data loading, QEstimator, jackknife, autocorrelation
+`analysis/plotting_code.py` — all matplotlib figures
+`analysis/autocorrelation.py` — Gamma method wrapper
+
+---
+
+## 13. File Formats
+
+| File | Columns | Notes |
+|------|---------|-------|
+| `topcharge.dat` (SU2) | `smear_step conf Q plaquette` | 4 columns |
+| `topcharge_su3.dat` | `conf smear_step Q` | 3 columns |
+| `topcharge_timeslice.dat` | `smear_step conf t q_t` | per-timeslice topological charge density |
+| `plaquette[_su3].dat` | `sweep plaquette action_density` | every heatbath sweep; `s = 6 beta (1 - &lt;P&gt;)` |
+
+---
+
+## 14. Rust Extension (`rust_analysis/`)
+
+Optional Python extension module built with maturin/PyO3. Provides parallel versions of analysis hot-paths using rayon. Automatically used by `calculations.py` when installed.
+
+Functions: `find_optimal_alpha`, `jackknife_error`, `bootstrap_alpha`, `bootstrap_Q2`
+
+Build: `cd rust_analysis &amp;&amp; maturin develop --release`
+
+---
+
+## 15. Key References
+
+1. **Schaefer, Sommer, Virotta (2011)** — Critical slowing down and error analysis. Nucl. Phys. B 845. [arXiv:1009.5228]
+2. **Lüscher, Schaefer (2011)** — Lattice QCD without topology barriers. JHEP 07. [arXiv:1105.4749]
+3. **Necco, Sommer (2001)** — SU(3) scale setting. Nucl. Phys. B 622. [arXiv:hep-lat/0108008]
+4. **Kennedy, Pendleton (1985)** — Improved heat bath method. Phys. Lett. B 156.
+5. **Cabibbo, Marinari (1982)** — SU(3) heatbath via SU(2) subgroups. Phys. Lett. B 119.
+</pre>
+            </details>
+            
+    </section>
+
+    <section id="workflow">
+      <h2>Workflow</h2>
+      <div class="grid">
+        <div class="stat"><b>5</b>Markdown documentation files</div>
+        <div class="stat"><b>35</b>input text files</div>
+        <div class="stat"><b>28</b>SU2 analysis runs loaded or discovered</div>
+        <div class="stat"><b>107</b>PNG figures</div>
+        <div class="stat"><b>5</b>text or data outputs</div>
+        <div class="stat"><b>42</b>scripts and docs indexed</div>
+      </div>
+      <div class="panel">
+        <p>The synced data roots are <code>data/results_home</code> and <code>data/results_work</code>. The sync script copies only <code>.dat</code> files from both cluster locations into these roots.</p>
+        <p>Standard runs use directories named like <code>T160_L80_b3.15_open_seed857952899_su2</code>. The qtarget hot ensemble is represented by <code>data/results_work/qtarget_T80_L80_b3.15_periodic_20260527_145728_su2</code>; its <code>hot_candidates/try_*</code> measurements are combined into one analysis ensemble.</p>
+        <p>The main analysis loads topological charge, plaquette, topcharge-timeslice, and action-density files where available, then writes plots and summaries under <code>output/figures_analysis</code> or a chosen <code>--output-dir</code>.</p>
+      </div>
+    </section>
+
+    <section id="guide">
+      <h2>What Is Displayed Here?</h2>
+      <div class="guide">
+        <article>
+          <h3>Run Tables</h3>
+          <p>The run inventory tells you what data folders were discovered, which files were present, and whether the loader accepted them. The analysis summary recomputes the central observables from the current files.</p>
+        </article>
+        <article>
+          <h3>Topological Charge Plots</h3>
+          <p><code>Q_vs_mctime</code> shows Monte Carlo history. <code>histograms</code> shows sector coverage and whether the periodic data clusters near integer topological charge after rescaling.</p>
+        </article>
+        <article>
+          <h3>Continuum Summaries</h3>
+          <p><code>susceptibility</code> and <code>tau_int</code> compare ensembles versus lattice spacing. These are the high-level freezing and scaling plots.</p>
+        </article>
+        <article>
+          <h3>Thermalization And Action Density</h3>
+          <p><code>thermalization_comparison</code> uses plaquette data. <code>action_density</code> shows action density histories, including the qtarget/hot-list ensemble when present.</p>
+        </article>
+        <article>
+          <h3>Timeslice Analysis</h3>
+          <p>The timeslice plots break topological charge density and autocorrelation estimates down along the temporal direction, including edge/bulk comparisons for open boundaries.</p>
+        </article>
+        <article>
+          <h3>Per-Smear Outputs</h3>
+          <p>The <code>smear5</code>, <code>smear10</code>, and <code>smear15</code> folders show the same pipeline repeated at fixed APE smearing levels.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="runs">
+      <h2>Run Inventory</h2>
+      <div class="panel">
+        <table class="interactive-table"><thead><tr><th>path</th><th>source</th><th>beta</th><th>boundary</th><th>T</th><th>L</th><th>seed</th><th>N conf</th><th>files found</th><th>status</th></tr></thead><tbody><tr class="search-row"><td><a href="../data/results_home/T115_L108_b3.15_periodic_seed275974907_su2">data/results_home/T115_L108_b3.15_periodic_seed275974907_su2</a></td><td>results_home</td><td>3.15</td><td>periodic</td><td>115</td><td>108</td><td>275974907</td><td>50</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T159_L108_b3.15_open_seed1208018241_su2">data/results_home/T159_L108_b3.15_open_seed1208018241_su2</a></td><td>results_home</td><td>3.15</td><td>open</td><td>159</td><td>108</td><td>1208018241</td><td>50</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T159_L108_b3.15_open_seed999060221_su2">data/results_home/T159_L108_b3.15_open_seed999060221_su2</a></td><td>results_home</td><td>3.15</td><td>open</td><td>159</td><td>108</td><td>999060221</td><td>50</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T160_L80_b3.15_open_seed825666065_su2">data/results_home/T160_L80_b3.15_open_seed825666065_su2</a></td><td>results_home</td><td>3.15</td><td>open</td><td>160</td><td>80</td><td>825666065</td><td>50</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T160_L80_b3.15_periodic_seed785195877_su2">data/results_home/T160_L80_b3.15_periodic_seed785195877_su2</a></td><td>results_home</td><td>3.15</td><td>periodic</td><td>160</td><td>80</td><td>785195877</td><td>50</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T16_L16_b2.5_periodic_seed1902689425_su2">data/results_home/T16_L16_b2.5_periodic_seed1902689425_su2</a></td><td>results_home</td><td>2.5</td><td>periodic</td><td>16</td><td>16</td><td>1902689425</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T16_L16_b2.5_periodic_seed2018065041_su2">data/results_home/T16_L16_b2.5_periodic_seed2018065041_su2</a></td><td>results_home</td><td>2.5</td><td>periodic</td><td>16</td><td>16</td><td>2018065041</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L16_b2.5_open_seed101631635_su2">data/results_home/T22_L16_b2.5_open_seed101631635_su2</a></td><td>results_home</td><td>2.5</td><td>open</td><td>22</td><td>16</td><td>101631635</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L16_b2.5_open_seed2133559185_su2">data/results_home/T22_L16_b2.5_open_seed2133559185_su2</a></td><td>results_home</td><td>2.5</td><td>open</td><td>22</td><td>16</td><td>2133559185</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L22_b2.6_periodic_seed1488952329_su2">data/results_home/T22_L22_b2.6_periodic_seed1488952329_su2</a></td><td>results_home</td><td>2.6</td><td>periodic</td><td>22</td><td>22</td><td>1488952329</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L22_b2.6_periodic_seed1604860937_su2">data/results_home/T22_L22_b2.6_periodic_seed1604860937_su2</a></td><td>results_home</td><td>2.6</td><td>periodic</td><td>22</td><td>22</td><td>1604860937</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L22_b2.6_open_seed1720270345_su2">data/results_home/T30_L22_b2.6_open_seed1720270345_su2</a></td><td>results_home</td><td>2.6</td><td>open</td><td>30</td><td>22</td><td>1720270345</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L22_b2.6_open_seed1835695113_su2">data/results_home/T30_L22_b2.6_open_seed1835695113_su2</a></td><td>results_home</td><td>2.6</td><td>open</td><td>30</td><td>22</td><td>1835695113</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L30_b2.7_periodic_seed1231330499_su2">data/results_home/T30_L30_b2.7_periodic_seed1231330499_su2</a></td><td>results_home</td><td>2.7</td><td>periodic</td><td>30</td><td>30</td><td>1231330499</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L30_b2.7_periodic_seed1346372035_su2">data/results_home/T30_L30_b2.7_periodic_seed1346372035_su2</a></td><td>results_home</td><td>2.7</td><td>periodic</td><td>30</td><td>30</td><td>1346372035</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T41_L41_b2.8_periodic_seed144114837_su2">data/results_home/T41_L41_b2.8_periodic_seed144114837_su2</a></td><td>results_home</td><td>2.8</td><td>periodic</td><td>41</td><td>41</td><td>144114837</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T41_L41_b2.8_periodic_seed259336341_su2">data/results_home/T41_L41_b2.8_periodic_seed259336341_su2</a></td><td>results_home</td><td>2.8</td><td>periodic</td><td>41</td><td>41</td><td>259336341</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T42_L30_b2.7_open_seed1624488965_su2">data/results_home/T42_L30_b2.7_open_seed1624488965_su2</a></td><td>results_home</td><td>2.7</td><td>open</td><td>42</td><td>30</td><td>1624488965</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T42_L30_b2.7_open_seed1739959301_su2">data/results_home/T42_L30_b2.7_open_seed1739959301_su2</a></td><td>results_home</td><td>2.7</td><td>open</td><td>42</td><td>30</td><td>1739959301</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T57_L41_b2.8_open_seed1882700213_su2">data/results_home/T57_L41_b2.8_open_seed1882700213_su2</a></td><td>results_home</td><td>2.8</td><td>open</td><td>57</td><td>41</td><td>1882700213</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T57_L41_b2.8_open_seed1998022069_su2">data/results_home/T57_L41_b2.8_open_seed1998022069_su2</a></td><td>results_home</td><td>2.8</td><td>open</td><td>57</td><td>41</td><td>1998022069</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T65_L65_b2.95_periodic_seed1348947599_su2">data/results_home/T65_L65_b2.95_periodic_seed1348947599_su2</a></td><td>results_home</td><td>2.95</td><td>periodic</td><td>65</td><td>65</td><td>1348947599</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T65_L65_b2.95_periodic_seed560401647_su2">data/results_home/T65_L65_b2.95_periodic_seed560401647_su2</a></td><td>results_home</td><td>2.95</td><td>periodic</td><td>65</td><td>65</td><td>560401647</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T89_L65_b2.95_open_seed1483978919_su2">data/results_home/T89_L65_b2.95_open_seed1483978919_su2</a></td><td>results_home</td><td>2.95</td><td>open</td><td>89</td><td>65</td><td>1483978919</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_home/T89_L65_b2.95_open_seed469074389_su2">data/results_home/T89_L65_b2.95_open_seed469074389_su2</a></td><td>results_home</td><td>2.95</td><td>open</td><td>89</td><td>65</td><td>469074389</td><td>400</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, input.txt, run.log, run_info.txt</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_work/T160_L80_b3.15_open_seed857952899_su2">data/results_work/T160_L80_b3.15_open_seed857952899_su2</a></td><td>results_work</td><td>3.15</td><td>open</td><td>160</td><td>80</td><td>857952899</td><td>100</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, action_density.dat, action_density_bulk_ex40.dat</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_work/T80_L80_b3.15_periodic_seed1099260755_su2">data/results_work/T80_L80_b3.15_periodic_seed1099260755_su2</a></td><td>results_work</td><td>3.15</td><td>periodic</td><td>80</td><td>80</td><td>1099260755</td><td>100</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, action_density.dat</td><td>loaded</td></tr><tr class="search-row"><td><a href="../data/results_work/qtarget_T80_L80_b3.15_periodic_20260527_145728_su2">data/results_work/qtarget_T80_L80_b3.15_periodic_20260527_145728_su2</a></td><td>qtarget hot candidates</td><td>3.15</td><td>periodic</td><td>80</td><td>80</td><td>combined</td><td>9</td><td>topcharge.dat, topcharge_timeslice.dat, plaquette.dat, action_density.dat</td><td>loaded</td></tr></tbody></table>
+      </div>
+
+      <h3>Analysis Summary</h3>
+      <p class="note">Values are recomputed from the currently loaded result files when this overview is generated.</p>
+      <div class="panel">
+        <table class="interactive-table"><thead><tr><th>run</th><th>source</th><th>beta</th><th>boundary</th><th>volume</th><th>seed</th><th>N conf</th><th>&lt;Q^2&gt;</th><th>tau_int</th><th>alpha</th></tr></thead><tbody><tr class="search-row"><td><a href="../data/results_home/T22_L16_b2.5_open_seed101631635_su2">T22_L16_b2.5_open_seed101631635_su2</a></td><td>results_home</td><td>2.50</td><td>open</td><td>22x16^3</td><td>101631635</td><td>400</td><td>2.764</td><td>0.549</td><td>0.984</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L16_b2.5_open_seed2133559185_su2">T22_L16_b2.5_open_seed2133559185_su2</a></td><td>results_home</td><td>2.50</td><td>open</td><td>22x16^3</td><td>2133559185</td><td>400</td><td>3.491</td><td>0.502</td><td>1.13</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L22_b2.6_open_seed1720270345_su2">T30_L22_b2.6_open_seed1720270345_su2</a></td><td>results_home</td><td>2.60</td><td>open</td><td>30x22^3</td><td>1720270345</td><td>400</td><td>3.958</td><td>0.508</td><td>1.04</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L22_b2.6_open_seed1835695113_su2">T30_L22_b2.6_open_seed1835695113_su2</a></td><td>results_home</td><td>2.60</td><td>open</td><td>30x22^3</td><td>1835695113</td><td>400</td><td>3.019</td><td>0.542</td><td>0.941</td></tr><tr class="search-row"><td><a href="../data/results_home/T42_L30_b2.7_open_seed1624488965_su2">T42_L30_b2.7_open_seed1624488965_su2</a></td><td>results_home</td><td>2.70</td><td>open</td><td>42x30^3</td><td>1624488965</td><td>400</td><td>4.566</td><td>1.76</td><td>1.12</td></tr><tr class="search-row"><td><a href="../data/results_home/T42_L30_b2.7_open_seed1739959301_su2">T42_L30_b2.7_open_seed1739959301_su2</a></td><td>results_home</td><td>2.70</td><td>open</td><td>42x30^3</td><td>1739959301</td><td>400</td><td>2.331</td><td>1.58</td><td>0.819</td></tr><tr class="search-row"><td><a href="../data/results_home/T57_L41_b2.8_open_seed1882700213_su2">T57_L41_b2.8_open_seed1882700213_su2</a></td><td>results_home</td><td>2.80</td><td>open</td><td>57x41^3</td><td>1882700213</td><td>400</td><td>4.808</td><td>1.71</td><td>1.2</td></tr><tr class="search-row"><td><a href="../data/results_home/T57_L41_b2.8_open_seed1998022069_su2">T57_L41_b2.8_open_seed1998022069_su2</a></td><td>results_home</td><td>2.80</td><td>open</td><td>57x41^3</td><td>1998022069</td><td>400</td><td>4.398</td><td>1.45</td><td>1.09</td></tr><tr class="search-row"><td><a href="../data/results_home/T89_L65_b2.95_open_seed1483978919_su2">T89_L65_b2.95_open_seed1483978919_su2</a></td><td>results_home</td><td>2.95</td><td>open</td><td>89x65^3</td><td>1483978919</td><td>400</td><td>3.861</td><td>10.3</td><td>0.879</td></tr><tr class="search-row"><td><a href="../data/results_home/T89_L65_b2.95_open_seed469074389_su2">T89_L65_b2.95_open_seed469074389_su2</a></td><td>results_home</td><td>2.95</td><td>open</td><td>89x65^3</td><td>469074389</td><td>400</td><td>4.884</td><td>4.85</td><td>1.07</td></tr><tr class="search-row"><td><a href="../data/results_home/T159_L108_b3.15_open_seed1208018241_su2">T159_L108_b3.15_open_seed1208018241_su2</a></td><td>results_home</td><td>3.15</td><td>open</td><td>159x108^3</td><td>1208018241</td><td>50</td><td>2.854</td><td>0.539</td><td>1.15</td></tr><tr class="search-row"><td><a href="../data/results_home/T160_L80_b3.15_open_seed825666065_su2">T160_L80_b3.15_open_seed825666065_su2</a></td><td>results_home</td><td>3.15</td><td>open</td><td>160x80^3</td><td>825666065</td><td>50</td><td>0.9216</td><td>0.626</td><td>1.1</td></tr><tr class="search-row"><td><a href="../data/results_work/T160_L80_b3.15_open_seed857952899_su2">T160_L80_b3.15_open_seed857952899_su2</a></td><td>results_work</td><td>3.15</td><td>open</td><td>160x80^3</td><td>857952899</td><td>100</td><td>99.26</td><td>1.44</td><td>1.07</td></tr><tr class="search-row"><td><a href="../data/results_home/T159_L108_b3.15_open_seed999060221_su2">T159_L108_b3.15_open_seed999060221_su2</a></td><td>results_home</td><td>3.15</td><td>open</td><td>159x108^3</td><td>999060221</td><td>50</td><td>3.09</td><td>0.902</td><td>0.988</td></tr><tr class="search-row"><td><a href="../data/results_home/T16_L16_b2.5_periodic_seed1902689425_su2">T16_L16_b2.5_periodic_seed1902689425_su2</a></td><td>results_home</td><td>2.50</td><td>periodic</td><td>16x16^3</td><td>1902689425</td><td>400</td><td>3.928</td><td>0.505</td><td>1.16</td></tr><tr class="search-row"><td><a href="../data/results_home/T16_L16_b2.5_periodic_seed2018065041_su2">T16_L16_b2.5_periodic_seed2018065041_su2</a></td><td>results_home</td><td>2.50</td><td>periodic</td><td>16x16^3</td><td>2018065041</td><td>400</td><td>3.48</td><td>0.502</td><td>1.18</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L22_b2.6_periodic_seed1488952329_su2">T22_L22_b2.6_periodic_seed1488952329_su2</a></td><td>results_home</td><td>2.60</td><td>periodic</td><td>22x22^3</td><td>1488952329</td><td>400</td><td>4.03</td><td>0.534</td><td>1.16</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L22_b2.6_periodic_seed1604860937_su2">T22_L22_b2.6_periodic_seed1604860937_su2</a></td><td>results_home</td><td>2.60</td><td>periodic</td><td>22x22^3</td><td>1604860937</td><td>400</td><td>4.44</td><td>0.563</td><td>1.15</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L30_b2.7_periodic_seed1231330499_su2">T30_L30_b2.7_periodic_seed1231330499_su2</a></td><td>results_home</td><td>2.70</td><td>periodic</td><td>30x30^3</td><td>1231330499</td><td>400</td><td>3.618</td><td>1.75</td><td>1.08</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L30_b2.7_periodic_seed1346372035_su2">T30_L30_b2.7_periodic_seed1346372035_su2</a></td><td>results_home</td><td>2.70</td><td>periodic</td><td>30x30^3</td><td>1346372035</td><td>400</td><td>4.353</td><td>2.27</td><td>1.11</td></tr><tr class="search-row"><td><a href="../data/results_home/T41_L41_b2.8_periodic_seed144114837_su2">T41_L41_b2.8_periodic_seed144114837_su2</a></td><td>results_home</td><td>2.80</td><td>periodic</td><td>41x41^3</td><td>144114837</td><td>400</td><td>2.82</td><td>3.9</td><td>1.08</td></tr><tr class="search-row"><td><a href="../data/results_home/T41_L41_b2.8_periodic_seed259336341_su2">T41_L41_b2.8_periodic_seed259336341_su2</a></td><td>results_home</td><td>2.80</td><td>periodic</td><td>41x41^3</td><td>259336341</td><td>400</td><td>5.59</td><td>9.58</td><td>1.06</td></tr><tr class="search-row"><td><a href="../data/results_home/T65_L65_b2.95_periodic_seed1348947599_su2">T65_L65_b2.95_periodic_seed1348947599_su2</a></td><td>results_home</td><td>2.95</td><td>periodic</td><td>65x65^3</td><td>1348947599</td><td>400</td><td>1.623</td><td>23.7</td><td>1.05</td></tr><tr class="search-row"><td><a href="../data/results_home/T65_L65_b2.95_periodic_seed560401647_su2">T65_L65_b2.95_periodic_seed560401647_su2</a></td><td>results_home</td><td>2.95</td><td>periodic</td><td>65x65^3</td><td>560401647</td><td>400</td><td>1.22</td><td>6.66</td><td>1.07</td></tr><tr class="search-row"><td><a href="../data/results_work/T80_L80_b3.15_periodic_seed1099260755_su2">T80_L80_b3.15_periodic_seed1099260755_su2</a></td><td>results_work</td><td>3.15</td><td>periodic</td><td>80x80^3</td><td>1099260755</td><td>100</td><td>0.03</td><td>1.69</td><td>0.88</td></tr><tr class="search-row"><td><a href="../data/results_home/T115_L108_b3.15_periodic_seed275974907_su2">T115_L108_b3.15_periodic_seed275974907_su2</a></td><td>results_home</td><td>3.15</td><td>periodic</td><td>115x108^3</td><td>275974907</td><td>50</td><td>0</td><td>0.5</td><td>0.8</td></tr><tr class="search-row"><td><a href="../data/results_home/T160_L80_b3.15_periodic_seed785195877_su2">T160_L80_b3.15_periodic_seed785195877_su2</a></td><td>results_home</td><td>3.15</td><td>periodic</td><td>160x80^3</td><td>785195877</td><td>50</td><td>0.02</td><td>0.52</td><td>0.8</td></tr><tr class="search-row"><td><a href="../data/results_work/qtarget_T80_L80_b3.15_periodic_20260527_145728_su2">qtarget_T80_L80_b3.15_periodic_20260527_145728_su2</a></td><td>qtarget</td><td>3.15</td><td>periodic</td><td>80x80^3</td><td>combined</td><td>9</td><td>7937</td><td>0.6</td><td>0.86</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section id="inputs">
+      <h2>Input Configurations</h2>
+      <div class="panel">
+        <table class="interactive-table"><thead><tr><th>file</th><th>group</th><th>T</th><th>L</th><th>boundary</th><th>start_type</th><th>num_sweeps</th><th>save_interval</th><th>beta</th><th>smear_steps</th><th>smear_interval</th><th>smear_alpha</th><th>exclude_boundary_slices</th></tr></thead><tbody><tr class="search-row"><td><a href="../input/heatbath_input/setup_115x115_periodic_su2_finished.txt">input/heatbath_input/setup_115x115_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>115</td><td>115</td><td>periodic</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_159x115_open_su2_finished.txt">input/heatbath_input/setup_159x115_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>159</td><td>115</td><td>open</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_160x80_open_su2.txt">input/heatbath_input/setup_160x80_open_su2.txt</a></td><td>input/heatbath_input</td><td>160</td><td>80</td><td>open</td><td>hot</td><td>10000</td><td>100</td><td>3.15</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_16x16_periodic_su2_finished.txt">input/heatbath_input/setup_16x16_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>16</td><td>16</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.5</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_22x16_open_su2_finished.txt">input/heatbath_input/setup_22x16_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>22</td><td>16</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.5</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_22x22_periodic_su2_finished.txt">input/heatbath_input/setup_22x22_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>22</td><td>22</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.6</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_30x22_open_su2_finished.txt">input/heatbath_input/setup_30x22_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>30</td><td>22</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.6</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_30x30_periodic_su2_finished.txt">input/heatbath_input/setup_30x30_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>30</td><td>30</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.7</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_41x41_periodic_su2_finished.txt">input/heatbath_input/setup_41x41_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>41</td><td>41</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.8</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_42x30_open_su2_finished.txt">input/heatbath_input/setup_42x30_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>42</td><td>30</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.7</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_57x41_open_su2_finished.txt">input/heatbath_input/setup_57x41_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>57</td><td>41</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.8</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_65x65_periodic_su2_finished.txt">input/heatbath_input/setup_65x65_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>65</td><td>65</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.95</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_89x65_open_su2_finished.txt">input/heatbath_input/setup_89x65_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>89</td><td>65</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.95</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/topcharge_params_su2_finished.txt">input/heatbath_input/topcharge_params_su2_finished.txt</a></td><td>input/heatbath_input</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>15 # Total smearing steps applied before measuring Q</td><td>15 # Output Q every N smearing steps</td><td>0.3 # APE smearing parameter alpha</td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/topcharge_params_su3_finished.txt">input/heatbath_input/topcharge_params_su3_finished.txt</a></td><td>input/heatbath_input</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>20 # Total smearing steps applied before measuring Q</td><td></td><td>0.3 # APE smearing parameter alpha</td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_115x108_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_115x108_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>115</td><td>108</td><td>periodic</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_159x108_open_su2_finished.txt">input/heatbath_topcharge_input/setup_159x108_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>159</td><td>108</td><td>open</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td>15</td><td>15</td><td>0.3</td><td>22</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_160x80_open_su2_finished.txt">input/heatbath_topcharge_input/setup_160x80_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>160</td><td>80</td><td>open</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td>15</td><td>15</td><td>0.3</td><td>40</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_160x80_periodic_su2.txt">input/heatbath_topcharge_input/setup_160x80_periodic_su2.txt</a></td><td>input/heatbath_topcharge_input</td><td>160</td><td>80</td><td>periodic</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td>15</td><td>15</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_16x16_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_16x16_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>16</td><td>16</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.5</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_22x16_open_su2_finished.txt">input/heatbath_topcharge_input/setup_22x16_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>22</td><td>16</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.5</td><td>15</td><td>5</td><td>0.3</td><td>3</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_22x22_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_22x22_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>22</td><td>22</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.6</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_30x22_open_su2_finished.txt">input/heatbath_topcharge_input/setup_30x22_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>30</td><td>22</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.6</td><td>15</td><td>5</td><td>0.3</td><td>4</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_30x30_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_30x30_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>30</td><td>30</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.7</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_41x41_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_41x41_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>41</td><td>41</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.8</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_42x30_open_su2_finished.txt">input/heatbath_topcharge_input/setup_42x30_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>42</td><td>30</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.7</td><td>15</td><td>5</td><td>0.3</td><td>6</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_57x41_open_su2_finished.txt">input/heatbath_topcharge_input/setup_57x41_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>57</td><td>41</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.8</td><td>15</td><td>5</td><td>0.3</td><td>8</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_65x65_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_65x65_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>65</td><td>65</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.95</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_80x80_periodic_su2.txt">input/heatbath_topcharge_input/setup_80x80_periodic_su2.txt</a></td><td>input/heatbath_topcharge_input</td><td>80</td><td>80</td><td>periodic</td><td>hot</td><td>10000</td><td>100</td><td>3.15</td><td>15</td><td>15</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_89x65_open_su2_finished.txt">input/heatbath_topcharge_input/setup_89x65_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>89</td><td>65</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.95</td><td>15</td><td>5</td><td>0.3</td><td>12</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_su2_example.txt">input/heatbath_topcharge_su2_example.txt</a></td><td>input</td><td>8</td><td>8</td><td>periodic # periodic | open</td><td>cold # cold | hot</td><td>400</td><td>20 # measure Q every N sweeps</td><td>2.4</td><td>20</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/instanton.txt">input/instanton.txt</a></td><td>input</td><td>16 # Temporal extent</td><td>16 # Spatial extent (L^3 x T lattice)</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/run_input.txt">input/run_input.txt</a></td><td>input</td><td>8</td><td>8</td><td>periodic</td><td>cold</td><td>1000</td><td>10</td><td>2.5</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/tests_input/setup_test_16x16_open_su2.txt">input/tests_input/setup_test_16x16_open_su2.txt</a></td><td>input/tests_input</td><td>16</td><td>16</td><td>open</td><td>cold</td><td>1000</td><td>10</td><td>2.5</td><td>15</td><td>15</td><td>0.3</td><td>2</td></tr><tr class="search-row"><td><a href="../input/tests_input/setup_test_16x16_periodic_su2.txt">input/tests_input/setup_test_16x16_periodic_su2.txt</a></td><td>input/tests_input</td><td>16</td><td>16</td><td>periodic</td><td>cold</td><td>500</td><td>50</td><td>2.5</td><td>15</td><td>15</td><td>0.3</td><td>0</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section id="tools">
+      <h2>Scripts And Project Tools</h2>
+      <p class="note">This index links to the local scripts and docs that generate, sync, analyze, and document the project.</p>
+      <div class="panel">
+        <table class="interactive-table"><thead><tr><th>file</th><th>category</th><th>description</th></tr></thead><tbody><tr class="search-row"><td><a href="../CLAUDE.md">CLAUDE.md</a></td><td>project</td><td>CLAUDE.md</td></tr><tr class="search-row"><td><a href="../README.md">README.md</a></td><td>project</td><td>SU(2)/SU(3) Topological Charge Freezing Study</td></tr><tr class="search-row"><td><a href="../additional_infos.md">additional_infos.md</a></td><td>project</td><td>Additional Notes: Bug Findings &amp; Implementation Details</td></tr><tr class="search-row"><td><a href="../analysis/action_density_analysis.py">analysis/action_density_analysis.py</a></td><td>analysis</td><td>Action-density loading, summary, and plotting helpers.</td></tr><tr class="search-row"><td><a href="../analysis/analysis.py">analysis/analysis.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/analysis_per_smear.py">analysis/analysis_per_smear.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/analyze_topcharge.py">analysis/analyze_topcharge.py</a></td><td>analysis</td><td>Paths</td></tr><tr class="search-row"><td><a href="../analysis/autocorrelation.py">analysis/autocorrelation.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/calculations.py">analysis/calculations.py</a></td><td>analysis</td><td>---------------------------------------------------------------------------</td></tr><tr class="search-row"><td><a href="../analysis/generate_project_overview.py">analysis/generate_project_overview.py</a></td><td>analysis</td><td>Generate a static HTML overview of project inputs, results, and figures.</td></tr><tr class="search-row"><td><a href="../analysis/plot_topcharge.py">analysis/plot_topcharge.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/plotting_code.py">analysis/plotting_code.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/result_paths.py">analysis/result_paths.py</a></td><td>analysis</td><td>Helpers for locating synced result directories.</td></tr><tr class="search-row"><td><a href="../analysis/tauint_fit.py">analysis/tauint_fit.py</a></td><td>analysis</td><td>Power-law fit  tau_int(a) = c * a^(-z)  for hand-picked ensembles.</td></tr><tr class="search-row"><td><a href="../analysis/timeslice_analysis.py">analysis/timeslice_analysis.py</a></td><td>analysis</td><td>smear_steps  config_number  t  q_t</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_continue.sh">cluster/fuchs_continue.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_heatbath.sh">cluster/fuchs_heatbath.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_heatbath_thread_test.sh">cluster/fuchs_heatbath_thread_test.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_heatbath_topcharge.sh">cluster/fuchs_heatbath_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_topcharge.sh">cluster/fuchs_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_continue.sh">cluster/hhlr_continue.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_heatbath.sh">cluster/hhlr_heatbath.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_heatbath_topcharge.sh">cluster/hhlr_heatbath_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_loop_hot_ensemble.sh">cluster/hhlr_loop_hot_ensemble.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_topcharge.sh">cluster/hhlr_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_topcharge_b315_ensembles.sh">cluster/hhlr_topcharge_b315_ensembles.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/sync_results.sh">cluster/sync_results.sh</a></td><td>cluster</td><td>sync_results.sh — Sync analysis data from Fuchs cluster to local machine</td></tr><tr class="search-row"><td><a href="../context.md">context.md</a></td><td>project</td><td>Project Context: Topological Charge Freezing in SU(2)/SU(3) Lattice Gauge Theory</td></tr><tr class="search-row"><td><a href="../install.sh">install.sh</a></td><td>project</td><td>!/bin/sh</td></tr><tr class="search-row"><td><a href="../run_heatbath_scan.sh">run_heatbath_scan.sh</a></td><td>project</td><td>run_heatbath_scan.sh  —  Phase 1: generate gauge configs for all beta values</td></tr><tr class="search-row"><td><a href="../run_heatbath_topcharge_scan.sh">run_heatbath_topcharge_scan.sh</a></td><td>project</td><td>run_heatbath_topcharge_scan.sh  —  Fused SU(2) heatbath + in-memory topcharge</td></tr><tr class="search-row"><td><a href="../run_simulation.sh">run_simulation.sh</a></td><td>project</td><td>Lattice QCD Simulation - Main Entry Point</td></tr><tr class="search-row"><td><a href="../run_topcharge_scan.sh">run_topcharge_scan.sh</a></td><td>project</td><td>run_topcharge_scan.sh  —  Phase 2: measure topological charge on existing configs</td></tr><tr class="search-row"><td><a href="../scripts/build.sh">scripts/build.sh</a></td><td>scripts</td><td>build.sh</td></tr><tr class="search-row"><td><a href="../scripts/loop_hot_ensemble.sh">scripts/loop_hot_ensemble.sh</a></td><td>scripts</td><td>loop_hot_ensemble.sh</td></tr><tr class="search-row"><td><a href="../scripts/run_beta_scan.sh">scripts/run_beta_scan.sh</a></td><td>scripts</td><td>Beta Scan Job Script for Lattice QCD Simulations</td></tr><tr class="search-row"><td><a href="../scripts/run_heatbath.sh">scripts/run_heatbath.sh</a></td><td>scripts</td><td>run_heatbath.sh</td></tr><tr class="search-row"><td><a href="../scripts/run_instanton_Q.sh">scripts/run_instanton_Q.sh</a></td><td>scripts</td><td>run_instanton_Q.sh</td></tr><tr class="search-row"><td><a href="../scripts/run_tests.sh">scripts/run_tests.sh</a></td><td>scripts</td><td>run_tests.sh</td></tr><tr class="search-row"><td><a href="../scripts/run_topcharge.sh">scripts/run_topcharge.sh</a></td><td>scripts</td><td>run_topcharge.sh</td></tr><tr class="search-row"><td><a href="../scripts/test_parity_heatbath_topcharge.sh">scripts/test_parity_heatbath_topcharge.sh</a></td><td>scripts</td><td>test_parity_heatbath_topcharge.sh</td></tr><tr class="search-row"><td><a href="../scripts/test_su3_plaquette.sh">scripts/test_su3_plaquette.sh</a></td><td>scripts</td><td>Test SU(3) plaquette against literature values</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section id="figures">
+      <h2>Generated Figures</h2>
+      <div class="figures">
+        
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/Q_vs_mctime_su2_open.png" class="figure-link">
+                <img src="action_density/Q_vs_mctime_su2_open.png" alt="Q vs mctime su2 open">
+              </a>
+              <figcaption>
+                <b>Q vs mctime su2 open</b>
+                <span>Topological charge history versus Monte Carlo time.</span>
+                <code>output/action_density/Q_vs_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/Q_vs_mctime_su2_periodic.png" class="figure-link">
+                <img src="action_density/Q_vs_mctime_su2_periodic.png" alt="Q vs mctime su2 periodic">
+              </a>
+              <figcaption>
+                <b>Q vs mctime su2 periodic</b>
+                <span>Topological charge history versus Monte Carlo time.</span>
+                <code>output/action_density/Q_vs_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/action_density_su2.png" class="figure-link">
+                <img src="action_density/action_density_su2.png" alt="action density su2">
+              </a>
+              <figcaption>
+                <b>action density su2</b>
+                <span>Action density versus sweep, including qtarget/hot-list data when available.</span>
+                <code>output/action_density/action_density_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/histograms_su2_open.png" class="figure-link">
+                <img src="action_density/histograms_su2_open.png" alt="histograms su2 open">
+              </a>
+              <figcaption>
+                <b>histograms su2 open</b>
+                <span>Distribution of topological charge values, useful for checking tunnelling and sector coverage.</span>
+                <code>output/action_density/histograms_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/histograms_su2_periodic.png" class="figure-link">
+                <img src="action_density/histograms_su2_periodic.png" alt="histograms su2 periodic">
+              </a>
+              <figcaption>
+                <b>histograms su2 periodic</b>
+                <span>Distribution of topological charge values, useful for checking tunnelling and sector coverage.</span>
+                <code>output/action_density/histograms_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/susceptibility_su2.png" class="figure-link">
+                <img src="action_density/susceptibility_su2.png" alt="susceptibility su2">
+              </a>
+              <figcaption>
+                <b>susceptibility su2</b>
+                <span>Topological susceptibility summary versus lattice spacing.</span>
+                <code>output/action_density/susceptibility_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/tau_int_su2.png" class="figure-link">
+                <img src="action_density/tau_int_su2.png" alt="tau int su2">
+              </a>
+              <figcaption>
+                <b>tau int su2</b>
+                <span>Integrated autocorrelation time summary versus lattice spacing.</span>
+                <code>output/action_density/tau_int_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/thermalization_comparison_su2.png" class="figure-link">
+                <img src="action_density/thermalization_comparison_su2.png" alt="thermalization comparison su2">
+              </a>
+              <figcaption>
+                <b>thermalization comparison su2</b>
+                <span>Plaquette evolution used to inspect equilibration and thermalization.</span>
+                <code>output/action_density/thermalization_comparison_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_density_su2_open.png" class="figure-link">
+                <img src="action_density/timeslice_density_su2_open.png" alt="timeslice density su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice density su2 open</b>
+                <span>Topological charge density as a function of time slice.</span>
+                <code>output/action_density/timeslice_density_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_density_su2_periodic.png" class="figure-link">
+                <img src="action_density/timeslice_density_su2_periodic.png" alt="timeslice density su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice density su2 periodic</b>
+                <span>Topological charge density as a function of time slice.</span>
+                <code>output/action_density/timeslice_density_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_edge_bulk_mctime_su2_open.png" class="figure-link">
+                <img src="action_density/timeslice_edge_bulk_mctime_su2_open.png" alt="timeslice edge bulk mctime su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice edge bulk mctime su2 open</b>
+                <span>Comparison of boundary/edge and bulk timeslice behavior.</span>
+                <code>output/action_density/timeslice_edge_bulk_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_edge_bulk_mctime_su2_periodic.png" class="figure-link">
+                <img src="action_density/timeslice_edge_bulk_mctime_su2_periodic.png" alt="timeslice edge bulk mctime su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice edge bulk mctime su2 periodic</b>
+                <span>Comparison of boundary/edge and bulk timeslice behavior.</span>
+                <code>output/action_density/timeslice_edge_bulk_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_mctime_su2_open.png" class="figure-link">
+                <img src="action_density/timeslice_mctime_su2_open.png" alt="timeslice mctime su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice mctime su2 open</b>
+                <span>Timeslice charge evolution over Monte Carlo time.</span>
+                <code>output/action_density/timeslice_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_mctime_su2_periodic.png" class="figure-link">
+                <img src="action_density/timeslice_mctime_su2_periodic.png" alt="timeslice mctime su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice mctime su2 periodic</b>
+                <span>Timeslice charge evolution over Monte Carlo time.</span>
+                <code>output/action_density/timeslice_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_susceptibility_cropped_su2_open.png" class="figure-link">
+                <img src="action_density/timeslice_susceptibility_cropped_su2_open.png" alt="timeslice susceptibility cropped su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility cropped su2 open</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/action_density/timeslice_susceptibility_cropped_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_susceptibility_cropped_su2_periodic.png" class="figure-link">
+                <img src="action_density/timeslice_susceptibility_cropped_su2_periodic.png" alt="timeslice susceptibility cropped su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility cropped su2 periodic</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/action_density/timeslice_susceptibility_cropped_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_susceptibility_su2_open.png" class="figure-link">
+                <img src="action_density/timeslice_susceptibility_su2_open.png" alt="timeslice susceptibility su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility su2 open</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/action_density/timeslice_susceptibility_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_susceptibility_su2_periodic.png" class="figure-link">
+                <img src="action_density/timeslice_susceptibility_su2_periodic.png" alt="timeslice susceptibility su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility su2 periodic</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/action_density/timeslice_susceptibility_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_tauint_cropped_su2_open.png" class="figure-link">
+                <img src="action_density/timeslice_tauint_cropped_su2_open.png" alt="timeslice tauint cropped su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice tauint cropped su2 open</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/action_density/timeslice_tauint_cropped_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_tauint_cropped_su2_periodic.png" class="figure-link">
+                <img src="action_density/timeslice_tauint_cropped_su2_periodic.png" alt="timeslice tauint cropped su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice tauint cropped su2 periodic</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/action_density/timeslice_tauint_cropped_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_tauint_su2_open.png" class="figure-link">
+                <img src="action_density/timeslice_tauint_su2_open.png" alt="timeslice tauint su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice tauint su2 open</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/action_density/timeslice_tauint_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="action_density">
+              <a href="action_density/timeslice_tauint_su2_periodic.png" class="figure-link">
+                <img src="action_density/timeslice_tauint_su2_periodic.png" alt="timeslice tauint su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice tauint su2 periodic</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/action_density/timeslice_tauint_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/Q_vs_mctime_su2_open.png" class="figure-link">
+                <img src="figures_analysis/Q_vs_mctime_su2_open.png" alt="Q vs mctime su2 open">
+              </a>
+              <figcaption>
+                <b>Q vs mctime su2 open</b>
+                <span>Topological charge history versus Monte Carlo time.</span>
+                <code>output/figures_analysis/Q_vs_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/Q_vs_mctime_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/Q_vs_mctime_su2_periodic.png" alt="Q vs mctime su2 periodic">
+              </a>
+              <figcaption>
+                <b>Q vs mctime su2 periodic</b>
+                <span>Topological charge history versus Monte Carlo time.</span>
+                <code>output/figures_analysis/Q_vs_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/action_density_su2.png" class="figure-link">
+                <img src="figures_analysis/action_density_su2.png" alt="action density su2">
+              </a>
+              <figcaption>
+                <b>action density su2</b>
+                <span>Action density versus sweep, including qtarget/hot-list data when available.</span>
+                <code>output/figures_analysis/action_density_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/histograms_su2_open.png" class="figure-link">
+                <img src="figures_analysis/histograms_su2_open.png" alt="histograms su2 open">
+              </a>
+              <figcaption>
+                <b>histograms su2 open</b>
+                <span>Distribution of topological charge values, useful for checking tunnelling and sector coverage.</span>
+                <code>output/figures_analysis/histograms_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/histograms_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/histograms_su2_periodic.png" alt="histograms su2 periodic">
+              </a>
+              <figcaption>
+                <b>histograms su2 periodic</b>
+                <span>Distribution of topological charge values, useful for checking tunnelling and sector coverage.</span>
+                <code>output/figures_analysis/histograms_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/susceptibility_su2.png" class="figure-link">
+                <img src="figures_analysis/susceptibility_su2.png" alt="susceptibility su2">
+              </a>
+              <figcaption>
+                <b>susceptibility su2</b>
+                <span>Topological susceptibility summary versus lattice spacing.</span>
+                <code>output/figures_analysis/susceptibility_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/tau_int_su2.png" class="figure-link">
+                <img src="figures_analysis/tau_int_su2.png" alt="tau int su2">
+              </a>
+              <figcaption>
+                <b>tau int su2</b>
+                <span>Integrated autocorrelation time summary versus lattice spacing.</span>
+                <code>output/figures_analysis/tau_int_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/thermalization_comparison_su2.png" class="figure-link">
+                <img src="figures_analysis/thermalization_comparison_su2.png" alt="thermalization comparison su2">
+              </a>
+              <figcaption>
+                <b>thermalization comparison su2</b>
+                <span>Plaquette evolution used to inspect equilibration and thermalization.</span>
+                <code>output/figures_analysis/thermalization_comparison_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_density_su2_open.png" class="figure-link">
+                <img src="figures_analysis/timeslice_density_su2_open.png" alt="timeslice density su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice density su2 open</b>
+                <span>Topological charge density as a function of time slice.</span>
+                <code>output/figures_analysis/timeslice_density_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_density_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/timeslice_density_su2_periodic.png" alt="timeslice density su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice density su2 periodic</b>
+                <span>Topological charge density as a function of time slice.</span>
+                <code>output/figures_analysis/timeslice_density_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_edge_bulk_mctime_su2_open.png" class="figure-link">
+                <img src="figures_analysis/timeslice_edge_bulk_mctime_su2_open.png" alt="timeslice edge bulk mctime su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice edge bulk mctime su2 open</b>
+                <span>Comparison of boundary/edge and bulk timeslice behavior.</span>
+                <code>output/figures_analysis/timeslice_edge_bulk_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_edge_bulk_mctime_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/timeslice_edge_bulk_mctime_su2_periodic.png" alt="timeslice edge bulk mctime su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice edge bulk mctime su2 periodic</b>
+                <span>Comparison of boundary/edge and bulk timeslice behavior.</span>
+                <code>output/figures_analysis/timeslice_edge_bulk_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_mctime_su2_open.png" class="figure-link">
+                <img src="figures_analysis/timeslice_mctime_su2_open.png" alt="timeslice mctime su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice mctime su2 open</b>
+                <span>Timeslice charge evolution over Monte Carlo time.</span>
+                <code>output/figures_analysis/timeslice_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_mctime_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/timeslice_mctime_su2_periodic.png" alt="timeslice mctime su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice mctime su2 periodic</b>
+                <span>Timeslice charge evolution over Monte Carlo time.</span>
+                <code>output/figures_analysis/timeslice_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_susceptibility_cropped_su2_open.png" class="figure-link">
+                <img src="figures_analysis/timeslice_susceptibility_cropped_su2_open.png" alt="timeslice susceptibility cropped su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility cropped su2 open</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/timeslice_susceptibility_cropped_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_susceptibility_cropped_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/timeslice_susceptibility_cropped_su2_periodic.png" alt="timeslice susceptibility cropped su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility cropped su2 periodic</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/timeslice_susceptibility_cropped_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_susceptibility_su2_open.png" class="figure-link">
+                <img src="figures_analysis/timeslice_susceptibility_su2_open.png" alt="timeslice susceptibility su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility su2 open</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/timeslice_susceptibility_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_susceptibility_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/timeslice_susceptibility_su2_periodic.png" alt="timeslice susceptibility su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility su2 periodic</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/timeslice_susceptibility_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_tauint_cropped_su2_open.png" class="figure-link">
+                <img src="figures_analysis/timeslice_tauint_cropped_su2_open.png" alt="timeslice tauint cropped su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice tauint cropped su2 open</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/timeslice_tauint_cropped_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_tauint_cropped_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/timeslice_tauint_cropped_su2_periodic.png" alt="timeslice tauint cropped su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice tauint cropped su2 periodic</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/timeslice_tauint_cropped_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_tauint_su2_open.png" class="figure-link">
+                <img src="figures_analysis/timeslice_tauint_su2_open.png" alt="timeslice tauint su2 open">
+              </a>
+              <figcaption>
+                <b>timeslice tauint su2 open</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/timeslice_tauint_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="figures_analysis">
+              <a href="figures_analysis/timeslice_tauint_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/timeslice_tauint_su2_periodic.png" alt="timeslice tauint su2 periodic">
+              </a>
+              <figcaption>
+                <b>timeslice tauint su2 periodic</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/timeslice_tauint_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/Q_vs_mctime_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear10/Q_vs_mctime_su2_open.png" alt="Q vs mctime su2 open (smear10)">
+              </a>
+              <figcaption>
+                <b>Q vs mctime su2 open (smear10)</b>
+                <span>Topological charge history versus Monte Carlo time.</span>
+                <code>output/figures_analysis/smear10/Q_vs_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/Q_vs_mctime_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear10/Q_vs_mctime_su2_periodic.png" alt="Q vs mctime su2 periodic (smear10)">
+              </a>
+              <figcaption>
+                <b>Q vs mctime su2 periodic (smear10)</b>
+                <span>Topological charge history versus Monte Carlo time.</span>
+                <code>output/figures_analysis/smear10/Q_vs_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/histograms_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear10/histograms_su2_open.png" alt="histograms su2 open (smear10)">
+              </a>
+              <figcaption>
+                <b>histograms su2 open (smear10)</b>
+                <span>Distribution of topological charge values, useful for checking tunnelling and sector coverage.</span>
+                <code>output/figures_analysis/smear10/histograms_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/histograms_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear10/histograms_su2_periodic.png" alt="histograms su2 periodic (smear10)">
+              </a>
+              <figcaption>
+                <b>histograms su2 periodic (smear10)</b>
+                <span>Distribution of topological charge values, useful for checking tunnelling and sector coverage.</span>
+                <code>output/figures_analysis/smear10/histograms_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/susceptibility_su2.png" class="figure-link">
+                <img src="figures_analysis/smear10/susceptibility_su2.png" alt="susceptibility su2 (smear10)">
+              </a>
+              <figcaption>
+                <b>susceptibility su2 (smear10)</b>
+                <span>Topological susceptibility summary versus lattice spacing.</span>
+                <code>output/figures_analysis/smear10/susceptibility_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/tau_int_su2.png" class="figure-link">
+                <img src="figures_analysis/smear10/tau_int_su2.png" alt="tau int su2 (smear10)">
+              </a>
+              <figcaption>
+                <b>tau int su2 (smear10)</b>
+                <span>Integrated autocorrelation time summary versus lattice spacing.</span>
+                <code>output/figures_analysis/smear10/tau_int_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/thermalization_comparison_su2.png" class="figure-link">
+                <img src="figures_analysis/smear10/thermalization_comparison_su2.png" alt="thermalization comparison su2 (smear10)">
+              </a>
+              <figcaption>
+                <b>thermalization comparison su2 (smear10)</b>
+                <span>Plaquette evolution used to inspect equilibration and thermalization.</span>
+                <code>output/figures_analysis/smear10/thermalization_comparison_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_density_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_density_su2_open.png" alt="timeslice density su2 open (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice density su2 open (smear10)</b>
+                <span>Topological charge density as a function of time slice.</span>
+                <code>output/figures_analysis/smear10/timeslice_density_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_density_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_density_su2_periodic.png" alt="timeslice density su2 periodic (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice density su2 periodic (smear10)</b>
+                <span>Topological charge density as a function of time slice.</span>
+                <code>output/figures_analysis/smear10/timeslice_density_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_edge_bulk_mctime_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_edge_bulk_mctime_su2_open.png" alt="timeslice edge bulk mctime su2 open (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice edge bulk mctime su2 open (smear10)</b>
+                <span>Comparison of boundary/edge and bulk timeslice behavior.</span>
+                <code>output/figures_analysis/smear10/timeslice_edge_bulk_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_edge_bulk_mctime_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_edge_bulk_mctime_su2_periodic.png" alt="timeslice edge bulk mctime su2 periodic (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice edge bulk mctime su2 periodic (smear10)</b>
+                <span>Comparison of boundary/edge and bulk timeslice behavior.</span>
+                <code>output/figures_analysis/smear10/timeslice_edge_bulk_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_mctime_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_mctime_su2_open.png" alt="timeslice mctime su2 open (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice mctime su2 open (smear10)</b>
+                <span>Timeslice charge evolution over Monte Carlo time.</span>
+                <code>output/figures_analysis/smear10/timeslice_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_mctime_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_mctime_su2_periodic.png" alt="timeslice mctime su2 periodic (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice mctime su2 periodic (smear10)</b>
+                <span>Timeslice charge evolution over Monte Carlo time.</span>
+                <code>output/figures_analysis/smear10/timeslice_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_susceptibility_cropped_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_susceptibility_cropped_su2_open.png" alt="timeslice susceptibility cropped su2 open (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility cropped su2 open (smear10)</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/smear10/timeslice_susceptibility_cropped_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_susceptibility_cropped_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_susceptibility_cropped_su2_periodic.png" alt="timeslice susceptibility cropped su2 periodic (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility cropped su2 periodic (smear10)</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/smear10/timeslice_susceptibility_cropped_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_susceptibility_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_susceptibility_su2_open.png" alt="timeslice susceptibility su2 open (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility su2 open (smear10)</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/smear10/timeslice_susceptibility_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_susceptibility_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_susceptibility_su2_periodic.png" alt="timeslice susceptibility su2 periodic (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility su2 periodic (smear10)</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/smear10/timeslice_susceptibility_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_tauint_cropped_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_tauint_cropped_su2_open.png" alt="timeslice tauint cropped su2 open (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice tauint cropped su2 open (smear10)</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/smear10/timeslice_tauint_cropped_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_tauint_cropped_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_tauint_cropped_su2_periodic.png" alt="timeslice tauint cropped su2 periodic (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice tauint cropped su2 periodic (smear10)</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/smear10/timeslice_tauint_cropped_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_tauint_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_tauint_su2_open.png" alt="timeslice tauint su2 open (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice tauint su2 open (smear10)</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/smear10/timeslice_tauint_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear10">
+              <a href="figures_analysis/smear10/timeslice_tauint_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear10/timeslice_tauint_su2_periodic.png" alt="timeslice tauint su2 periodic (smear10)">
+              </a>
+              <figcaption>
+                <b>timeslice tauint su2 periodic (smear10)</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/smear10/timeslice_tauint_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/Q_vs_mctime_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear15/Q_vs_mctime_su2_open.png" alt="Q vs mctime su2 open (smear15)">
+              </a>
+              <figcaption>
+                <b>Q vs mctime su2 open (smear15)</b>
+                <span>Topological charge history versus Monte Carlo time.</span>
+                <code>output/figures_analysis/smear15/Q_vs_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/Q_vs_mctime_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear15/Q_vs_mctime_su2_periodic.png" alt="Q vs mctime su2 periodic (smear15)">
+              </a>
+              <figcaption>
+                <b>Q vs mctime su2 periodic (smear15)</b>
+                <span>Topological charge history versus Monte Carlo time.</span>
+                <code>output/figures_analysis/smear15/Q_vs_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/histograms_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear15/histograms_su2_open.png" alt="histograms su2 open (smear15)">
+              </a>
+              <figcaption>
+                <b>histograms su2 open (smear15)</b>
+                <span>Distribution of topological charge values, useful for checking tunnelling and sector coverage.</span>
+                <code>output/figures_analysis/smear15/histograms_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/histograms_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear15/histograms_su2_periodic.png" alt="histograms su2 periodic (smear15)">
+              </a>
+              <figcaption>
+                <b>histograms su2 periodic (smear15)</b>
+                <span>Distribution of topological charge values, useful for checking tunnelling and sector coverage.</span>
+                <code>output/figures_analysis/smear15/histograms_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/susceptibility_su2.png" class="figure-link">
+                <img src="figures_analysis/smear15/susceptibility_su2.png" alt="susceptibility su2 (smear15)">
+              </a>
+              <figcaption>
+                <b>susceptibility su2 (smear15)</b>
+                <span>Topological susceptibility summary versus lattice spacing.</span>
+                <code>output/figures_analysis/smear15/susceptibility_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/tau_int_su2.png" class="figure-link">
+                <img src="figures_analysis/smear15/tau_int_su2.png" alt="tau int su2 (smear15)">
+              </a>
+              <figcaption>
+                <b>tau int su2 (smear15)</b>
+                <span>Integrated autocorrelation time summary versus lattice spacing.</span>
+                <code>output/figures_analysis/smear15/tau_int_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/thermalization_comparison_su2.png" class="figure-link">
+                <img src="figures_analysis/smear15/thermalization_comparison_su2.png" alt="thermalization comparison su2 (smear15)">
+              </a>
+              <figcaption>
+                <b>thermalization comparison su2 (smear15)</b>
+                <span>Plaquette evolution used to inspect equilibration and thermalization.</span>
+                <code>output/figures_analysis/smear15/thermalization_comparison_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_density_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_density_su2_open.png" alt="timeslice density su2 open (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice density su2 open (smear15)</b>
+                <span>Topological charge density as a function of time slice.</span>
+                <code>output/figures_analysis/smear15/timeslice_density_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_density_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_density_su2_periodic.png" alt="timeslice density su2 periodic (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice density su2 periodic (smear15)</b>
+                <span>Topological charge density as a function of time slice.</span>
+                <code>output/figures_analysis/smear15/timeslice_density_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_edge_bulk_mctime_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_edge_bulk_mctime_su2_open.png" alt="timeslice edge bulk mctime su2 open (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice edge bulk mctime su2 open (smear15)</b>
+                <span>Comparison of boundary/edge and bulk timeslice behavior.</span>
+                <code>output/figures_analysis/smear15/timeslice_edge_bulk_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_edge_bulk_mctime_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_edge_bulk_mctime_su2_periodic.png" alt="timeslice edge bulk mctime su2 periodic (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice edge bulk mctime su2 periodic (smear15)</b>
+                <span>Comparison of boundary/edge and bulk timeslice behavior.</span>
+                <code>output/figures_analysis/smear15/timeslice_edge_bulk_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_mctime_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_mctime_su2_open.png" alt="timeslice mctime su2 open (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice mctime su2 open (smear15)</b>
+                <span>Timeslice charge evolution over Monte Carlo time.</span>
+                <code>output/figures_analysis/smear15/timeslice_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_mctime_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_mctime_su2_periodic.png" alt="timeslice mctime su2 periodic (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice mctime su2 periodic (smear15)</b>
+                <span>Timeslice charge evolution over Monte Carlo time.</span>
+                <code>output/figures_analysis/smear15/timeslice_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_susceptibility_cropped_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_susceptibility_cropped_su2_open.png" alt="timeslice susceptibility cropped su2 open (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility cropped su2 open (smear15)</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/smear15/timeslice_susceptibility_cropped_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_susceptibility_cropped_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_susceptibility_cropped_su2_periodic.png" alt="timeslice susceptibility cropped su2 periodic (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility cropped su2 periodic (smear15)</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/smear15/timeslice_susceptibility_cropped_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_susceptibility_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_susceptibility_su2_open.png" alt="timeslice susceptibility su2 open (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility su2 open (smear15)</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/smear15/timeslice_susceptibility_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_susceptibility_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_susceptibility_su2_periodic.png" alt="timeslice susceptibility su2 periodic (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility su2 periodic (smear15)</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/smear15/timeslice_susceptibility_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_tauint_cropped_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_tauint_cropped_su2_open.png" alt="timeslice tauint cropped su2 open (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice tauint cropped su2 open (smear15)</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/smear15/timeslice_tauint_cropped_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_tauint_cropped_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_tauint_cropped_su2_periodic.png" alt="timeslice tauint cropped su2 periodic (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice tauint cropped su2 periodic (smear15)</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/smear15/timeslice_tauint_cropped_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_tauint_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_tauint_su2_open.png" alt="timeslice tauint su2 open (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice tauint su2 open (smear15)</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/smear15/timeslice_tauint_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear15">
+              <a href="figures_analysis/smear15/timeslice_tauint_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear15/timeslice_tauint_su2_periodic.png" alt="timeslice tauint su2 periodic (smear15)">
+              </a>
+              <figcaption>
+                <b>timeslice tauint su2 periodic (smear15)</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/smear15/timeslice_tauint_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/Q_vs_mctime_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear5/Q_vs_mctime_su2_open.png" alt="Q vs mctime su2 open (smear5)">
+              </a>
+              <figcaption>
+                <b>Q vs mctime su2 open (smear5)</b>
+                <span>Topological charge history versus Monte Carlo time.</span>
+                <code>output/figures_analysis/smear5/Q_vs_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/Q_vs_mctime_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear5/Q_vs_mctime_su2_periodic.png" alt="Q vs mctime su2 periodic (smear5)">
+              </a>
+              <figcaption>
+                <b>Q vs mctime su2 periodic (smear5)</b>
+                <span>Topological charge history versus Monte Carlo time.</span>
+                <code>output/figures_analysis/smear5/Q_vs_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/histograms_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear5/histograms_su2_open.png" alt="histograms su2 open (smear5)">
+              </a>
+              <figcaption>
+                <b>histograms su2 open (smear5)</b>
+                <span>Distribution of topological charge values, useful for checking tunnelling and sector coverage.</span>
+                <code>output/figures_analysis/smear5/histograms_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/histograms_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear5/histograms_su2_periodic.png" alt="histograms su2 periodic (smear5)">
+              </a>
+              <figcaption>
+                <b>histograms su2 periodic (smear5)</b>
+                <span>Distribution of topological charge values, useful for checking tunnelling and sector coverage.</span>
+                <code>output/figures_analysis/smear5/histograms_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/susceptibility_su2.png" class="figure-link">
+                <img src="figures_analysis/smear5/susceptibility_su2.png" alt="susceptibility su2 (smear5)">
+              </a>
+              <figcaption>
+                <b>susceptibility su2 (smear5)</b>
+                <span>Topological susceptibility summary versus lattice spacing.</span>
+                <code>output/figures_analysis/smear5/susceptibility_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/tau_int_su2.png" class="figure-link">
+                <img src="figures_analysis/smear5/tau_int_su2.png" alt="tau int su2 (smear5)">
+              </a>
+              <figcaption>
+                <b>tau int su2 (smear5)</b>
+                <span>Integrated autocorrelation time summary versus lattice spacing.</span>
+                <code>output/figures_analysis/smear5/tau_int_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/thermalization_comparison_su2.png" class="figure-link">
+                <img src="figures_analysis/smear5/thermalization_comparison_su2.png" alt="thermalization comparison su2 (smear5)">
+              </a>
+              <figcaption>
+                <b>thermalization comparison su2 (smear5)</b>
+                <span>Plaquette evolution used to inspect equilibration and thermalization.</span>
+                <code>output/figures_analysis/smear5/thermalization_comparison_su2.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_density_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_density_su2_open.png" alt="timeslice density su2 open (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice density su2 open (smear5)</b>
+                <span>Topological charge density as a function of time slice.</span>
+                <code>output/figures_analysis/smear5/timeslice_density_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_density_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_density_su2_periodic.png" alt="timeslice density su2 periodic (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice density su2 periodic (smear5)</b>
+                <span>Topological charge density as a function of time slice.</span>
+                <code>output/figures_analysis/smear5/timeslice_density_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_edge_bulk_mctime_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_edge_bulk_mctime_su2_open.png" alt="timeslice edge bulk mctime su2 open (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice edge bulk mctime su2 open (smear5)</b>
+                <span>Comparison of boundary/edge and bulk timeslice behavior.</span>
+                <code>output/figures_analysis/smear5/timeslice_edge_bulk_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_edge_bulk_mctime_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_edge_bulk_mctime_su2_periodic.png" alt="timeslice edge bulk mctime su2 periodic (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice edge bulk mctime su2 periodic (smear5)</b>
+                <span>Comparison of boundary/edge and bulk timeslice behavior.</span>
+                <code>output/figures_analysis/smear5/timeslice_edge_bulk_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_mctime_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_mctime_su2_open.png" alt="timeslice mctime su2 open (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice mctime su2 open (smear5)</b>
+                <span>Timeslice charge evolution over Monte Carlo time.</span>
+                <code>output/figures_analysis/smear5/timeslice_mctime_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_mctime_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_mctime_su2_periodic.png" alt="timeslice mctime su2 periodic (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice mctime su2 periodic (smear5)</b>
+                <span>Timeslice charge evolution over Monte Carlo time.</span>
+                <code>output/figures_analysis/smear5/timeslice_mctime_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_susceptibility_cropped_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_susceptibility_cropped_su2_open.png" alt="timeslice susceptibility cropped su2 open (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility cropped su2 open (smear5)</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/smear5/timeslice_susceptibility_cropped_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_susceptibility_cropped_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_susceptibility_cropped_su2_periodic.png" alt="timeslice susceptibility cropped su2 periodic (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility cropped su2 periodic (smear5)</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/smear5/timeslice_susceptibility_cropped_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_susceptibility_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_susceptibility_su2_open.png" alt="timeslice susceptibility su2 open (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility su2 open (smear5)</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/smear5/timeslice_susceptibility_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_susceptibility_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_susceptibility_su2_periodic.png" alt="timeslice susceptibility su2 periodic (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice susceptibility su2 periodic (smear5)</b>
+                <span>Timeslice-resolved susceptibility estimate.</span>
+                <code>output/figures_analysis/smear5/timeslice_susceptibility_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_tauint_cropped_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_tauint_cropped_su2_open.png" alt="timeslice tauint cropped su2 open (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice tauint cropped su2 open (smear5)</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/smear5/timeslice_tauint_cropped_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_tauint_cropped_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_tauint_cropped_su2_periodic.png" alt="timeslice tauint cropped su2 periodic (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice tauint cropped su2 periodic (smear5)</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/smear5/timeslice_tauint_cropped_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_tauint_su2_open.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_tauint_su2_open.png" alt="timeslice tauint su2 open (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice tauint su2 open (smear5)</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/smear5/timeslice_tauint_su2_open.png</code>
+              </figcaption>
+            </figure>
+            
+            <figure class="search-card" data-kind="smear5">
+              <a href="figures_analysis/smear5/timeslice_tauint_su2_periodic.png" class="figure-link">
+                <img src="figures_analysis/smear5/timeslice_tauint_su2_periodic.png" alt="timeslice tauint su2 periodic (smear5)">
+              </a>
+              <figcaption>
+                <b>timeslice tauint su2 periodic (smear5)</b>
+                <span>Timeslice-resolved autocorrelation estimate.</span>
+                <code>output/figures_analysis/smear5/timeslice_tauint_su2_periodic.png</code>
+              </figcaption>
+            </figure>
+            
+      </div>
+    </section>
+
+    <section id="outputs">
+      <h2>Text Outputs And Data Previews</h2>
+      <p class="note">Each item links to the full file and shows the first few lines.</p>
+      
+            <details class="search-card">
+              <summary><a href="action_density/action_density_summary_su2.txt">output/action_density/action_density_summary_su2.txt</a></summary>
+              <pre># Action-density summary
+# beta boundary T L seed source n mean_all std_all start_conf n_post mean_post std_post note
+3.15 open 160 80 857952899 action_density.dat 10001 5.020753184002e+00 1.521997824129e-01 50 9951 5.017589981942e+00 1.312168508432e-03 global two-column input
+3.15 periodic 80 80 0 action_density.dat 10000 4.944189208558e+00 1.338399875950e-03 50 9951 4.944115001113e+00 7.623721497067e-04 global two-column input
+3.15 periodic 80 80 1099260755 action_density.dat 10001 4.943299789911e+00 5.015576571883e-02 50 9951 4.943920313606e+00 3.762953615968e-04 global two-column input</pre>
+            </details>
+            
+            <details class="search-card">
+              <summary><a href="figures_analysis/action_density_summary_su2.txt">output/figures_analysis/action_density_summary_su2.txt</a></summary>
+              <pre># Action-density summary
+# beta boundary T L seed source n mean_all std_all start_conf n_post mean_post std_post note
+3.15 open 160 80 857952899 action_density.dat 10001 5.020753184002e+00 1.521997824129e-01 50 9951 5.017589981942e+00 1.312168508432e-03 global two-column input
+3.15 periodic 80 80 0 action_density.dat 10000 4.944189208558e+00 1.338399875950e-03 50 9951 4.944115001113e+00 7.623721497067e-04 global two-column input
+3.15 periodic 80 80 1099260755 action_density.dat 10001 4.943299789911e+00 5.015576571883e-02 50 9951 4.943920313606e+00 3.762953615968e-04 global two-column input</pre>
+            </details>
+            
+            <details class="search-card">
+              <summary><a href="instanton/instanton_Q.dat">output/instanton/instanton_Q.dat</a></summary>
+              <pre># Instanton topological charge computation
+# L = 16, T = 16, rho = 3, a = 1
+# type Q
+instanton 1.17147
+anti-instanton -1.17147</pre>
+            </details>
+            
+            <details class="search-card">
+              <summary><a href="instanton/instanton_Q_anti_instanton.dat">output/instanton/instanton_Q_anti_instanton.dat</a></summary>
+              <pre># Topological charge Q vs smearing steps for ANTI-INSTANTON
+# rho = 3, L = 16, T = 16, alpha = 0.5
+# smear_step Q
+0 1.17147</pre>
+            </details>
+            
+            <details class="search-card">
+              <summary><a href="instanton/instanton_Q_instanton.dat">output/instanton/instanton_Q_instanton.dat</a></summary>
+              <pre># Topological charge Q vs smearing steps for INSTANTON
+# rho = 3, L = 16, T = 16, alpha = 0.5
+# smear_step Q
+0 -1.17147</pre>
+            </details>
+            
+    </section>
+
+    <section id="regenerate">
+      <h2>Regenerate</h2>
+      <div class="panel">
+        <h3>Sync cluster results</h3>
+        <pre>./cluster/sync_results.sh
+./cluster/sync_results.sh --refresh</pre>
+        <h3>Run main analysis</h3>
+        <pre>MPLCONFIGDIR=/tmp/matplotlib python3 analysis/analysis.py --su2
+MPLCONFIGDIR=/tmp/matplotlib python3 analysis/analysis.py --su2 --output-dir output/action_density</pre>
+        <h3>Run per-smear analysis</h3>
+        <pre>MPLCONFIGDIR=/tmp/matplotlib python3 analysis/analysis_per_smear.py --su2</pre>
+        <h3>Rebuild this overview</h3>
+        <pre>python3 analysis/generate_project_overview.py</pre>
+      </div>
+    </section>
+  </main>
+  <script>
+    const searchInput = document.getElementById('globalSearch');
+    const quickFilter = document.getElementById('quickFilter');
+    const clearFilters = document.getElementById('clearFilters');
+
+    function normalizedFilter() {
+      return [searchInput.value, quickFilter.value]
+        .join(' ')
+        .trim()
+        .toLowerCase();
+    }
+
+    function applyFilters() {
+      const terms = normalizedFilter().split(/\s+/).filter(Boolean);
+      const filterTargets = document.querySelectorAll('.search-row, .search-card');
+
+      filterTargets.forEach((node) => {
+        const haystack = node.textContent.toLowerCase();
+        const visible = terms.every((term) => haystack.includes(term));
+        node.classList.toggle('hidden-by-filter', !visible);
+      });
+
+      document.querySelectorAll('section').forEach((section) => {
+        const emptyNote = section.querySelector('.empty-note');
+        if (!emptyNote) return;
+        const visible = section.querySelector('.search-row:not(.hidden-by-filter), .search-card:not(.hidden-by-filter)');
+        emptyNote.style.display = visible ? 'none' : 'block';
+      });
+    }
+
+    function sortableValue(text) {
+      const cleaned = text.trim().replace(/,/g, '');
+      const number = Number(cleaned);
+      return Number.isFinite(number) && cleaned !== '' ? number : cleaned.toLowerCase();
+    }
+
+    document.querySelectorAll('.interactive-table th').forEach((th, columnIndex) => {
+      th.title = 'Click to sort';
+      th.addEventListener('click', () => {
+        const table = th.closest('table');
+        const body = table.querySelector('tbody');
+        const direction = th.dataset.sortDirection === 'asc' ? 'desc' : 'asc';
+        table.querySelectorAll('th').forEach((other) => delete other.dataset.sortDirection);
+        th.dataset.sortDirection = direction;
+
+        const rows = Array.from(body.querySelectorAll('tr'));
+        rows.sort((a, b) => {
+          const av = sortableValue(a.children[columnIndex]?.textContent || '');
+          const bv = sortableValue(b.children[columnIndex]?.textContent || '');
+          if (av < bv) return direction === 'asc' ? -1 : 1;
+          if (av > bv) return direction === 'asc' ? 1 : -1;
+          return 0;
+        });
+        rows.forEach((row) => body.appendChild(row));
+      });
+    });
+
+    document.querySelectorAll('.figure-link').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        if (!event.altKey) return;
+        event.preventDefault();
+        const win = window.open('', '_blank');
+        if (!win) return;
+        win.document.write(`<title>${link.textContent || 'Figure'}</title><img src="${link.href}" style="max-width:100%;height:auto">`);
+      });
+    });
+
+    searchInput.addEventListener('input', applyFilters);
+    quickFilter.addEventListener('change', applyFilters);
+    clearFilters.addEventListener('click', () => {
+      searchInput.value = '';
+      quickFilter.value = '';
+      applyFilters();
+    });
+  </script>
+</body>
+</html>

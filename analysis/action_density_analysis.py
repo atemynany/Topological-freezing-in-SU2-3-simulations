@@ -2,6 +2,7 @@
 """Action-density loading, summary, and plotting helpers."""
 
 import os
+import glob
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -34,6 +35,11 @@ def _candidate_action_file(run_dir: str) -> Optional[str]:
         candidate = os.path.join(out_dir, name)
         if os.path.isfile(candidate):
             return candidate
+    for out_dir in sorted(glob.glob(os.path.join(run_dir, "hot_list_*", "output"))):
+        for name in ACTION_DENSITY_FILENAMES:
+            candidate = os.path.join(out_dir, name)
+            if os.path.isfile(candidate):
+                return candidate
     return None
 
 

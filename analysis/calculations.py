@@ -13,6 +13,8 @@ import numpy as np
 import pyerrors as pe
 import os
 import re
+import glob
+import hashlib
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -321,9 +323,133 @@ def parse_input_file(run_dir: str) -> dict:
     return info
 
 
+def parse_run_dir_metadata(run_dir: str) -> dict:
+    """Parse run metadata encoded in directory names."""
+    dirname = os.path.basename(run_dir)
+    match = re.search(
+        r'T(?P<T>\d+)_L(?P<L>\d+)_b(?P<beta>\d+(?:\.\d+)?)_(?P<boundary>open|periodic)_seed(?P<seed>\d+)',
+        dirname,
+    )
+    if match:
+        return match.groupdict()
+
+    parts = run_dir.split(os.sep)
+    qtarget_dir = next((part for part in reversed(parts) if part.startswith("qtarget_")), None)
+    if not qtarget_dir:
+        return {}
+
+    match = re.search(
+        r'qtarget_T(?P<T>\d+)_L(?P<L>\d+)_b(?P<beta>\d+(?:\.\d+)?)_(?P<boundary>open|periodic)_',
+        qtarget_dir,
+    )
+    if not match:
+        return {}
+
+    info = match.groupdict()
+    seed_match = re.search(r'_seed(?P<seed>\d+)$', dirname)
+    if seed_match:
+        info["seed"] = seed_match.group("seed")
+    return info
+
+
+def topcharge_file_path(run_dir: str, gauge_group: str = "su2") -> Optional[str]:
+    """Return the topcharge file for standard and qtarget run layouts."""
+    candidates = [
+        os.path.join(run_dir, "output", "topcharge.dat"),
+        os.path.join(run_dir, "output", f"topcharge_{gauge_group}.dat"),
+        os.path.join(run_dir, "topcharge", "topcharge.dat"),
+        os.path.join(run_dir, "topcharge", f"topcharge_{gauge_group}.dat"),
+    ]
+    found = next((f for f in candidates if os.path.exists(f)), None)
+    if found:
+        return found
+    return qtarget_aggregate_file_path(run_dir, gauge_group, "topcharge.dat")
+
+
+def topcharge_timeslice_file_path(run_dir: str, gauge_group: str = "su2") -> Optional[str]:
+    """Return the topcharge-timeslice file for standard and qtarget layouts."""
+    candidates = [
+        os.path.join(run_dir, "output", "topcharge_timeslice.dat"),
+        os.path.join(run_dir, "output", f"topcharge_timeslice_{gauge_group}.dat"),
+        os.path.join(run_dir, "topcharge", "topcharge_timeslice.dat"),
+        os.path.join(run_dir, "topcharge", f"topcharge_timeslice_{gauge_group}.dat"),
+    ]
+    found = next((f for f in candidates if os.path.exists(f)), None)
+    if found:
+        return found
+    return qtarget_aggregate_file_path(run_dir, gauge_group, "topcharge_timeslice.dat")
+
+
+def qtarget_candidate_dirs(run_dir: str) -> list[str]:
+    """Return qtarget hot-candidate directories, if this is a qtarget run."""
+    if not os.path.basename(run_dir).startswith("qtarget_"):
+        return []
+    pattern = os.path.join(run_dir, "hot_candidates", "try_*_seed*")
+    return sorted(path for path in glob.glob(pattern) if os.path.isdir(path))
+
+
+def qtarget_aggregate_file_path(
+    run_dir: str,
+    gauge_group: str = "su2",
+    filename: str = "topcharge.dat",
+) -> Optional[str]:
+    """Build a temporary aggregate .dat file for a qtarget run."""
+    candidate_dirs = qtarget_candidate_dirs(run_dir)
+    if not candidate_dirs:
+        return None
+
+    digest = hashlib.sha1(os.path.abspath(run_dir).encode("utf-8")).hexdigest()[:12]
+    aggregate_dir = os.path.join("/tmp", "su23_qtarget_aggregates", digest)
+    os.makedirs(aggregate_dir, exist_ok=True)
+    aggregate_file = os.path.join(aggregate_dir, filename)
+
+    rows_written = 0
+    with open(aggregate_file, "w") as out:
+        if filename == "topcharge_timeslice.dat":
+            out.write("# smear_steps  config_number  t  q_t\n")
+        else:
+            out.write("# smear_steps  config_number  Q  plaquette\n")
+
+        for conf_idx, candidate_dir in enumerate(candidate_dirs):
+            if filename == "topcharge_timeslice.dat":
+                source = topcharge_timeslice_file_path(candidate_dir, gauge_group)
+            else:
+                source = topcharge_file_path(candidate_dir, gauge_group)
+            if source is None:
+                continue
+
+            with open(source) as f:
+                for line in f:
+                    if line.startswith("#") or not line.strip():
+                        continue
+                    parts = line.split()
+                    if filename == "topcharge_timeslice.dat" and len(parts) >= 4:
+                        out.write(f"{parts[0]} {conf_idx} {parts[2]} {parts[3]}\n")
+                        rows_written += 1
+                    elif filename == "topcharge.dat" and len(parts) >= 4:
+                        out.write(f"{parts[0]} {conf_idx} {parts[2]} {parts[3]}\n")
+                        rows_written += 1
+
+    return aggregate_file if rows_written else None
+
+
+def load_qtarget_topcharge(run_dir: str, gauge_group: str = "su2") -> np.ndarray:
+    """Load one topcharge value from each qtarget hot candidate."""
+    values = []
+    for candidate_dir in qtarget_candidate_dirs(run_dir):
+        topcharge_file = topcharge_file_path(candidate_dir, gauge_group)
+        if topcharge_file is None:
+            continue
+        q_values = load_topcharge(topcharge_file)
+        if len(q_values) > 0:
+            values.append(q_values[-1])
+    return np.array(values)
+
+
 def load_run_data(run_dir: str, gauge_group: str = "su2") -> Optional[RunData]:
     """Load all data from a run directory."""
     info = parse_input_file(run_dir)
+    dir_info = parse_run_dir_metadata(run_dir)
 
     dirname = os.path.basename(run_dir)
     if '_open_' in dirname:
@@ -331,18 +457,14 @@ def load_run_data(run_dir: str, gauge_group: str = "su2") -> Optional[RunData]:
     elif '_periodic_' in dirname:
         boundary = 'periodic'
     else:
-        boundary = info.get('boundary', 'periodic')
+        boundary = info.get('boundary', dir_info.get('boundary', 'periodic'))
 
-    candidates = [
-        os.path.join(run_dir, "output", "topcharge.dat"),
-        os.path.join(run_dir, "output", f"topcharge_{gauge_group}.dat"),
-    ]
-    topcharge_file = next((f for f in candidates if os.path.exists(f)), None)
+    topcharge_file = topcharge_file_path(run_dir, gauge_group)
+    if topcharge_file:
+        Q_raw = load_topcharge(topcharge_file)
+    else:
+        Q_raw = load_qtarget_topcharge(run_dir, gauge_group)
 
-    if not topcharge_file:
-        return None
-
-    Q_raw = load_topcharge(topcharge_file)
     if len(Q_raw) == 0:
         return None
     
@@ -355,13 +477,10 @@ def load_run_data(run_dir: str, gauge_group: str = "su2") -> Optional[RunData]:
         q_rescaled = estimator.Q_rescaled
         alpha = estimator.alpha
     
-    match = re.search(r'_b([\d.]+)_', os.path.basename(run_dir))
-    beta_from_dir = float(match.group(1)) if match else 0
-    
-    beta = float(info.get('beta', beta_from_dir))
-    seed = int(info.get('seed', 0))
-    T = int(info.get('T', 16))
-    L = int(info.get('L', 16))
+    beta = float(info.get('beta', dir_info.get('beta', 0)))
+    seed = int(info.get('seed', dir_info.get('seed', 0)))
+    T = int(info.get('T', dir_info.get('T', 16)))
+    L = int(info.get('L', dir_info.get('L', 16)))
     start_conf = int(info.get('start_conf', 50))
     
     # Load plaquette data
@@ -385,6 +504,25 @@ def load_run_data(run_dir: str, gauge_group: str = "su2") -> Optional[RunData]:
                         plaq_list.append(float(parts[1]))
                     except ValueError:
                         continue
+        mc_time = np.array(mc_list)
+        plaq_data = np.array(plaq_list)
+    else:
+        mc_list, plaq_list = [], []
+        for idx, candidate_dir in enumerate(qtarget_candidate_dirs(run_dir)):
+            candidate_plaq = os.path.join(candidate_dir, "output", "plaquette.dat")
+            if not os.path.isfile(candidate_plaq):
+                continue
+            with open(candidate_plaq, 'r') as f:
+                for line in f:
+                    if line.startswith('#') or not line.strip():
+                        continue
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        try:
+                            mc_list.append(len(mc_list))
+                            plaq_list.append(float(parts[1]))
+                        except ValueError:
+                            continue
         mc_time = np.array(mc_list)
         plaq_data = np.array(plaq_list)
     

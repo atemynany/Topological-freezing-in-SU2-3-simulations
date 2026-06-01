@@ -6,7 +6,6 @@ Plots susceptibility and tau_int with both boundary types in same plot.
 
 import os
 import sys
-import glob
 import argparse
 from typing import List
 
@@ -16,7 +15,8 @@ sys.path.insert(0, script_dir)
 from calculations import (
     RunData, AnalysisResult,
     load_run_data, analyze_run,
-    lattice_spacing_su2, lattice_spacing_su3
+    lattice_spacing_su2, lattice_spacing_su3,
+    topcharge_timeslice_file_path,
 )
 from plotting_code import (
     plot_Q_vs_mctime_grid, plot_histograms_grid,
@@ -31,6 +31,7 @@ from timeslice_analysis import (
     plot_timeslice_susceptibility_cropped, plot_timeslice_tauint_cropped,
 )
 from action_density_analysis import analyze_action_density
+from result_paths import find_run_dirs, resolve_results_dirs
 
 
 def print_table(results: List[AnalysisResult], gauge_group: str):
@@ -56,21 +57,24 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--su2", action="store_true")
     parser.add_argument("--su3", action="store_true")
-    parser.add_argument("--results-dir", type=str, default=None)
+    parser.add_argument("--results-dir", type=str, action="append", default=None)
     parser.add_argument("--output-dir", type=str, default=None)
     args = parser.parse_args()
     
     gauge_group = "su3" if args.su3 else "su2"
     
     base_dir = os.path.dirname(script_dir)
-    results_dir = args.results_dir or os.path.join(base_dir, "data", "results")
+    results_dirs = resolve_results_dirs(base_dir, args.results_dir)
     output_dir = args.output_dir or os.path.join(base_dir, "output", "figures_analysis")
     os.makedirs(output_dir, exist_ok=True)
     
     print(f"\n{gauge_group.upper()} Analysis")
+    print("Results:")
+    for results_dir in results_dirs:
+        print(f"  {results_dir}")
     print(f"Output: {output_dir}\n")
     
-    run_dirs = sorted(glob.glob(os.path.join(results_dir, f"T*_L*_b*_*_seed*_{gauge_group}")))
+    run_dirs = find_run_dirs(results_dirs, gauge_group)
     
     runs_periodic, runs_open = [], []
     results_periodic, results_open = [], []
@@ -120,8 +124,8 @@ def main():
     for runs_group, boundary in [(runs_periodic, "periodic"), (runs_open, "open")]:
         ts_files, ts_results, ts_runs = [], [], []
         for run_data in sorted(runs_group, key=lambda x: x.beta):
-            ts_file = os.path.join(run_data.run_dir, "output", "topcharge_timeslice.dat")
-            if not os.path.isfile(ts_file):
+            ts_file = topcharge_timeslice_file_path(run_data.run_dir, gauge_group)
+            if ts_file is None:
                 continue
             a_fm = lattice_spacing(run_data.beta)
             open_bc = run_data.boundary == "open"

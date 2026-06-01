@@ -12,7 +12,6 @@ on legacy single-level data).
 
 import os
 import sys
-import glob
 import argparse
 from typing import List, Optional
 
@@ -20,11 +19,13 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, script_dir)
 
 import timeslice_analysis as tsa
+from result_paths import find_run_dirs, resolve_results_dirs
 from calculations import (
     RunData, AnalysisResult,
     load_run_data, analyze_run, load_topcharge,
     find_optimal_alpha, QEstimator,
     lattice_spacing_su2, lattice_spacing_su3,
+    topcharge_file_path, topcharge_timeslice_file_path,
 )
 from plotting_code import (
     plot_Q_vs_mctime_grid, plot_histograms_grid,
@@ -60,13 +61,7 @@ def detect_smear_levels(topcharge_files: List[str]) -> List[int]:
 
 
 def _topcharge_path(run_dir: str, gauge_group: str) -> Optional[str]:
-    for cand in (
-        os.path.join(run_dir, "output", "topcharge.dat"),
-        os.path.join(run_dir, "output", f"topcharge_{gauge_group}.dat"),
-    ):
-        if os.path.exists(cand):
-            return cand
-    return None
+    return topcharge_file_path(run_dir, gauge_group)
 
 
 def rebuild_for_smear(run_data: RunData, smear: int,
@@ -185,8 +180,8 @@ def run_for_smear(runs_master: List[RunData], gauge_group: str,
         for runs_grp, boundary in [(runs_periodic, "periodic"), (runs_open, "open")]:
             ts_files, ts_results, ts_runs, ts_nbins, ts_nbins_mctime = [], [], [], [], []
             for rd in sorted(runs_grp, key=lambda x: x.beta):
-                ts_file = os.path.join(rd.run_dir, "output", "topcharge_timeslice.dat")
-                if not os.path.isfile(ts_file):
+                ts_file = topcharge_timeslice_file_path(rd.run_dir, gauge_group)
+                if ts_file is None:
                     continue
                 a_fm = spacing(rd.beta)
                 n_bin_run = _n_bin_for(rd.beta)
@@ -232,7 +227,7 @@ def main():
         description="Run analysis once per APE smearing level present in the data.")
     parser.add_argument("--su2", action="store_true")
     parser.add_argument("--su3", action="store_true")
-    parser.add_argument("--results-dir", type=str, default=None)
+    parser.add_argument("--results-dir", type=str, action="append", default=None)
     parser.add_argument("--output-dir", type=str, default=None,
                         help="Root dir; per-smear subdirs are created inside it.")
     parser.add_argument("--smear", type=int, action="append",
@@ -246,16 +241,17 @@ def main():
 
     gauge_group = "su3" if args.su3 else "su2"
     base_dir = os.path.dirname(script_dir)
-    results_dir = args.results_dir or os.path.join(base_dir, "data", "results")
+    results_dirs = resolve_results_dirs(base_dir, args.results_dir)
     output_root = args.output_dir or os.path.join(base_dir, "output", "figures_analysis")
     os.makedirs(output_root, exist_ok=True)
 
     print(f"\n{gauge_group.upper()} per-smear analysis")
-    print(f"Results: {results_dir}")
+    print("Results:")
+    for results_dir in results_dirs:
+        print(f"  {results_dir}")
     print(f"Output root: {output_root}")
 
-    run_dirs = sorted(glob.glob(
-        os.path.join(results_dir, f"T*_L*_b*_*_seed*_{gauge_group}")))
+    run_dirs = find_run_dirs(results_dirs, gauge_group)
 
     runs_master: List[RunData] = []
     topcharge_files: List[str] = []
