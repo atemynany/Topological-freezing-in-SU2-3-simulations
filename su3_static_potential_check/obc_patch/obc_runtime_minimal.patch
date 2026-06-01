@@ -1,0 +1,293 @@
+diff --git a/hardware/code/opencl_module.cpp b/hardware/code/opencl_module.cpp
+index 0e159343..0255e067 100644
+--- a/hardware/code/opencl_module.cpp
++++ b/hardware/code/opencl_module.cpp
+@@ -211,6 +211,9 @@ static std::string collect_basic_options(const hardware::Device* device,
+     options << " -D SOURCE_CONTENT=" << kernelParameters.getSourceContent();
+ 
+     // Options for heatbath
++    if (kernelParameters.getUseOpenTemporalGaugeBoundary()) {
++        options << " -D _OPEN_TEMPORAL_GAUGE_BC_";
++    }
+     if (kernelParameters.getUseAniso() == true) {
+         options << " -D _ANISO_";
+         options << " -D XI_0=" << kernelParameters.getXi0();
+diff --git a/hardware/interfaceMockups.hpp b/hardware/interfaceMockups.hpp
+index 2c5488ea..6eb2b451 100644
+--- a/hardware/interfaceMockups.hpp
++++ b/hardware/interfaceMockups.hpp
+@@ -174,6 +174,7 @@ namespace hardware {
+             virtual bool getUseChemPotRe() const override { return false; }
+             virtual bool getUseChemPotIm() const override { return false; }
+             virtual bool getUseSmearing() const override { return useSmearing; }
++            virtual bool getUseOpenTemporalGaugeBoundary() const override { return false; }
+             virtual double getChemPotRe() const override { return 0.; }
+             virtual double getChemPotIm() const override { return 0.; }
+             virtual double getRho() const override { return rho; }
+diff --git a/hardware/openClKernelParameters.hpp b/hardware/openClKernelParameters.hpp
+index f9d1c245..208403b7 100644
+--- a/hardware/openClKernelParameters.hpp
++++ b/hardware/openClKernelParameters.hpp
+@@ -35,6 +35,7 @@ namespace hardware {
+             virtual bool getUseChemPotIm() const                    = 0;
+             virtual double getChemPotIm() const                     = 0;
+             virtual bool getUseSmearing() const                     = 0;
++            virtual bool getUseOpenTemporalGaugeBoundary() const    = 0;
+             virtual double getRho() const                           = 0;
+             virtual int getRhoIter() const                          = 0;
+             virtual bool getUseRec12() const                        = 0;
+diff --git a/interfaceImplementations/openClKernelParameters.hpp b/interfaceImplementations/openClKernelParameters.hpp
+index 20709395..9c922aec 100644
+--- a/interfaceImplementations/openClKernelParameters.hpp
++++ b/interfaceImplementations/openClKernelParameters.hpp
+@@ -38,6 +38,10 @@ namespace hardware {
+             virtual bool getUseChemPotRe() const override { return fullParameters->get_use_chem_pot_re(); }
+             virtual bool getUseChemPotIm() const override { return fullParameters->get_use_chem_pot_im(); }
+             virtual bool getUseSmearing() const override { return fullParameters->get_use_smearing(); }
++            virtual bool getUseOpenTemporalGaugeBoundary() const override
++            {
++                return fullParameters->get_use_open_temporal_gauge_boundary();
++            }
+             virtual double getChemPotRe() const override { return fullParameters->get_chem_pot_re(); }
+             virtual double getChemPotIm() const override { return fullParameters->get_chem_pot_im(); }
+             virtual double getRho() const override { return fullParameters->get_rho(); }
+diff --git a/meta/inputparameters.cpp b/meta/inputparameters.cpp
+index 5a5478c4..36075d53 100644
+--- a/meta/inputparameters.cpp
++++ b/meta/inputparameters.cpp
+@@ -79,7 +79,7 @@ Inputparameters::Inputparameters(int argc, const char** argv, std::string parame
+                                                    "rhmcObsToSingleFile", "rhmcObsPrefix", "rhmcObsPostfix"}))
+             .add(ParametersMonteCarlo::options.keepOnlySome(
+                 {"nThermalizationSteps", "nHeatbathSteps", "nOverrelaxationSteps", "useAnisotropy", "xi"}))
+-            .add(ParametersGauge::options.keepOnlySome({"beta"}))
++            .add(ParametersGauge::options.keepOnlySome({"beta", "useOpenTemporalGaugeBoundary"}))
+             .add(ParametersObs::options.keepOnlySome({"measureTransportCoefficientKappa", "measureRectangles"}));
+ 
+     } else if (parameterSet == "gaugeobservables") {
+@@ -88,7 +88,7 @@ Inputparameters::Inputparameters(int argc, const char** argv, std::string parame
+                 {"nDigitsInConfCheckpoint", "confPrefix", "confPostfix", "PRNGPrefix", "PRNGPostfix",
+                  "rectanglesFilename", "transportCoefficientKappaFilename", "profilingDataPrefix",
+                  "profilingDataPostfix", "gaugeObsInSingleFile", "gaugeObsPrefix", "gaugeObsPostfix"}))
+-            .add(ParametersGauge::options.keepOnlySome({"beta"}))
++            .add(ParametersGauge::options.keepOnlySome({"beta", "useOpenTemporalGaugeBoundary"}))
+             .add(ParametersObs::options.keepOnlySome({"measureTransportCoefficientKappa", "measureRectangles"}));
+ 
+     } else if (parameterSet == "inverter") {
+diff --git a/meta/parametersGauge.cpp b/meta/parametersGauge.cpp
+index 88ff0cc0..1db96df8 100644
+--- a/meta/parametersGauge.cpp
++++ b/meta/parametersGauge.cpp
+@@ -52,11 +52,17 @@ bool meta::ParametersGauge::get_use_smearing() const noexcept
+     return use_smearing;
+ }
+ 
++bool meta::ParametersGauge::get_use_open_temporal_gauge_boundary() const noexcept
++{
++    return use_open_temporal_gauge_boundary;
++}
++
+ meta::ParametersGauge::ParametersGauge()
+     : beta(4.0)
+     , rho(0.)
+     , rho_iter(0)
+     , use_smearing(false)
++    , use_open_temporal_gauge_boundary(false)
+     , options("Gaugefield options")
+     , gaugeactString("wilson")
+     , gaugeact(common::action::wilson)
+@@ -67,6 +73,7 @@ meta::ParametersGauge::ParametersGauge()
+     ("useSmearing", po::value<bool>(&use_smearing)->default_value(use_smearing),"Whether to apply stout smearing to the gaugefield.")
+     ("smearingFactor", po::value<double>(&rho)->default_value(rho),"The weight factor associated with the staples in stout smearing.")
+     ("nSmearingSteps", po::value<int>(&rho_iter)->default_value(rho_iter, meta::getDefaultForHelper(rho_iter)),"The number of stout-smearing steps.")
++    ("useOpenTemporalGaugeBoundary", po::value<bool>(&use_open_temporal_gauge_boundary)->default_value(use_open_temporal_gauge_boundary),"Use open gauge boundary conditions in temporal direction. This is implemented for pure-gauge SU(3) heatbath.")
+     ("gaugeAction", po::value<std::string>(&gaugeactString)->default_value(gaugeactString),"Which type of gauge action to use (e.g. wilson, tlsym, iwasaki, dbw2).");
+     // clang-format on
+ }
+diff --git a/meta/parametersGauge.hpp b/meta/parametersGauge.hpp
+index 20991bfc..796270dc 100644
+--- a/meta/parametersGauge.hpp
++++ b/meta/parametersGauge.hpp
+@@ -34,12 +34,14 @@ namespace meta {
+         int get_rho_iter() const noexcept;
+         common::action get_gaugeact() const noexcept;
+         bool get_use_smearing() const noexcept;
++        bool get_use_open_temporal_gauge_boundary() const noexcept;
+ 
+       private:
+         double beta;
+         double rho;
+         int rho_iter;
+         bool use_smearing;
++        bool use_open_temporal_gauge_boundary;
+ 
+       protected:
+         ParametersGauge();
+diff --git a/meta/util.cpp b/meta/util.cpp
+index 26419377..37de039f 100644
+--- a/meta/util.cpp
++++ b/meta/util.cpp
+@@ -76,10 +76,16 @@ size_t meta::get_mat_size(const Inputparameters&)
+ 
+ size_t meta::get_plaq_norm(const Inputparameters& params)
+ {
++    if (params.get_use_open_temporal_gauge_boundary()) {
++        return get_splaq_norm(params) + get_tplaq_norm(params);
++    }
+     return (get_vol4d(params) * NDIM * (NDIM - 1)) / 2.;
+ }
+ size_t meta::get_tplaq_norm(const Inputparameters& params)
+ {
++    if (params.get_use_open_temporal_gauge_boundary()) {
++        return get_volspace(params) * (params.get_ntime() - 1) * (NDIM - 1);
++    }
+     return (get_vol4d(params) * (NDIM - 1));
+ }
+ size_t meta::get_splaq_norm(const Inputparameters& params)
+diff --git a/meta/util_io.cpp b/meta/util_io.cpp
+index 6756ba5c..675cc50e 100644
+--- a/meta/util_io.cpp
++++ b/meta/util_io.cpp
+@@ -175,6 +175,8 @@ void meta::print_info_heatbath(const Inputparameters& params)
+     logger.info() << "## thermsteps     = " << params.get_thermalizationsteps();
+     logger.info() << "## heatbathsteps  = " << params.get_heatbathsteps();
+     logger.info() << "## overrelaxsteps = " << params.get_overrelaxsteps();
++    logger.info() << "## temporal gauge boundary = "
++                  << (params.get_use_open_temporal_gauge_boundary() ? "open" : "periodic");
+     logger.info() << "## **********************************************************";
+     return;
+ }
+@@ -188,6 +190,8 @@ void meta::print_info_heatbath(std::ostream* os, const Inputparameters& params)
+     *os << "## thermsteps     = " << params.get_thermalizationsteps() << endl;
+     *os << "## heatbathsteps  = " << params.get_heatbathsteps() << endl;
+     *os << "## overrelaxsteps = " << params.get_overrelaxsteps() << endl;
++    *os << "## temporal gauge boundary = "
++        << (params.get_use_open_temporal_gauge_boundary() ? "open" : "periodic") << endl;
+     *os << "## **********************************************************" << endl;
+     return;
+ }
+diff --git a/ocl_kernel/gaugeobservables_plaquette.cl b/ocl_kernel/gaugeobservables_plaquette.cl
+index 377a8c1d..51583c2c 100644
+--- a/ocl_kernel/gaugeobservables_plaquette.cl
++++ b/ocl_kernel/gaugeobservables_plaquette.cl
+@@ -59,6 +59,11 @@ __kernel void plaquette(__global Matrixsu3StorageType* restrict field, __global
+ 
+         for (int mu = 1; mu < NDIM; mu++) {
+             for (int nu = 0; nu < mu; nu++) {
++#ifdef _OPEN_TEMPORAL_GAUGE_BC_
++                if (!local_plaquette_is_inside(pos.time, mu, nu)) {
++                    continue;
++                }
++#endif
+                 prod = local_plaquette(field, pos.space, pos.time, mu, nu);
+ 
+                 tmpfloat = trace_matrixsu3(prod).re;
+diff --git a/ocl_kernel/operations_gaugefield.cl b/ocl_kernel/operations_gaugefield.cl
+index b1194652..96dca79f 100644
+--- a/ocl_kernel/operations_gaugefield.cl
++++ b/ocl_kernel/operations_gaugefield.cl
+@@ -372,6 +372,29 @@ static inline Matrixsu3 local_polyakov(__global const Matrixsu3StorageType* cons
+ }
+ 
+ // calculate plaquette-matrix at site n,t in direction mu and nu
++#ifdef _OPEN_TEMPORAL_GAUGE_BC_
++static inline bool positive_temporal_step_is_inside(const int t, const int mu, const int nu)
++{
++    return (mu != 0 && nu != 0) || t < NTIME_MEM - 1;
++}
++
++static inline bool negative_staple_temporal_step_is_inside(const int t, const int mu, const int nu)
++{
++    if (mu == 0) {
++        return t < NTIME_MEM - 1;
++    }
++    if (nu == 0) {
++        return t > 0;
++    }
++    return true;
++}
++
++static inline bool local_plaquette_is_inside(const int t, const int mu, const int nu)
++{
++    return positive_temporal_step_is_inside(t, mu, nu);
++}
++#endif
++
+ static inline Matrixsu3 local_plaquette(__global const Matrixsu3StorageType* const restrict field, const int n,
+                                         const int t, const int mu, const int nu)
+ {
+@@ -500,6 +523,9 @@ static inline void local_staple(Matrix3x3* const restrict aggregate,
+ {
+     int4 pos;
+ 
++#ifdef _OPEN_TEMPORAL_GAUGE_BC_
++    if (positive_temporal_step_is_inside(t, mu, nu)) {
++#endif
+     // first staple
+     // calculate the coordinates for the matrices. this is the same as with  the plaquette
+     if (mu == 0) {
+@@ -521,7 +547,13 @@ static inline void local_staple(Matrix3x3* const restrict aggregate,
+     tmp           = multiply_matrixsu3_dagger(tmp, get_matrixsu3(field, n, t, nu));
+ 
+     aggregate_matrix3x3(aggregate, matrix_su3to3x3(tmp));
++#ifdef _OPEN_TEMPORAL_GAUGE_BC_
++    }
++#endif
+ 
++#ifdef _OPEN_TEMPORAL_GAUGE_BC_
++    if (negative_staple_temporal_step_is_inside(t, mu, nu)) {
++#endif
+     // second staple
+     if (mu == 0) {
+         pos.x = get_neighbor_temporal(t);
+@@ -544,6 +576,9 @@ static inline void local_staple(Matrix3x3* const restrict aggregate,
+     tmp = multiply_matrixsu3(tmp, get_matrixsu3(field, pos.w, pos.z, nu));
+ 
+     aggregate_matrix3x3(aggregate, matrix_su3to3x3(tmp));
++#ifdef _OPEN_TEMPORAL_GAUGE_BC_
++    }
++#endif
+ }
+ 
+ /**     This calculates the rectangles staple in nu direction given a direction mu of the link
+diff --git a/ocl_kernel/operations_heatbath.cl b/ocl_kernel/operations_heatbath.cl
+index 3cdebc5a..40a46075 100644
+--- a/ocl_kernel/operations_heatbath.cl
++++ b/ocl_kernel/operations_heatbath.cl
+@@ -64,6 +64,11 @@ static inline Matrixsu2_pauli SU2Update(const hmc_float alpha, prng_state* const
+ static inline void perform_heatbath(__global Matrixsu3StorageType* const restrict gaugefield, const int mu,
+                                     prng_state* const restrict rnd, const int pos, const int t)
+ {
++#ifdef _OPEN_TEMPORAL_GAUGE_BC_
++    if (mu == 0 && t == NTIME_MEM - 1) {
++        return;
++    }
++#endif
+     Matrix3x3 staplematrix;
+ 
+ #ifdef _ANISO_
+@@ -150,6 +155,11 @@ static inline void perform_heatbath(__global Matrixsu3StorageType* const restric
+ static inline void perform_overrelaxing(__global Matrixsu3StorageType* const restrict gaugefield, const int mu,
+                                         prng_state* const restrict rnd, const int pos, const int t)
+ {
++#ifdef _OPEN_TEMPORAL_GAUGE_BC_
++    if (mu == 0 && t == NTIME_MEM - 1) {
++        return;
++    }
++#endif
+     Matrix3x3 staplematrix;
+ #ifdef _ANISO_
+     // Compute staple, comprises whole anisotropy
+diff --git a/sample_input/input_su3heatbath b/sample_input/input_su3heatbath
+index d32354b3..5af85eaf 100644
+--- a/sample_input/input_su3heatbath
++++ b/sample_input/input_su3heatbath
+@@ -7,6 +7,9 @@ precision=64
+ # Physics parameters
+ startCondition=cold
+ beta=6.00
++# Default is periodic gauge boundaries. Set true for open temporal gauge
++# boundaries in pure-gauge SU(3) heatbath.
++useOpenTemporalGaugeBoundary=false
+ nThermalizationSteps=0
+ nHeatbathSteps=1000
+ onlineMeasureEvery=1
