@@ -23,6 +23,7 @@ fi
 SETUP_FILE=""
 BETA=""
 TARGET_Q=""
+TARGET_Q_LIST=""
 Q_TOL="0.1"
 MAX_TRIES="100"
 CANDIDATE_SWEEPS="100"
@@ -42,6 +43,8 @@ Usage:
 
 Options:
   --target-q Q              Accepted hot-sector target (default: any integer)
+  --target-q-list LIST      Accept if Q is within tolerance of any value in LIST
+                            Example: --target-q-list "-2,-1,0,1,2"
   --q-tol EPS               Accept if |Q - nearest int| <= EPS (default: 0.1)
   --max-tries N             Maximum hot candidates to try (default: 100)
   --candidate-sweeps N      Sweeps before checking each hot candidate (default: 100)
@@ -62,6 +65,7 @@ while [[ $# -gt 0 ]]; do
         --setup)              SETUP_FILE="$2"; shift 2 ;;
         --beta)               BETA="$2"; shift 2 ;;
         --target-q)           TARGET_Q="$2"; shift 2 ;;
+        --target-q-list)      TARGET_Q_LIST="$2"; shift 2 ;;
         --q-tol)              Q_TOL="$2"; shift 2 ;;
         --max-tries)          MAX_TRIES="$2"; shift 2 ;;
         --candidate-sweeps)   CANDIDATE_SWEEPS="$2"; shift 2 ;;
@@ -115,6 +119,20 @@ abs_diff_nearest_int_leq() {
     }'
 }
 
+abs_diff_target_list_leq() {
+    awk -v q="$1" -v targets="$2" -v tol="$3" 'BEGIN {
+        gsub(/[[:space:]]+/, "", targets)
+        n_targets = split(targets, target, ",")
+        for (i = 1; i <= n_targets; i++) {
+            if (target[i] == "") continue
+            d = q - target[i]
+            if (d < 0) d = -d
+            if (d <= tol) exit 0
+        }
+        exit 1
+    }'
+}
+
 T_SIZE=$(read_param "T" "$SETUP_FILE"); T_SIZE=${T_SIZE:-16}
 L_SIZE=$(read_param "L" "$SETUP_FILE"); L_SIZE=${L_SIZE:-16}
 BOUNDARY=$(read_param "boundary" "$SETUP_FILE"); BOUNDARY=${BOUNDARY:-periodic}
@@ -141,7 +159,13 @@ RUN_STAMP="$(date +%Y%m%d_%H%M%S)"
 BASE_NAME="qtarget_T${T_SIZE}_L${L_SIZE}_b${BETA}_${BOUNDARY}_${RUN_STAMP}_su2"
 BASE_DIR="$RESULTS_DIR/$BASE_NAME"
 CANDIDATE_ROOT="$BASE_DIR/hot_candidates"
-TARGET_LABEL=${TARGET_Q:-int}
+if [ -n "$TARGET_Q_LIST" ]; then
+    TARGET_LABEL="list_${TARGET_Q_LIST//,/to}"
+elif [ -n "$TARGET_Q" ]; then
+    TARGET_LABEL="$TARGET_Q"
+else
+    TARGET_LABEL="int"
+fi
 HOT_DIR="$BASE_DIR/hot_${TARGET_LABEL}"
 
 write_heatbath_input() {
@@ -199,8 +223,11 @@ echo "SU(2) accepted-hot Q-sector ensemble driver"
 echo "  setup:              $SETUP_FILE"
 echo "  beta:               $BETA"
 echo "  lattice:            ${T_SIZE}x${L_SIZE}^3 $BOUNDARY"
+if [ "$DRY_RUN" = true ]; then
     if [ -n "$TARGET_Q" ]; then
         echo "  target hot Q:       $TARGET_Q +/- $Q_TOL"
+    elif [ -n "$TARGET_Q_LIST" ]; then
+        echo "  target hot Q list:  $TARGET_Q_LIST +/- $Q_TOL"
     else
         echo "  target hot Q:       any integer +/- $Q_TOL"
     fi
@@ -238,7 +265,10 @@ for TRY in $(seq 1 "$MAX_TRIES"); do
     echo "[hot try $TRY/$MAX_TRIES] Q=$Q_VALUE"
 
     if [ -n "$Q_VALUE" ]; then
-        if [ -n "$TARGET_Q" ]; then
+        if [ -n "$TARGET_Q_LIST" ]; then
+            accept=false
+            abs_diff_target_list_leq "$Q_VALUE" "$TARGET_Q_LIST" "$Q_TOL" && accept=true
+        elif [ -n "$TARGET_Q" ]; then
             accept=false
             abs_diff_leq "$Q_VALUE" "$TARGET_Q" "$Q_TOL" && accept=true
         else
@@ -279,6 +309,7 @@ T                      $T_SIZE
 L                      $L_SIZE
 boundary               $BOUNDARY
 target_q               ${TARGET_Q:-any integer}
+target_q_list          ${TARGET_Q_LIST:-none}
 q_tolerance            $Q_TOL
 accepted_q             $ACCEPTED_Q
 accepted_seed          $ACCEPTED_SEED
