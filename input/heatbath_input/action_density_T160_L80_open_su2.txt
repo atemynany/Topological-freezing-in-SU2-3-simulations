@@ -1,0 +1,16 @@
+# Recompute SU(2) action density on the saved T160_L80 open ensemble.
+# Keeps only the temporal bulk t = 40,...,119.
+
+T                       160
+L                       80
+beta                    3.15
+boundary                open
+
+config_dir              data/results/T160_L80_b3.15_open_seed857952899_su2/configs/
+output_dir              data/results/T160_L80_b3.15_open_seed857952899_su2/output/
+output_file             action_density_bulk_ex40.dat
+
+start_conf              100
+end_conf                10000
+conf_step               100
+exclude_boundary_slices 40
