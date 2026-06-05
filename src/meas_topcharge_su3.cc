@@ -1,6 +1,7 @@
 // meas_topcharge_su3.cc - SU(3) topological charge measurement
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -60,15 +61,120 @@ void init_neighbor_tables() {
     }
 }
 
-void read_su3_config(double *gf, const char *filename, int T, int L) {
+static uint32_t read_be32(const char *p) {
+    const unsigned char *b = reinterpret_cast<const unsigned char *>(p);
+    return (static_cast<uint32_t>(b[0]) << 24) |
+           (static_cast<uint32_t>(b[1]) << 16) |
+           (static_cast<uint32_t>(b[2]) << 8) |
+            static_cast<uint32_t>(b[3]);
+}
+
+static uint64_t read_be64(const char *p) {
+    const unsigned char *b = reinterpret_cast<const unsigned char *>(p);
+    uint64_t value = 0;
+    for (int i = 0; i < 8; i++) {
+        value = (value << 8) | static_cast<uint64_t>(b[i]);
+    }
+    return value;
+}
+
+static double read_be_double(const char *p) {
+    const uint64_t raw = read_be64(p);
+    double value;
+    std::memcpy(&value, &raw, sizeof(value));
+    return value;
+}
+
+bool read_su3_config_raw(double *gf, const char *filename, int T, int L) {
     FILE *f = fopen(filename, "rb");
-    if (!f) { std::cerr << "Error: Cannot read " << filename << std::endl; return; }
+    if (!f) {
+        std::cerr << "Error: Cannot read " << filename << std::endl;
+        return false;
+    }
     char line[1024];
-    if (fgets(line, sizeof(line), f) == nullptr) { fclose(f); return; }
+    if (fgets(line, sizeof(line), f) == nullptr) {
+        std::cerr << "Error: Empty config file: " << filename << std::endl;
+        fclose(f);
+        return false;
+    }
     const int volume = T * L * L * L;
     size_t nread = fread(gf, sizeof(double), volume * 4 * 18, f);
-    (void)nread;
     fclose(f);
+    if (nread != static_cast<size_t>(volume) * 4 * 18) {
+        std::cerr << "Error: Config file too short: " << filename << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool read_su3_config_cl2qcd_lime(double *gf, const char *filename, int T, int L) {
+    std::ifstream f(filename, std::ios::binary);
+    if (!f.is_open()) {
+        std::cerr << "Error: Cannot read " << filename << std::endl;
+        return false;
+    }
+
+    const size_t volume = static_cast<size_t>(T) * L * L * L;
+    const size_t expected_bytes = volume * 4 * 18 * sizeof(double);
+
+    while (true) {
+        char header[144];
+        f.read(header, sizeof(header));
+        if (f.gcount() == 0 && f.eof()) break;
+        if (f.gcount() != static_cast<std::streamsize>(sizeof(header))) {
+            std::cerr << "Error: Truncated LIME header in " << filename << std::endl;
+            return false;
+        }
+
+        const uint32_t magic = read_be32(header);
+        if (magic != 0x456789abU) {
+            std::cerr << "Error: Bad LIME magic in " << filename << std::endl;
+            return false;
+        }
+
+        const uint64_t payload_bytes = read_be64(header + 8);
+        std::string record_type(header + 16, strnlen(header + 16, 128));
+        const uint64_t padding = (8 - (payload_bytes % 8)) % 8;
+
+        if (record_type == "ildg-binary-data") {
+            if (payload_bytes != expected_bytes) {
+                std::cerr << "Error: Unexpected ildg-binary-data size in " << filename
+                          << " (got " << payload_bytes << ", expected " << expected_bytes << ")" << std::endl;
+                return false;
+            }
+
+            std::vector<char> payload(expected_bytes);
+            f.read(payload.data(), static_cast<std::streamsize>(payload.size()));
+            if (f.gcount() != static_cast<std::streamsize>(payload.size())) {
+                std::cerr << "Error: Truncated ildg-binary-data payload in " << filename << std::endl;
+                return false;
+            }
+
+            for (size_t site = 0; site < volume; site++) {
+                for (int file_dir = 0; file_dir < 4; file_dir++) {
+                    const int mu = (file_dir + 1) % 4;  // CL2QCD writes ILDG dirs as x,y,z,t.
+                    const size_t src_link = site * 4 + static_cast<size_t>(file_dir);
+                    const size_t dst_link = site * 4 + static_cast<size_t>(mu);
+                    for (int elem = 0; elem < 18; elem++) {
+                        gf[dst_link * 18 + elem] =
+                            read_be_double(payload.data() + (src_link * 18 + elem) * sizeof(double));
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        f.seekg(static_cast<std::streamoff>(payload_bytes + padding), std::ios::cur);
+        if (!f.good()) {
+            std::cerr << "Error: Failed while skipping LIME record " << record_type
+                      << " in " << filename << std::endl;
+            return false;
+        }
+    }
+
+    std::cerr << "Error: No ildg-binary-data record found in " << filename << std::endl;
+    return false;
 }
 
 // Simple APE smearing for SU(3)
@@ -123,9 +229,13 @@ void su3_ape_smear(double *gf_out, const double *gf_in, int T, int L, double alp
 
 struct MeasParams {
     std::string config_dir;
+    std::string config_format;
+    std::string config_prefix;
+    std::string config_postfix;
     std::string output_file;
     int T, L;
     int start_conf, end_conf, conf_step;
+    int conf_digits;
     int smear_steps;
     double smear_alpha;
     std::string boundary;          // "periodic" or "open"
@@ -137,9 +247,13 @@ bool read_input(const char *filename, MeasParams &p) {
     if (!f.is_open()) return false;
     
     p.config_dir = "output/configs_su3/";
+    p.config_format = "raw";
+    p.config_prefix = "conf_su3.";
+    p.config_postfix = "";
     p.output_file = "output/topcharge_su3.dat";
     p.T = 8; p.L = 8;
     p.start_conf = 10; p.end_conf = 100; p.conf_step = 10;
+    p.conf_digits = 4;
     p.smear_steps = 20; p.smear_alpha = 0.45;
     p.boundary = "periodic";
     p.exclude_boundary_slices = 0;
@@ -150,18 +264,47 @@ bool read_input(const char *filename, MeasParams &p) {
         std::istringstream iss(line);
         iss >> key;
         if (key == "config_dir") iss >> p.config_dir;
+        else if (key == "config_format") iss >> p.config_format;
+        else if (key == "config_prefix") iss >> p.config_prefix;
+        else if (key == "config_postfix") iss >> p.config_postfix;
         else if (key == "output_file") iss >> p.output_file;
         else if (key == "T") iss >> p.T;
         else if (key == "L") iss >> p.L;
         else if (key == "start_conf") iss >> p.start_conf;
         else if (key == "end_conf") iss >> p.end_conf;
         else if (key == "conf_step") iss >> p.conf_step;
+        else if (key == "conf_digits") iss >> p.conf_digits;
         else if (key == "smear_steps") iss >> p.smear_steps;
         else if (key == "smear_alpha") iss >> p.smear_alpha;
         else if (key == "boundary") iss >> p.boundary;
         else if (key == "exclude_boundary_slices") iss >> p.exclude_boundary_slices;
     }
     return true;
+}
+
+std::string config_filename(const MeasParams &params, int conf) {
+    std::ostringstream path;
+    path << params.config_dir;
+    if (!params.config_dir.empty() && params.config_dir.back() != '/') {
+        path << '/';
+    }
+    path << params.config_prefix << std::setw(params.conf_digits) << std::setfill('0')
+         << conf << params.config_postfix;
+    return path.str();
+}
+
+bool read_su3_config(double *gf, const std::string &filename, const MeasParams &params) {
+    if (params.config_format == "raw" || params.config_format == "native") {
+        return read_su3_config_raw(gf, filename.c_str(), params.T, params.L);
+    }
+    if (params.config_format == "cl2qcd_lime" ||
+        params.config_format == "ildg" ||
+        params.config_format == "lime") {
+        return read_su3_config_cl2qcd_lime(gf, filename.c_str(), params.T, params.L);
+    }
+
+    std::cerr << "Error: Unknown config_format: " << params.config_format << std::endl;
+    return false;
 }
 
 int main(int argc, char **argv) {
@@ -191,6 +334,11 @@ int main(int argc, char **argv) {
     posix_memalign((void **)&gf_tmp, 32, volume * 4 * 18 * sizeof(double));
     
     FILE *out = fopen(params.output_file.c_str(), "w");
+    if (!out) {
+        std::cerr << "Error: Cannot open output file: " << params.output_file << std::endl;
+        free(gf); free(gf_smeared); free(gf_tmp);
+        return EXIT_FAILURE;
+    }
     fprintf(out, "# conf smear_step Q\n");
 
     // Timeslice output: same directory as output_file, fixed name
@@ -208,6 +356,7 @@ int main(int argc, char **argv) {
     
     std::cout << "SU(3) Topological Charge Measurement\n";
     std::cout << "Lattice: " << T_size << "x" << L_size << "^3\n";
+    std::cout << "Config format: " << params.config_format << "\n";
     std::cout << "Smearing: " << params.smear_steps << " steps, alpha=" << params.smear_alpha << "\n";
     std::cout << "Boundary: " << params.boundary;
     if (params.boundary == "open" && params.exclude_boundary_slices > 0) {
@@ -216,10 +365,10 @@ int main(int argc, char **argv) {
     std::cout << "\n";
     
     for (int conf = params.start_conf; conf <= params.end_conf; conf += params.conf_step) {
-        char fname[512];
-        snprintf(fname, sizeof(fname), "%sconf_su3.%04d", params.config_dir.c_str(), conf);
-        
-        read_su3_config(gf, fname, T_size, L_size);
+        const std::string fname = config_filename(params, conf);
+        if (!read_su3_config(gf, fname, params)) {
+            return EXIT_FAILURE;
+        }
         
         // Copy to smeared buffer
         memcpy(gf_smeared, gf, volume * 4 * 18 * sizeof(double));
