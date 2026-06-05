@@ -153,7 +153,7 @@ run_topcharge_beta() {
     fi
 
     # Patch input.txt with topcharge params
-    local START_CONF END_CONF CONF_STEP SMEAR_STEPS SMEAR_ALPHA SMEAR_INTERVAL EXCLUDE_BC_OPEN
+    local START_CONF END_CONF CONF_STEP SMEAR_STEPS SMEAR_ALPHA SMEAR_INTERVAL EXCLUDE_BC EXCLUDE_BC_OPEN
     # Prefer the thermalization cut written by run_heatbath_scan.sh; fall back to
     # the shared params file for legacy run directories.
     START_CONF=$(read_param "start_conf"                   "$TEMP_INPUT")
@@ -163,14 +163,18 @@ run_topcharge_beta() {
     SMEAR_STEPS=$(read_param "smear_steps"                 "$TOPCHARGE_FILE_PARAMS")
     SMEAR_ALPHA=$(read_param "smear_alpha"                 "$TOPCHARGE_FILE_PARAMS")
     SMEAR_INTERVAL=$(read_param "smear_interval"           "$TOPCHARGE_FILE_PARAMS")
+    EXCLUDE_BC=$(read_param "exclude_boundary_slices"      "$TEMP_INPUT")
     EXCLUDE_BC_OPEN=$(read_param "exclude_boundary_slices_open" "$TOPCHARGE_FILE_PARAMS")
 
-    # Auto-detect boundary conditions from directory name
-    local EXCLUDE_BC=0
-    if [[ "$RUN_NAME" == *"_open_"* ]]; then
+    # Preserve an explicit per-run temporal subvolume. Otherwise use the shared
+    # open-boundary default for open runs and the full lattice for periodic runs.
+    if [ -n "$EXCLUDE_BC" ]; then
+        log_info "[$COUNT/$TOTAL] Preserving exclude_boundary_slices=$EXCLUDE_BC from input.txt"
+    elif [[ "$RUN_NAME" == *"_open_"* ]]; then
         EXCLUDE_BC=${EXCLUDE_BC_OPEN:-2}
         log_info "[$COUNT/$TOTAL] Detected open BC — exclude_boundary_slices=$EXCLUDE_BC"
     else
+        EXCLUDE_BC=0
         log_info "[$COUNT/$TOTAL] Detected periodic BC — exclude_boundary_slices=0"
     fi
 

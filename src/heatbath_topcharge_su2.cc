@@ -6,7 +6,7 @@
 // At each save_interval the live gauge field is copied into a scratch buffer,
 // APE-smeared, and Q (global + per-timeslice) is measured at the requested
 // smear checkpoints. Nothing is written to disk for the raw gauge field —
-// only plaquette.dat, topcharge.dat, topcharge_timeslice.dat.
+// only plaquette.dat, action_density.dat, topcharge.dat, topcharge_timeslice.dat.
 //
 // Usage: heatbath_topcharge_su2 -i <input_file>
 // ==============================================================================
@@ -195,6 +195,10 @@ bool validate_params(const SimParams &params) {
         std::cerr << "Error: smear_steps and smear_interval must be >= 1" << std::endl;
         return false;
     }
+    if (params.exclude_boundary_slices < 0 || 2 * params.exclude_boundary_slices >= params.T) {
+        std::cerr << "Error: exclude_boundary_slices must leave at least one temporal slice" << std::endl;
+        return false;
+    }
     if (params.smear_alpha < 0.0 || params.smear_alpha > 1.0) {
         std::cerr << "Warning: smear_alpha=" << params.smear_alpha << " outside typical range [0,1]" << std::endl;
     }
@@ -215,7 +219,7 @@ void print_params(const SimParams &params) {
     std::cout << "Measure interval:    " << params.save_interval << " sweeps" << std::endl;
     std::cout << "Smear total:         " << params.smear_steps << " steps, alpha=" << params.smear_alpha << std::endl;
     std::cout << "Smear checkpoints:   every " << params.smear_interval << " steps" << std::endl;
-    if (params.boundary == "open" && params.exclude_boundary_slices > 0) {
+    if (params.exclude_boundary_slices > 0) {
         std::cout << "Exclude boundary:    " << params.exclude_boundary_slices << " slices per end" << std::endl;
     }
 #ifdef _OPENMP
@@ -237,9 +241,9 @@ void measure_topcharge_inmemory(
 {
     Gauge_Field_Copy(smeared_gauge_field, gauge_field, params.T, params.L);
 
-    const bool open_bc = (params.boundary == "open" && params.exclude_boundary_slices > 0);
-    const int t_min = open_bc ? params.exclude_boundary_slices : 0;
-    const int t_max = open_bc ? params.T - params.exclude_boundary_slices : params.T;
+    const bool temporal_subvolume = (params.exclude_boundary_slices > 0);
+    const int t_min = temporal_subvolume ? params.exclude_boundary_slices : 0;
+    const int t_max = temporal_subvolume ? params.T - params.exclude_boundary_slices : params.T;
     const int t_count = t_max - t_min;
 
     std::vector<double> q_per_t(t_count, 0.0);
@@ -250,7 +254,7 @@ void measure_topcharge_inmemory(
         const bool is_checkpoint = (s % params.smear_interval == 0) || (s == params.smear_steps);
         if (!is_checkpoint) continue;
 
-        double Q = open_bc
+        double Q = temporal_subvolume
             ? compute_topological_charge_open(smeared_gauge_field, params.T, params.L, params.exclude_boundary_slices)
             : compute_topological_charge(smeared_gauge_field, params.T, params.L);
 
@@ -307,7 +311,7 @@ int main(int argc, char **argv)
         std::cerr << "  start_type {cold|hot}   boundary {periodic|open}" << std::endl;
         std::cerr << "  num_sweeps   save_interval" << std::endl;
         std::cerr << "  smear_steps  smear_interval  smear_alpha" << std::endl;
-        std::cerr << "  exclude_boundary_slices  (only used for open BC)" << std::endl;
+        std::cerr << "  exclude_boundary_slices  (temporal slices excluded per end)" << std::endl;
         return EXIT_FAILURE;
     }
 

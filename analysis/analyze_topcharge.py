@@ -7,26 +7,22 @@ Statistical analysis of topological charge measurements.
 Computes mean, standard deviation, and jackknife errors with bias estimation.
 
 Usage:
-    python3 analysis/analyze_topcharge.py
+    python3 analysis/analyze_topcharge.py --input path/to/topcharge.dat
 
 Author: Alexander de Barros Noll
 Date: January 2026
 ==============================================================================
 """
 
+import argparse
 import os
+import sys
 import numpy as np
 
-from Q_estimator import QEstimator
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, script_dir)
 
-
-# ==============================================================================
-# Paths
-# ==============================================================================
-
-base_dir = "/home/alex/Desktop/workspace/master_thesis/lattice_qcd_topolgical_charge/Topological_charge_my_implementation"
-output_dir = os.path.join(base_dir, "output")
-topcharge_file = os.path.join(output_dir, "topcharge.dat")
+from calculations import QEstimator
 
 
 # ==============================================================================
@@ -129,13 +125,21 @@ def jackknife_Q2(values: np.ndarray) -> dict:
 # ==============================================================================
 
 def main():
+    parser = argparse.ArgumentParser(description="Jackknife summary for a topcharge.dat file.")
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="Path to topcharge.dat",
+    )
+    args = parser.parse_args()
+
     print("="*60)
     print("Topological Charge Analysis")
     print("="*60)
     
     # Load data
-    print(f"\nLoading data from: {topcharge_file}")
-    data = load_topcharge_data(topcharge_file)
+    print(f"\nLoading data from: {args.input}")
+    data = load_topcharge_data(args.input)
     
     if len(data['Q']) == 0:
         print("Error: No data found")
@@ -221,12 +225,12 @@ def main():
     print(f"  RMS deviation = {est.result.rms_deviation:.6f}")
     
     print(f"\nRescaled charge statistics:")
-    print(f"  <Q_rescaled>  = {est.result.Q_mean:.4f}")
-    print(f"  std           = {est.result.Q_std:.4f}")
-    print(f"  <Q_rescaled²> = {est.result.Q2_mean:.4f}")
+    print(f"  <Q_rescaled>  = {np.mean(est.Q_rescaled):.4f}")
+    print(f"  std           = {np.std(est.Q_rescaled, ddof=1):.4f}")
+    print(f"  <Q_rescaled²> = {np.mean(est.Q_rescaled**2):.4f}")
     
     # Distribution of rescaled charges
-    unique_Q, counts = est.result.histogram()
+    unique_Q, counts = np.unique(est.Q_rescaled, return_counts=True)
     print(f"\nRescaled Q distribution:")
     for q, c in zip(unique_Q, counts):
         pct = 100.0 * c / len(est.Q_rescaled)

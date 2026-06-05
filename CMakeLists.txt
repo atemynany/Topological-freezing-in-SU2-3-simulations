@@ -1,8 +1,8 @@
 # ==============================================================================
-# SU(2) Lattice Gauge Theory - Topological Charge Simulation
+# SU(2)/SU(3) Lattice Gauge Theory - Topological Charge Simulation
 # ==============================================================================
-# CMake build configuration for SU(2) lattice QCD simulation with
-# topological charge measurement using APE smearing.
+# CMake build configuration for SU(2)/SU(3) lattice gauge simulations with
+# topological charge measurement, action-density helpers, and APE smearing.
 #
 # Author: Alexander de Barros Noll
 # Date: January 2026
@@ -137,7 +137,7 @@ else()
 endif()
 
 # ==============================================================================
-# Utility Library (SU2 Core Functions)
+# Utility Library (shared infrastructure, primarily SU(2) core functions)
 # ==============================================================================
 
 add_library(su2_utility STATIC
@@ -463,6 +463,7 @@ install(TARGETS
     mc_heatbath_su3
     meas_topcharge
     meas_topcharge_su3
+    meas_action_density_su2
     heatbath_topcharge_su2
     compute_instanton_Q
     RUNTIME DESTINATION bin

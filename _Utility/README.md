@@ -1,56 +1,38 @@
-# SU2 Includes Library
+# SU(2) Utility Library
 
-Static library containing utility functions for SU(2) lattice gauge theory simulations.
+`_Utility/` contains the shared SU(2)-oriented support code used by the root
+CMake project. It is built as the static library `su2_utility` and linked into
+the SU(2) executables, the SU(3) executables where they reuse common
+infrastructure, and the Catch2 tests.
 
-## Build Instructions
+Build it through the repository root:
 
 ```bash
-cd Includes
-mkdir -p build
-cd build
-cmake ..
-make
+./scripts/build.sh release
 ```
 
-## Build Output
-
-| File | Location |
-|------|----------|
-| `libsu2_includes.a` | `build/` |
-| Object files (`.o`) | `build/CMakeFiles/su2_includes.dir/` |
+The archive is written to `build/lib/libsu2_utility.a`; executables are written
+to `build/bin/`.
 
 ## Contents
 
-### Source Files
-
-| File | Description |
-|------|-------------|
-| `fields.cc` | Field operations and manipulations |
-| `io.cc` | Input/output utilities for reading/writing configurations |
-| `ranlux.cc` | C++ wrapper for RANLUX random number generator |
-| `ranlxd.c` | RANLUX double precision RNG |
-| `ranlxs.c` | RANLUX single precision RNG |
-| `smearing_techniques_all.cc` | all available Smearing algorithms (APE, HYP, etc.) |
-| `smearing_techniques.cc` | used Smearning algorithm |
-
-### Header Files
-
-| File | Description |
-|------|-------------|
-| `fields.hh` | Field class definitions |
-| `geometry.hh` | Lattice geometry and indexing |
-| `io.hh` | I/O function declarations |
-| `linear_algebra.hh` | SU(2) matrix operations|
-| `progressbar.hh` | Progress bar utility |
-| `ranlux.hh` | Random number generator interface |
-| `smearing_techniques.hh` | Smearing function declarations |
-
-## Requirements
-
-- CMake ≥ 3.16
-- C++17 compatible compiler
-- Math library (`-lm`)
+| File | Purpose |
+|------|---------|
+| `src/fields.cc` / `include/fields.hh` | Gauge-field allocation, copying, and basic field helpers |
+| `src/io.cc` / `include/io.hh` | Parameter parsing and binary gauge-configuration I/O |
+| `src/ranlux.cc`, `src/ranlxd.c`, `src/ranlxs.c` / `include/ranlux.hh` | RANLUX random-number generators |
+| `src/smearing_techniques.cc` / `include/smearing_techniques.hh` | APE smearing used in production measurements |
+| `src/smearing_techniques_all.cc` | Additional smearing variants retained for experiments |
+| `include/geometry.hh` | Lattice indexing and neighbor-table helpers |
+| `include/linear_algebra.hh` | SU(2) matrix operations |
+| `include/progressbar.hh` | Lightweight terminal progress bar |
 
 ## Notes
 
-- macOS users: Uncomment `set(CMAKE_OSX_ARCHITECTURES "arm64")` in `CMakeLists.txt` for Apple Silicon
+- The library assumes the global lattice-state pattern used by the simulation
+  binaries (`T`, `L`, gauge-field pointer, boundary flags, neighbor tables).
+- OpenMP is enabled when CMake finds it. On macOS, install it with
+  `brew install libomp`; otherwise the code still builds and runs sequentially.
+- SU(3)-specific linear algebra and topcharge code lives in the root
+  `include/` directory (`su3_linear_algebra.hh`, `topcharge_su3.hh`,
+  `su3_heatbath.hh`).

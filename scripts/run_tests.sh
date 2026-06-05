@@ -2,7 +2,7 @@
 # ==============================================================================
 # run_tests.sh
 # ==============================================================================
-# Run all unit tests for the SU(2) topological charge simulation.
+# Run all unit tests for the SU(2)/SU(3) topological charge simulation.
 #
 # Usage:
 #   ./scripts/run_tests.sh [test_name]
@@ -33,7 +33,7 @@ if [ ! -f "bin/test_heatbath" ]; then
 fi
 
 echo "=============================================="
-echo "Running SU(2) Unit Tests"
+echo "Running SU(2)/SU(3) Unit Tests"
 echo "=============================================="
 echo ""
 

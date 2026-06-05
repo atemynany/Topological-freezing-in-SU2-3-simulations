@@ -298,8 +298,15 @@ def plot_Q_smearing_heatmap(data: dict, output_dir: str, title: str = None):
     
     fig, ax = plt.subplots(figsize=(10, 6))
     
+    x_min, x_max = configs[0], configs[-1]
+    y_min, y_max = smear_steps[0], smear_steps[-1]
+    if x_min == x_max:
+        x_min, x_max = x_min - 0.5, x_max + 0.5
+    if y_min == y_max:
+        y_min, y_max = y_min - 0.5, y_max + 0.5
+
     im = ax.imshow(Q_matrix, aspect='auto', origin='lower',
-                   extent=[configs[0], configs[-1], smear_steps[0], smear_steps[-1]],
+                   extent=[x_min, x_max, y_min, y_max],
                    cmap='RdBu_r')
     
     cbar = plt.colorbar(im, ax=ax)

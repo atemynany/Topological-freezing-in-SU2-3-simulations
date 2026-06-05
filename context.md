@@ -32,7 +32,7 @@ APE smearing iteratively replaces each link with a weighted average of itself an
 
 $$U_\mu'(x) = \mathcal{P}_{SU(N)}\!\left[(1-\alpha)\,U_\mu(x) + \frac{\alpha}{6}\sum_{\nu\neq\mu} V_{\mu\nu}(x)\right]$$
 
-where V_μν is the sum of the two staples in the ν direction. The SU(3) projection uses iterative polar decomposition (via Cayley-Hamilton). Typically 20 steps at α = 0.3 (SU3) or α = 0.45 (SU2) are used. Smearing removes UV noise, making Q converge to near-integer values.
+where V_μν is the sum of the two staples in the ν direction. The SU(3) projection uses Gram-Schmidt reunitarisation (`su3_proj`). Typical production values are set in the input/topcharge parameter files; SU(2) often records multiple smearing checkpoints through `smear_interval`, while SU(3) currently writes the final smearing level. Smearing removes UV noise, making periodic-boundary Q converge to near-integer values.
 
 **Important**: smearing is applied to the gauge field. You cannot smear Q values directly. The pipeline is always: gauge field → smear → compute Q.
 
@@ -52,7 +52,7 @@ $$\tau_{\text{int}}(Q) \propto a^{-z}, \quad z \approx 5 \text{ (SU(3) pure gaug
 
 $$\chi_t = \frac{\langle Q^2 \rangle}{V}, \quad \chi_t^{1/4} \approx 200 \text{ MeV (SU(2))}, \quad \approx 180 \text{ MeV (SU(3))}$$
 
-where V = T·L³ is the lattice volume. In code, χ_t is computed from the rescaled integer charges Q_re (see §6).
+where V = T·L³ is the lattice volume. In code, full-lattice periodic-boundary χ_t is computed from the rescaled integer charges Q_re (see §6). For open temporal boundaries or any measurement with temporal boundary slices excluded, Q is a subvolume charge and is not integer-quantized, so the analysis uses the continuous rescaled charge αQ rather than integer rounding.
 
 ---
 
@@ -62,11 +62,11 @@ Raw smeared Q values are close to but not exactly integers due to residual discr
 
 $$\alpha^* = \arg\min_\alpha \langle (\alpha Q - \text{round}(\alpha Q))^2 \rangle$$
 
-This is solved via **golden-section search** on [0.8, 1.2]. The rescaled integer charge is then:
+This is solved via **golden-section search** on [0.8, 1.2]. For full-lattice periodic-boundary runs, the rescaled integer charge is then:
 
 $$Q_{\text{re}} = \text{round}(\alpha^* Q)$$
 
-α ≈ 1 for well-smeared configurations. This is only meaningful when Q is close to integers (i.e., after sufficient smearing). Applying it to unsmeared thermalization Q is not physically meaningful.
+α ≈ 1 for well-smeared configurations. This is only meaningful as an integer estimator when Q is close to integers (i.e., after sufficient smearing and with full-lattice periodic measurements). Open-boundary and temporal-subvolume analysis keeps αQ continuous because the measured Q is not a global topological-sector charge. Applying the estimator to unsmeared thermalization Q is not physically meaningful.
 
 The Rust extension (`rust_analysis/`) provides a parallel implementation of this search via rayon.
 
@@ -118,9 +118,12 @@ Both programs:
 - Apply N APE smearing steps to a temporary copy of the gauge field
 - Measure Q on the smeared copy
 - Write `conf smear_step Q` to `topcharge_su3.dat` (SU3) or `smear_step conf Q plaquette` to `topcharge.dat` (SU2)
+- Write per-timeslice density rows to `topcharge_timeslice.dat`
 - Display a progress bar during the run
 
 The smearing does **not** modify the stored configurations — it operates on an in-memory copy.
+
+The fused SU(2) binary (`src/heatbath_topcharge_su2.cc`) skips the on-disk configuration stage: at each `save_interval`, it copies the live field to scratch memory, APE-smears the scratch copy, records Q and q(t) at each `smear_interval` checkpoint plus the final smearing step, and writes no raw gauge configurations.
 
 ---
 
@@ -136,15 +139,19 @@ Thermalization plot per gauge group (saved to `output/figures_analysis/`):
 ## 12. Analysis Pipeline
 
 `analysis/analysis.py --su2/--su3`:
-1. Scans `data/results/T*_L*_b*_*_seed*/` for completed runs
+1. Scans explicit `--results-dir` roots, or by default the synced cluster roots `data/results_home/` and `data/results_work/`, for completed runs
 2. Loads `topcharge[_su3].dat` — auto-detects SU2 (4-col) or SU3 (3-col) format
-3. Applies alpha rescaling to get Q_re
+3. Applies alpha rescaling to get integer Q_re for full-lattice periodic runs and continuous αQ for open/subvolume runs
 4. Computes χ_t = ⟨Q²_re⟩/V and τ_int via Gamma method
 5. Generates plots — histogram and Q-vs-mctime grids use a **shared axis range** across all β panels so narrowing of distributions with increasing β is visually apparent
+6. Adds action-density summaries/plots and timeslice-density/susceptibility/tau_int plots when those files exist
 
 `analysis/calculations.py` — data loading, QEstimator, jackknife, autocorrelation
 `analysis/plotting_code.py` — all matplotlib figures
 `analysis/autocorrelation.py` — Gamma method wrapper
+`analysis/action_density_analysis.py` — action-density loading, summaries, and plots
+`analysis/analysis_per_smear.py` — reruns the plotting pipeline per detected smearing level
+`analysis/result_paths.py` — local/synced results-root discovery
 
 ---
 
@@ -156,6 +163,8 @@ Thermalization plot per gauge group (saved to `output/figures_analysis/`):
 | `topcharge_su3.dat` | `conf smear_step Q` | 3 columns |
 | `topcharge_timeslice.dat` | `smear_step conf t q_t` | per-timeslice topological charge density |
 | `plaquette[_su3].dat` | `sweep plaquette action_density` | every heatbath sweep; `s = 6 beta (1 - <P>)` |
+| `action_density[_su3].dat` | `sweep action_density` | every heatbath sweep; same action-density value as column 3 of the plaquette file |
+| `action_density_bulk.dat` | `config plaquette_bulk action_density_bulk t_min t_max_exclusive` | optional output from `meas_action_density_su2` |
 
 ---
 

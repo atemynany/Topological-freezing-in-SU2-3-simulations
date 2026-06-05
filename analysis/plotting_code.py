@@ -106,52 +106,68 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
 
     sorted_runs = sorted(runs, key=lambda x: x.beta)
 
-    # Global x-range across all runs so panels are comparable.
-    # For periodic, Q_rescaled is already rounded; for open, Q_rescaled is continuous.
-    # Include the unrounded alpha*Q_raw in the range so rug lines are never clipped.
-    q_mins = [min(r.Q_rescaled.min(), (r.alpha * r.Q_raw).min()) for r in sorted_runs]
-    q_maxs = [max(r.Q_rescaled.max(), (r.alpha * r.Q_raw).max()) for r in sorted_runs]
-    global_min = int(np.floor(min(q_mins))) - 1
-    global_max = int(np.ceil(max(q_maxs))) + 1
+    # Keep the shared range representative of production ensembles. qtarget
+    # diagnostic runs can have intentionally extreme Q values and should not
+    # compress every ordinary panel into a thin line around Q=0.
+    range_runs = [r for r in sorted_runs if not os.path.basename(r.run_dir).startswith("qtarget_")]
+    if not range_runs:
+        range_runs = sorted_runs
 
-    int_bins  = np.arange(global_min - 0.5, global_max + 1.5, 1)   # periodic
-    fine_bins = np.linspace(global_min - 0.5, global_max + 0.5, 40)  # open
+    def q_values_for_plot(run_data: RunData) -> np.ndarray:
+        return run_data.Q_rescaled.astype(float)
+
+    q_mins = [q_values_for_plot(r).min() for r in range_runs]
+    q_maxs = [q_values_for_plot(r).max() for r in range_runs]
+    shared_min = int(np.floor(min(q_mins))) - 1
+    shared_max = int(np.ceil(max(q_maxs))) + 1
 
     for idx, run_data in enumerate(sorted_runs):
         row, col = idx // n_cols, idx % n_cols
         ax = axes[row, col]
 
         Q_cont = run_data.alpha * run_data.Q_raw
+        continuous_q = (run_data.boundary == 'open') or (getattr(run_data, "exclude_boundary_slices", 0) > 0)
+        Q_plot = q_values_for_plot(run_data)
+        panel_min, panel_max = shared_min, shared_max
+        if Q_plot.min() < shared_min or Q_plot.max() > shared_max:
+            panel_min = int(np.floor(Q_plot.min())) - 1
+            panel_max = int(np.ceil(Q_plot.max())) + 1
 
-        if boundary == 'periodic':
+        int_bins = np.arange(panel_min - 0.5, panel_max + 1.5, 1)
+        fine_bins = np.linspace(panel_min - 0.5, panel_max + 0.5, 40)
+
+        if not continuous_q:
             Q_rounded = run_data.Q_rescaled
             rounded_label = r'$Q_{\rm rounded}$' if idx == 0 else None
             counts, bin_edges, _ = ax.hist(Q_rounded, bins=int_bins, density=False,
                 color='steelblue', edgecolor='steelblue', linewidth=0.5, alpha=0.3,
                 label=rounded_label)
 
-            # Fine-binned histogram of unrounded alpha*Q_raw — same style as open
+            # Show unrounded alpha*Q_raw as rug ticks. A second count histogram
+            # with different bin widths would put incompatible quantities on the
+            # same y-axis and distort the apparent Gaussian fit.
             cont_label = r'$\alpha \hat{Q}$ (unrounded)' if idx == 0 else None
-            ax.hist(Q_cont, bins=fine_bins, density=False,
-                color='steelblue', edgecolor='steelblue', linewidth=1.2, alpha=0.7,
-                label=cont_label)
+            ax.plot(Q_cont, np.full_like(Q_cont, 0.02), '|', color='steelblue',
+                    alpha=0.45, markersize=4, transform=ax.get_xaxis_transform(),
+                    label=cont_label)
 
             bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            fit_x_min, fit_x_max = global_min - 1, global_max + 1
+            fit_x_min, fit_x_max = panel_min - 1, panel_max + 1
             fit_Q_for_mean = Q_rounded
-        else:  # open — continuous Q, no rounding
+        else:  # continuous Q, no rounding (open BC or temporal subvolume)
             cont_label = r'$\alpha \hat{Q}$' if idx == 0 else None
-            counts, bin_edges, _ = ax.hist(Q_cont, bins=fine_bins, density=False,
+            counts, bin_edges, _ = ax.hist(Q_plot, bins=fine_bins, density=False,
                 color='steelblue', edgecolor='steelblue', linewidth=1.2, alpha=0.7,
                 label=cont_label)
 
             bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            fit_x_min, fit_x_max = global_min - 1, global_max + 1
-            fit_Q_for_mean = Q_cont
+            fit_x_min, fit_x_max = panel_min - 1, panel_max + 1
+            fit_Q_for_mean = Q_plot
 
         try:
             sigma0 = max(np.std(fit_Q_for_mean), 0.5)
-            if np.sum(counts > 0) >= 3 and sigma0 > 0.1:
+            occupied_bins = np.sum(counts > 0)
+            if len(fit_Q_for_mean) >= 20 and occupied_bins >= 3 and sigma0 > 0.1:
                 popt, _ = curve_fit(gaussian, bin_centers, counts,
                     p0=[np.mean(fit_Q_for_mean), sigma0, counts.max()],
                     bounds=([-np.inf, 0.1, 0], [np.inf, np.inf, np.inf]))
@@ -161,7 +177,7 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
         except:
             pass
 
-        ax.set_xlim(global_min - 0.5, global_max + 0.5)
+        ax.set_xlim(panel_min - 0.5, panel_max + 0.5)
 
         a = lattice_spacing(run_data.beta)
         ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
@@ -230,7 +246,9 @@ def plot_susceptibility_combined(results_periodic: List[AnalysisResult],
     
     ax.set_xlabel(r'$a$ (fm)')
     ax.set_ylabel(r'$\chi_t^{1/4}$ (MeV)')
-    ax.legend(frameon=False)
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend(handles, labels, frameon=False)
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()

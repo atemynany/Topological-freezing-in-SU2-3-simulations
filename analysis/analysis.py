@@ -128,13 +128,14 @@ def main():
             if ts_file is None:
                 continue
             a_fm = lattice_spacing(run_data.beta)
-            open_bc = run_data.boundary == "open"
+            open_bc = run_data.boundary == "open" or run_data.exclude_boundary_slices > 0
             try:
                 res = analyse_timeslices(
                     ts_file,
                     lattice_spacing_fm=a_fm,
                     n_bin=n_bin,
                     open_bc=open_bc,
+                    n_exclude=run_data.exclude_boundary_slices,
                     alpha=run_data.alpha,
                     ensemble=f"b{run_data.beta}_{run_data.boundary}",
                 )

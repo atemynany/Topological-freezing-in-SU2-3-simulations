@@ -22,7 +22,7 @@ import timeslice_analysis as tsa
 from result_paths import find_run_dirs, resolve_results_dirs
 from calculations import (
     RunData, AnalysisResult,
-    load_run_data, analyze_run, load_topcharge,
+    load_run_data, analyze_run, load_topcharge, load_topcharge_from_timeslices,
     find_optimal_alpha, QEstimator,
     lattice_spacing_su2, lattice_spacing_su3,
     topcharge_file_path, topcharge_timeslice_file_path,
@@ -68,16 +68,22 @@ def rebuild_for_smear(run_data: RunData, smear: int,
                       gauge_group: str) -> Optional[RunData]:
     """Return a copy of run_data with Q_raw/Q_rescaled/alpha at this smear level.
 
-    Mirrors the per-boundary logic in load_run_data so periodic runs get
-    integer-rounded Q via QEstimator, while open BC keeps continuous α·Q.
+    Mirrors load_run_data: only full periodic-lattice Q is integer-rounded.
+    Open-boundary or temporal-subvolume Q keeps continuous α·Q.
     """
+    ts_file = topcharge_timeslice_file_path(run_data.run_dir, gauge_group)
     fp = _topcharge_path(run_data.run_dir, gauge_group)
-    if fp is None:
+    if run_data.exclude_boundary_slices > 0 and ts_file is not None:
+        Q_raw = load_topcharge_from_timeslices(
+            ts_file, run_data.T, run_data.exclude_boundary_slices, smear=smear
+        )
+    elif fp is not None:
+        Q_raw = load_topcharge(fp, smear=smear)
+    else:
         return None
-    Q_raw = load_topcharge(fp, smear=smear)
     if len(Q_raw) == 0:
         return None
-    if run_data.boundary == "open":
+    if run_data.boundary == "open" or run_data.exclude_boundary_slices > 0:
         alpha = find_optimal_alpha(Q_raw)
         Q_rescaled = alpha * Q_raw
     else:
@@ -90,6 +96,7 @@ def rebuild_for_smear(run_data: RunData, smear: int,
         Q_raw=Q_raw, Q_rescaled=Q_rescaled, alpha=alpha,
         plaq_data=run_data.plaq_data, mc_time=run_data.mc_time,
         start_conf=run_data.start_conf,
+        exclude_boundary_slices=run_data.exclude_boundary_slices,
     )
 
 
@@ -192,7 +199,8 @@ def run_for_smear(runs_master: List[RunData], gauge_group: str,
                         lattice_spacing_fm=a_fm,
                         n_bin=n_bin_run,
                         smear=smear,
-                        open_bc=(rd.boundary == "open"),
+                        open_bc=(rd.boundary == "open" or rd.exclude_boundary_slices > 0),
+                        n_exclude=rd.exclude_boundary_slices,
                         alpha=rd.alpha,
                         ensemble=f"b{rd.beta}_{rd.boundary}",
                     )

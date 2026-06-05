@@ -239,7 +239,7 @@ struct MeasParams {
     int smear_steps;
     double smear_alpha;
     std::string boundary;          // "periodic" or "open"
-    int exclude_boundary_slices;   // Time slices to exclude from each boundary (for open BC)
+    int exclude_boundary_slices;   // Time slices to exclude from each temporal end
 };
 
 bool read_input(const char *filename, MeasParams &p) {
@@ -320,6 +320,10 @@ int main(int argc, char **argv) {
     
     MeasParams params;
     if (!read_input(input_file, params)) return 1;
+    if (params.exclude_boundary_slices < 0 || 2 * params.exclude_boundary_slices >= params.T) {
+        std::cerr << "Error: exclude_boundary_slices must leave at least one temporal slice" << std::endl;
+        return 1;
+    }
     
     T_size = params.T;
     L_size = params.L;
@@ -359,7 +363,7 @@ int main(int argc, char **argv) {
     std::cout << "Config format: " << params.config_format << "\n";
     std::cout << "Smearing: " << params.smear_steps << " steps, alpha=" << params.smear_alpha << "\n";
     std::cout << "Boundary: " << params.boundary;
-    if (params.boundary == "open" && params.exclude_boundary_slices > 0) {
+    if (params.exclude_boundary_slices > 0) {
         std::cout << " (excluding " << params.exclude_boundary_slices << " slices from each end)";
     }
     std::cout << "\n";
@@ -376,7 +380,7 @@ int main(int argc, char **argv) {
         // Smear and measure
         for (int step = 0; step <= params.smear_steps; step++) {
             double Q;
-            if (params.boundary == "open" && params.exclude_boundary_slices > 0) {
+            if (params.exclude_boundary_slices > 0) {
                 Q = su3_topological_charge_open(gf_smeared, T_size, L_size, params.exclude_boundary_slices);
             } else {
                 Q = su3_topological_charge(gf_smeared, T_size, L_size);
@@ -387,9 +391,9 @@ int main(int argc, char **argv) {
                 std::cout << "conf " << conf << " smear " << step << " Q=" << Q << "\n";
 
                 // Topological charge density per time slice: q(t) = (1/4π²) Σ_{x,y,z} q_local(t,x,y,z)
-                const int t_min = (params.boundary == "open" && params.exclude_boundary_slices > 0)
+                const int t_min = (params.exclude_boundary_slices > 0)
                                   ? params.exclude_boundary_slices : 0;
-                const int t_max = (params.boundary == "open" && params.exclude_boundary_slices > 0)
+                const int t_max = (params.exclude_boundary_slices > 0)
                                   ? params.T - params.exclude_boundary_slices : params.T;
                 const int t_count = t_max - t_min;
 

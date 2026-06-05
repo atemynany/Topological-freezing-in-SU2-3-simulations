@@ -285,7 +285,7 @@
 <body>
   <header>
     <h1>SU23 Freezing Project Overview</h1>
-    <p>Generated at 2026-06-01 11:29:14 from the files currently present in this workspace.</p>
+    <p>Generated at 2026-06-05 10:52:07 from the files currently present in this workspace.</p>
     <p>This page summarizes input configurations, synced result roots, loaded analysis runs, generated figures, and text outputs.</p>
   </header>
   <main>
@@ -336,13 +336,13 @@
         </article>
       </div>
       <p class="note">The full Markdown documentation is embedded below. Open or collapse each document as needed; the global search also searches inside these blocks.</p>
-      
+
             <details class="doc-card search-card" open>
               <summary>
                 <span>CLAUDE.md</span>
                 <a href="../CLAUDE.md">CLAUDE.md</a>
               </summary>
-              <div class="doc-outline"><ul><li>Build</li><li>Tests</li><li>Simulation Workflow</li><li>Cluster (Fuchs HPC)</li><li>Analysis</li><li>Architecture</li></ul></div>
+              <div class="doc-outline"><ul><li>Build</li><li>Tests</li><li>Simulation Workflow</li><li>Cluster</li><li>Analysis</li><li>Architecture</li></ul></div>
               <pre class="doc-pre"># CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -351,6 +351,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 ./scripts/build.sh release          # Release build (O3, fast-math)
+./scripts/build.sh release --march=x86-64  # Optional architecture override
 ./scripts/build.sh debug            # Debug build
 ```
 
@@ -392,15 +393,18 @@ Two-phase workflow: heatbath (config generation) then topological charge measure
 
 Input files live in three subdirs of `input/`:
 
-- `input/heatbath_input/` — two-phase pipeline setups (`setup_*_su{2,3}_finished.txt`) and topcharge params (`topcharge_params_su{2,3}.txt`); the fused pipeline also reads `topcharge_params_su2.txt` from here
-- `input/heatbath_topcharge_input/` — fused SU(2) pipeline setups (`setup_*_su2.txt`)
+- `input/heatbath_input/` — active two-phase setup files must match `setup_*_su2.txt` or `setup_*_su3.txt`; `_finished.txt` files are archived/parked and are not discovered by the scan glob. Topcharge params live here as `topcharge_params_su{2,3}.txt`, with `_finished.txt` fallback.
+- `input/heatbath_topcharge_input/` — active fused SU(2) setup files must match `setup_*_su2.txt`; `_finished.txt` files are parked
 - `input/tests_input/` — smoke-test setups for the fused binary
 
-The topcharge scan auto-detects periodic vs open BC from the run directory name and sets `exclude_boundary_slices` accordingly.
+The topcharge scan auto-detects periodic vs open BC from the run directory name,
+but preserves an explicit `exclude_boundary_slices` in `input.txt`. A periodic
+run with `exclude_boundary_slices &gt; 0` is a temporal-subvolume measurement and
+must be analyzed with continuous αQ, not integer-rounded Q.
 
 ### Fused SU(2) pipeline (in-memory, no configs on disk)
 
-`heatbath_topcharge_su2` runs heatbath and measures Q on an APE-smeared scratch copy at every `save_interval`. Only `plaquette.dat`, `topcharge.dat`, `topcharge_timeslice.dat` are written — the gauge field never hits disk. Merges `setup_*_su2.txt` with `topcharge_params_su2.txt` automatically.
+`heatbath_topcharge_su2` runs heatbath and measures Q on an APE-smeared scratch copy at every `save_interval`. It writes `plaquette.dat`, `action_density.dat`, `topcharge.dat`, and `topcharge_timeslice.dat` — the gauge field never hits disk. Merges `setup_*_su2.txt` with `topcharge_params_su2.txt` automatically.
 
 ```bash
 ./run_heatbath_topcharge_scan.sh                 # all setup_*_su2.txt
@@ -413,18 +417,27 @@ Cluster: `cluster/fuchs_heatbath_topcharge.sh`, `cluster/hhlr_heatbath_topcharge
 
 Source: `src/heatbath_topcharge_su2.cc`. SU(3) fused variant not implemented.
 
-## Cluster (Fuchs HPC)
+## Cluster
 
 Cluster: `fuchs.hhlr-gu.de`, user `barros`, project dir `/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/`
 
+Fuchs wrappers: `cluster/fuchs_heatbath.sh`, `cluster/fuchs_topcharge.sh`,
+`cluster/fuchs_heatbath_topcharge.sh`, `cluster/fuchs_continue.sh`,
+`cluster/fuchs_action_density_T160_L80.sh`, and thread-test helpers.
+
+HHLR-Goethe wrappers: `cluster/hhlr_heatbath.sh`, `cluster/hhlr_topcharge.sh`,
+`cluster/hhlr_heatbath_topcharge.sh`, `cluster/hhlr_continue.sh`, plus
+specialized loop/qtarget scripts. HHLR jobs run binaries from `/home` and write
+large outputs to `/work` through `HEATBATH_RESULTS_DIR`.
+
 ```bash
-sbatch cluster/fuchs_heatbath.sh    # Submit heatbath scan (48h)
-sbatch cluster/fuchs_topcharge.sh   # Submit topcharge (12 parallel single-core jobs)
+sbatch cluster/fuchs_heatbath.sh
+sbatch cluster/fuchs_topcharge.sh
+sbatch cluster/hhlr_heatbath.sh
+sbatch cluster/hhlr_topcharge.sh
 tail -1 data/results/T*_su2/output/plaquette.dat  # Check sweep progress
 squeue -u barros                                   # Job status
 ```
-
-`fuchs_topcharge.sh` passes `--exclude &quot;T65\|T81&quot;` to skip ensembles still running heatbath. Remove the flag once those finish.
 
 **Before first submit:** build on the cluster login node:
 ```bash
@@ -439,10 +452,12 @@ rm -rf build &amp;&amp; ./scripts/build.sh release
 ## Analysis
 
 ```bash
-python3 analysis/analysis.py --su2     # or --su3
+python3 analysis/analysis.py --su2 --results-dir data/results
+python3 analysis/analysis.py --su3 --results-dir data/results
+python3 analysis/analysis_per_smear.py --su2 --results-dir data/results
 ```
 
-Requires Python 3 with `numpy`, `matplotlib`, `pyerrors` (Conda env `master_thesis`). Output goes to `output/figures_analysis/`.
+Requires Python 3 with `numpy`, `matplotlib`, `pyerrors` (Conda env `master_thesis`). Without `--results-dir`, analysis defaults to synced cluster roots `data/results_home` and `data/results_work`. Output goes to `output/figures_analysis/` unless `--output-dir` is set.
 
 ## Architecture
 
@@ -453,6 +468,7 @@ SU(2) and SU(3) are implemented as parallel but separate codepaths. Each has its
 - Topcharge measurement: `src/meas_topcharge_su2.cc` / `src/meas_topcharge_su3.cc`
 - Linear algebra: `_Utility/include/linear_algebra.hh` (SU(2), 8 doubles/link) / `include/su3_linear_algebra.hh` (SU(3), 18 doubles/link)
 - Topcharge computation: `include/topcharge_su2.hh` / `include/topcharge_su3.hh`
+- Optional SU(2) action-density recomputation: `src/meas_action_density_su2.cc`
 
 ### Core library (`_Utility/`)
 
@@ -483,24 +499,27 @@ Open BC (Lüscher-Schaefer): temporal plaquettes at `t=0` and `t=T-1` weighted b
 
 ### Data flow
 
-Two-phase: `mc_heatbath[_su3]` → `configs/conf_*.bin` + `plaquette.dat` → `detect_thermalization.py` → `meas_topcharge[_su3]` → `topcharge[_su3].dat` → `analysis.py`
+Two-phase: `mc_heatbath[_su3]` → `configs/conf.*` + `plaquette[_su3].dat` + `action_density[_su3].dat` → `detect_thermalization.py` → `meas_topcharge[_su3]` → `topcharge[_su3].dat` + `topcharge_timeslice.dat` → `analysis.py`
 
-Fused SU(2): `heatbath_topcharge_su2` → `plaquette.dat` + `topcharge.dat` + `topcharge_timeslice.dat` → `analysis.py` (no `configs/`)
+Fused SU(2): `heatbath_topcharge_su2` → `plaquette.dat` + `action_density.dat` + `topcharge.dat` + `topcharge_timeslice.dat` → `analysis.py` (no `configs/`)
 
 Results per run: `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}/`
 
 ### Analysis pipeline (`analysis/`)
 
-- `analysis.py` — Entry point, scans `data/results/` for runs
+- `analysis.py` — Entry point; scans explicit `--results-dir` roots or synced defaults
+- `result_paths.py` — Resolves explicit results roots or synced defaults (`data/results_home`, `data/results_work`) and supports qtarget aggregate layouts
 - `calculations.py` — Core: `RunData`/`AnalysisResult` containers, `find_optimal_alpha()` for Q rescaling, `analyze_run()` for χ_t and τ_int
 - `plotting_code.py` — Publication figures (Q vs MC time, histograms, susceptibility, τ_int)
-- `timeslice_analysis.py` — Spatial topcharge density analysis
+- `timeslice_analysis.py` — Temporal topcharge density, susceptibility-contribution, and tau_int(t) analysis
+- `action_density_analysis.py` — Action-density plots and summaries
+- `analysis_per_smear.py` — Full plotting pass per detected APE smearing level
 - `autocorrelation.py` — Wraps `pyerrors` Gamma method for integrated autocorrelation time
 
-Key analysis formula: `Q_rescaled = round(α * Q_raw)` where α ≈ 0.9–1.1 found via golden-section search, then `χ_t = ⟨Q²⟩/V`.
+Key analysis formula: full-lattice periodic runs use `Q_rescaled = round(α * Q_raw)` where α is found by golden-section search, while open-boundary or temporal-subvolume runs use continuous `α * Q_raw`; then `χ_t = ⟨Q²⟩/V`.
 </pre>
             </details>
-            
+
             <details class="doc-card search-card" open>
               <summary>
                 <span>SU(2)/SU(3) Topological Charge Freezing Study</span>
@@ -539,6 +558,7 @@ On macOS without `libomp`, everything still compiles and runs — just without O
 
 ```bash
 ./scripts/build.sh release
+./scripts/build.sh release --march=x86-64   # optional: override -march on non-Apple platforms
 ```
 
 Or manually:
@@ -600,7 +620,7 @@ phases to a non-default results directory.
 
 ### Fused pipeline (SU(2), in-memory, no gauge configs written)
 
-For SU(2) scans where you don&#x27;t need persisted gauge configs, use the fused binary `heatbath_topcharge_su2`. It runs heatbath and measures Q on an APE-smeared scratch copy at every `save_interval`, writing only `plaquette.dat`, `topcharge.dat`, and `topcharge_timeslice.dat`.
+For SU(2) scans where you don&#x27;t need persisted gauge configs, use the fused binary `heatbath_topcharge_su2`. It runs heatbath and measures Q on an APE-smeared scratch copy at every `save_interval`, writing `plaquette.dat`, `action_density.dat`, `topcharge.dat`, and `topcharge_timeslice.dat`.
 
 ```bash
 ./run_heatbath_topcharge_scan.sh            # discovers input/heatbath_topcharge_input/setup_*_su2.txt
@@ -613,8 +633,8 @@ Parity with the two-phase pipeline is verified at single-thread determinism (`sc
 
 Setup files live in three subdirs of `input/`:
 
-- `input/heatbath_input/` — production setups for the two-phase pipeline (`setup_*_su{2,3}_finished.txt`) plus `topcharge_params_su{2,3}.txt`
-- `input/heatbath_topcharge_input/` — setups for the fused SU(2) pipeline (drop `setup_*_su2.txt` files here)
+- `input/heatbath_input/` — active setups for the two-phase pipeline (`setup_*_su2.txt` or `setup_*_su3.txt`) plus `topcharge_params_su{2,3}.txt` (with `_finished.txt` fallback for parameter files); setup files ending in `_finished.txt` are archived and are not picked up by the scan globs
+- `input/heatbath_topcharge_input/` — active setups for the fused SU(2) pipeline (`setup_*_su2.txt`); `_finished.txt` files are parked
 - `input/tests_input/` — small smoke-test setups (e.g. `setup_test_16x16_periodic_su2.txt`)
 
 Each setup file contains one lattice configuration; multiple `beta` lines produce multiple runs. `--su2`/`--su3` discovers all matching setup files automatically in the relevant subdir.
@@ -674,17 +694,23 @@ sacct                                              # job history
 | `mc_heatbath_su3` | SU(3) heatbath config generation (OpenMP checkerboard + overrelaxation) |
 | `meas_topcharge` | SU(2) topological charge measurement |
 | `meas_topcharge_su3` | SU(3) topological charge measurement |
+| `meas_action_density_su2` | Recompute SU(2) Wilson action density from saved configs, optionally on a temporal bulk window |
 | `heatbath_topcharge_su2` | Fused SU(2) heatbath + in-memory topcharge (no gauge configs written) |
 | `compute_instanton_Q` | Instanton topological charge computation |
 
 ## Input Files
 
-- `input/heatbath_input/setup_*_su2.txt` / `setup_*_su3.txt` — setups for the two-phase pipeline (lattice params + beta values)
-- `input/heatbath_input/topcharge_params_su2.txt` / `_su3.txt` — topcharge measurement params (smearing, boundary exclusion); also read by the fused SU(2) pipeline
-- `input/heatbath_topcharge_input/setup_*_su2.txt` — setups for the fused SU(2) pipeline
+- `input/heatbath_input/setup_*_su2.txt` / `setup_*_su3.txt` — active setups for the two-phase pipeline (lattice params + beta values)
+- `input/heatbath_input/topcharge_params_su2.txt` / `_su3.txt` — topcharge measurement params (smearing, boundary exclusion), with `_finished.txt` fallback; also read by the fused SU(2) pipeline
+- `input/heatbath_topcharge_input/setup_*_su2.txt` — active setups for the fused SU(2) pipeline
 - `input/tests_input/setup_test_*_su2.txt` — smoke-test setups for the fused binary
 
-The topcharge scan script auto-detects periodic vs open boundary conditions from the run directory name (`_periodic_` or `_open_`). For open BC runs, `exclude_boundary_slices_open` from the param file is applied; periodic runs use 0.
+The topcharge scan script auto-detects periodic vs open boundary conditions from
+the run directory name (`_periodic_` or `_open_`). It preserves an explicit
+`exclude_boundary_slices` already present in a run input; otherwise open BC runs
+use `exclude_boundary_slices_open` from the param file and periodic runs use 0.
+A periodic run with `exclude_boundary_slices &gt; 0` is a temporal-subvolume
+measurement, so Q is not integer-quantized.
 
 Example setup file:
 ```
@@ -704,7 +730,9 @@ beta 2.7
 
 `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}_{su2|su3}/`:
 - `output/plaquette[_su3].dat` — Plaquette and Wilson action density history (every sweep)
+- `output/action_density[_su3].dat` — Wilson action density history only
 - `output/topcharge.dat` — Q measurements (APE-smeared)
+- `output/topcharge_su3.dat` — SU(3) Q measurements (two-phase SU(3) runs)
 - `output/topcharge_timeslice.dat` — Per-timeslice q(t)
 - `configs/` — Gauge configurations (two-phase scan only; absent in fused SU(2) runs)
 - `input.txt`, `run_info.txt`, `*.log` — Input, metadata, stdout
@@ -730,28 +758,34 @@ The shared C++ helper is `avg_action_density(beta, avg_plaquette)` in
 Run the standard analysis:
 
 ```bash
-python3 analysis/analysis.py --su2
-python3 analysis/analysis.py --su3
+python3 analysis/analysis.py --su2 --results-dir data/results
+python3 analysis/analysis.py --su3 --results-dir data/results
 ```
+
+Without `--results-dir`, the analysis looks for synced cluster roots
+`data/results_home` and `data/results_work`. Pass `--results-dir` repeatedly to
+combine several roots, and use `--output-dir` to redirect plots and summaries.
 
 Or generate one figure set per detected APE smearing level:
 
 ```bash
-python3 analysis/analysis_per_smear.py --su2
-python3 analysis/analysis_per_smear.py --su3 --smear 20
+python3 analysis/analysis_per_smear.py --su2 --results-dir data/results
+python3 analysis/analysis_per_smear.py --su3 --results-dir data/results --smear 20
 ```
 
 Key outputs:
 - **χ_t^(1/4) vs β** — Susceptibility (should match ~200 MeV for SU(2))
 - **τ_int(Q²) vs β** — Autocorrelation time (increases with β → freezing)
 - **Q histograms** — Distribution narrowing indicates freezing
-- **q(t) timeslice density** — Spatial topcharge density via `timeslice_analysis.py`
+- **q(t) timeslice density** — Temporal topcharge density, susceptibility contribution, and τ_int(t) grids via `timeslice_analysis.py`
+- **Action density** — `action_density_{su2,su3}.png` plus `action_density_summary_{su2,su3}.txt` when action-density files are present
 
-`analysis_per_smear.py` auto-detects every APE smearing level present in `topcharge.dat` and writes each set of figures into `output/figures_analysis/smear&lt;N&gt;/`. Useful when comparing how the susceptibility plateau and τ_int depend on smearing depth.
+`analysis_per_smear.py` auto-detects every APE smearing level present in `topcharge.dat` or `topcharge_su3.dat` and writes each set of figures into `output/figures_analysis/smear&lt;N&gt;/`. Useful when comparing how the susceptibility plateau and τ_int depend on smearing depth. Its timeslice binning scales with the coarsest lattice spacing so subvolumes remain approximately fixed in physical units.
 
 Standalone helpers (do not need the full pipeline):
 - `analysis/plot_topcharge.py` — Q vs smearing steps / MC time from a raw `topcharge.dat`
 - `analysis/analyze_topcharge.py` — jackknife mean / error / bias on Q
+- `analysis/generate_project_overview.py` — creates `output/project_overview.html` from synced results, figures, and run metadata
 - `scale_set.ipynb` — SU(2) and SU(3) lattice-spacing scale-setting formulas (arXiv:1811.02800 and hep-lat/0108008)
 
 ### Optional: Rust analysis extension
@@ -769,11 +803,14 @@ The Python analysis falls back to its pure-Python implementations if the module 
 
 - `context.md` — physics goal, observables, and pipeline summary
 - `additional_infos.md` — bug-scan notes and design decisions worth knowing before editing the analysis
+- `CLAUDE.md` — concise operational notes for coding agents
+- `_Utility/README.md` — utility-library contents and how it is built through the root CMake project
+- `su3_static_potential_check/README.md` — minimal cl2qcd open-boundary patch notes
 
 The analysis uses the Gamma method via `pyerrors` for autocorrelation-aware
-errors. Periodic-boundary runs use integer-rounded `Q_re`; open-boundary runs use
-the continuous `alpha * Q` because global Q is not quantized with open temporal
-boundaries.
+errors. Only full-lattice periodic Q is integer-rounded to `Q_re`; open-boundary
+or temporal-subvolume measurements use continuous `alpha * Q` because those
+charges are not globally integer-quantized.
 
 ## Git and SSH Remote
 
@@ -819,77 +856,60 @@ the GitHub account. This repo should not store private keys.
 ```
 </pre>
             </details>
-            
+
             <details class="doc-card search-card" open>
               <summary>
-                <span>SU2 Includes Library</span>
+                <span>SU(2) Utility Library</span>
                 <a href="../_Utility/README.md">_Utility/README.md</a>
               </summary>
-              <div class="doc-outline"><ul><li>Build Instructions</li><li>Build Output</li><li>Contents</li><li>Requirements</li><li>Notes</li></ul></div>
-              <pre class="doc-pre"># SU2 Includes Library
+              <div class="doc-outline"><ul><li>Contents</li><li>Notes</li></ul></div>
+              <pre class="doc-pre"># SU(2) Utility Library
 
-Static library containing utility functions for SU(2) lattice gauge theory simulations.
+`_Utility/` contains the shared SU(2)-oriented support code used by the root
+CMake project. It is built as the static library `su2_utility` and linked into
+the SU(2) executables, the SU(3) executables where they reuse common
+infrastructure, and the Catch2 tests.
 
-## Build Instructions
+Build it through the repository root:
 
 ```bash
-cd Includes
-mkdir -p build
-cd build
-cmake ..
-make
+./scripts/build.sh release
 ```
 
-## Build Output
-
-| File | Location |
-|------|----------|
-| `libsu2_includes.a` | `build/` |
-| Object files (`.o`) | `build/CMakeFiles/su2_includes.dir/` |
+The archive is written to `build/lib/libsu2_utility.a`; executables are written
+to `build/bin/`.
 
 ## Contents
 
-### Source Files
-
-| File | Description |
-|------|-------------|
-| `fields.cc` | Field operations and manipulations |
-| `io.cc` | Input/output utilities for reading/writing configurations |
-| `ranlux.cc` | C++ wrapper for RANLUX random number generator |
-| `ranlxd.c` | RANLUX double precision RNG |
-| `ranlxs.c` | RANLUX single precision RNG |
-| `smearing_techniques_all.cc` | all available Smearing algorithms (APE, HYP, etc.) |
-| `smearing_techniques.cc` | used Smearning algorithm |
-
-### Header Files
-
-| File | Description |
-|------|-------------|
-| `fields.hh` | Field class definitions |
-| `geometry.hh` | Lattice geometry and indexing |
-| `io.hh` | I/O function declarations |
-| `linear_algebra.hh` | SU(2) matrix operations|
-| `progressbar.hh` | Progress bar utility |
-| `ranlux.hh` | Random number generator interface |
-| `smearing_techniques.hh` | Smearing function declarations |
-
-## Requirements
-
-- CMake ≥ 3.16
-- C++17 compatible compiler
-- Math library (`-lm`)
+| File | Purpose |
+|------|---------|
+| `src/fields.cc` / `include/fields.hh` | Gauge-field allocation, copying, and basic field helpers |
+| `src/io.cc` / `include/io.hh` | Parameter parsing and binary gauge-configuration I/O |
+| `src/ranlux.cc`, `src/ranlxd.c`, `src/ranlxs.c` / `include/ranlux.hh` | RANLUX random-number generators |
+| `src/smearing_techniques.cc` / `include/smearing_techniques.hh` | APE smearing used in production measurements |
+| `src/smearing_techniques_all.cc` | Additional smearing variants retained for experiments |
+| `include/geometry.hh` | Lattice indexing and neighbor-table helpers |
+| `include/linear_algebra.hh` | SU(2) matrix operations |
+| `include/progressbar.hh` | Lightweight terminal progress bar |
 
 ## Notes
 
-- macOS users: Uncomment `set(CMAKE_OSX_ARCHITECTURES &quot;arm64&quot;)` in `CMakeLists.txt` for Apple Silicon</pre>
+- The library assumes the global lattice-state pattern used by the simulation
+  binaries (`T`, `L`, gauge-field pointer, boundary flags, neighbor tables).
+- OpenMP is enabled when CMake finds it. On macOS, install it with
+  `brew install libomp`; otherwise the code still builds and runs sequentially.
+- SU(3)-specific linear algebra and topcharge code lives in the root
+  `include/` directory (`su3_linear_algebra.hh`, `topcharge_su3.hh`,
+  `su3_heatbath.hh`).
+</pre>
             </details>
-            
+
             <details class="doc-card search-card" open>
               <summary>
                 <span>Additional Notes: Bug Findings &amp; Implementation Details</span>
                 <a href="../additional_infos.md">additional_infos.md</a>
               </summary>
-              <div class="doc-outline"><ul><li>1. Bug Scan Results</li><li>2. Open Boundary Conditions</li><li>4. Scale Setting Utilities (`scale_set.ipynb`)</li><li>5. Timeslice Topological Charge Density</li></ul></div>
+              <div class="doc-outline"><ul><li>1. Bug Scan Results</li><li>2. Open Boundary Conditions</li><li>3. Scale Setting Utilities (`scale_set.ipynb`)</li><li>4. Timeslice Topological Charge Density</li><li>5. Action Density</li></ul></div>
               <pre class="doc-pre"># Additional Notes: Bug Findings &amp; Implementation Details
 
 ---
@@ -927,6 +947,11 @@ files for the failed subset and rerun only those ensembles.
 The build already produced SU(3) executables, but the project name, install
 targets, and build-script executable list were stale. Updated them to include
 SU(2) and SU(3) binaries consistently.
+
+Follow-up documentation pass: README, context notes, agent notes, and the
+utility-library README now describe the SU(2)/SU(3) codepaths, active setup-file
+globs, synced analysis roots, action-density files, and timeslice outputs
+consistently.
 
 **chi_t used `Q_raw²` instead of `Q_rescaled²`** (`analysis/calculations.py`)
 
@@ -993,48 +1018,46 @@ With **open BC**, the boundary removes the topological sector structure. Topolog
 The boundary time slices are excluded from the topological charge sum via the `exclude_boundary_slices` parameter. The gauge field near the boundary is affected by the open BC and does not represent bulk physics, so those slices are discarded to avoid contaminating the measurement.
 
 ```
-# base_params_su3.txt
-exclude_boundary_slices 0    # set &gt; 0 for open BC runs (typically 1–2)
+# input/heatbath_input/topcharge_params_su{2,3}.txt
+exclude_boundary_slices_open 2    # used automatically for open BC runs
 ```
 
 ---
 
-## 4. Scale Setting Utilities (`scale_set.ipynb`)
+## 3. Scale Setting Utilities (`scale_set.ipynb`)
 
-Three utility functions added to the notebook for interactive use:
+The notebook mirrors the production scale-setting formulas from
+`analysis/calculations.py` and is intended for interactive lattice-size planning.
 
-### `beta_from_a_su2(a_fm)`
-Analytically inverts `lattice_spacing_su2` by solving the quadratic in `delta_beta = beta - 2.6`:
-
-```
-ln(t0/a²) = 1.285 + 6.409·x - 0.7411·x²   →   quadratic formula
-```
-
-Picks the root closest to the physical regime (beta ~ 2–3).
-
-### `beta_from_a_su3(a_fm)`
-Inverts `lattice_spacing_su3` via `numpy.roots` on the cubic in `delta_beta = beta - 6.0`:
+### `lattice_spacing_su2(beta)`
+Uses the SU(2) gradient-flow scale:
 
 ```
-ln(a/r0) = -1.6804 - 1.7331·x + 0.7849·x² - 0.4428·x³
+ln(t0/a²) = 1.285 + 6.409·(beta - 2.600) - 0.7411·(beta - 2.600)²
 ```
 
-Picks the real root closest to x = 0 (physical regime beta ~ 5.5–6.5).
+### `lattice_spacing_su3(beta)`
+Uses the Necco-Sommer interpolation:
 
-### `adjust_lattice(T_ref, L_ref, a_ref_fm, a_new_fm, open_bc, n_exclude)`
+```
+ln(a/r0) = -1.6804 - 1.7331·(beta - 6.0) + 0.7849·(beta - 6.0)² - 0.4428·(beta - 6.0)³
+```
+
+### `adjust_lattice(T_ref, L_ref, a_ref_fm, a_new_fm, open_bc, n_exclude_ref)`
 Given a reference volume at `a_ref`, computes integer `(T_new, L_new)` at `a_new` that preserve physical volume:
 
 - **Spatial**: `L_new = round(L_ref * a_ref / a_new)` (no boundary effect)
 - **Periodic temporal**: `T_new = round(T_ref * a_ref / a_new)`
-- **Open BC temporal**: physical extent is `T_eff = (T - 2*n_exclude) * a`, so `T_new = round(T_eff_ref * a_ref/a_new) + 2*n_exclude`. `n_exclude` must match `exclude_boundary_slices` in the input file.
+- **Open BC temporal**: the physical exclusion distance is kept fixed, `n_exclude_new = round(n_exclude_ref * a_ref / a_new)`, and `T_new = round(T_eff_ref * a_ref/a_new) + 2*n_exclude_new`. Use the returned `n_exclude` in the setup file&#x27;s `exclude_boundary_slices` or in the topcharge parameter file&#x27;s open-boundary default.
 
 ---
 
-## 5. Timeslice Topological Charge Density
+## 4. Timeslice Topological Charge Density
 
-### C++ output (`meas_topcharge_su2.cc`)
+### C++ output (`meas_topcharge_su2.cc`, `meas_topcharge_su3.cc`, `heatbath_topcharge_su2.cc`)
 
-After computing the total Q for each config, `meas_topcharge` now also writes `topcharge_timeslice.dat` in the same output directory:
+After computing the total Q for each config, the topcharge binaries also write
+`topcharge_timeslice.dat` in the same output directory:
 
 ```
 # smear_steps  config_number  t  q_t
@@ -1046,13 +1069,22 @@ After computing the total Q for each config, `meas_topcharge` now also writes `t
 q(t) = (1/4π²) · Σ_{x,y,z} q_local(t,x,y,z)
 ```
 
-For open BC, only timeslices `t ∈ [exclude_boundary_slices, T - exclude_boundary_slices)` are written. **No new input parameters required** — the existing `boundary` and `exclude_boundary_slices` fields control this automatically.
+When `exclude_boundary_slices &gt; 0`, only timeslices
+`t ∈ [exclude_boundary_slices, T - exclude_boundary_slices)` enter the measured
+Q, regardless of whether the gauge links are periodic or open. Such a Q is a
+temporal-subvolume charge and should stay continuous (`alpha * Q`), not
+integer-rounded. The fused SU(2) binary records every `smear_interval`
+checkpoint and the final smearing step.
 
 ### Python analysis (`analysis/timeslice_analysis.py`)
 
 Full pipeline: load → bin → Gamma method errors → plot.
 
 **Key design choice — temporal binning**: because the spatial volume is small, individual timeslice measurements are very noisy. The `n_bin` parameter sums over `n_bin` consecutive slices per bin. Typical values: `n_bin=2` or `3`. Match `n_exclude` in the call to `analyse_timeslices` with `exclude_boundary_slices` in the input file.
+
+For legacy synced runs where `topcharge.dat` was written before periodic
+subvolume exclusion was supported, the Python analysis reconstructs Q from
+`topcharge_timeslice.dat` by summing the requested temporal window.
 
 **Error estimation**: `pyerrors` Gamma method applied independently to each time bin across MC configurations. Properly accounts for MC autocorrelation (large `tau_int` near freezing). Same `S=1.5` default as the rest of the analysis.
 
@@ -1071,9 +1103,28 @@ res = analyse_timeslices(&quot;topcharge_timeslice.dat&quot;, lattice_spacing_fm
                          n_bin=2, open_bc=True, n_exclude=2)
 plot_timeslice_density(res, open_bc=True)
 ```
+
+## 5. Action Density
+
+Heatbath binaries write the Wilson action density in two places:
+
+- As column 3 of `plaquette.dat` or `plaquette_su3.dat`
+- As a two-column `action_density.dat` or `action_density_su3.dat`
+
+`analysis/action_density_analysis.py` loads the two-column files when present and
+adds `action_density_{su2,su3}.png` plus
+`action_density_summary_{su2,su3}.txt` to the normal analysis output.
+
+`meas_action_density_su2` can recompute SU(2) bulk action density from saved
+configurations with a configurable temporal exclusion window. Its default output
+is `action_density_bulk.dat` with columns:
+
+```
+config  plaquette_bulk  action_density_bulk  t_min  t_max_exclusive
+```
 </pre>
             </details>
-            
+
             <details class="doc-card search-card" open>
               <summary>
                 <span>Project Context: Topological Charge Freezing in SU(2)/SU(3) Lattice Gauge Theory</span>
@@ -1114,7 +1165,7 @@ APE smearing iteratively replaces each link with a weighted average of itself an
 
 $$U_\mu&#x27;(x) = \mathcal{P}_{SU(N)}\!\left[(1-\alpha)\,U_\mu(x) + \frac{\alpha}{6}\sum_{\nu\neq\mu} V_{\mu\nu}(x)\right]$$
 
-where V_μν is the sum of the two staples in the ν direction. The SU(3) projection uses iterative polar decomposition (via Cayley-Hamilton). Typically 20 steps at α = 0.3 (SU3) or α = 0.45 (SU2) are used. Smearing removes UV noise, making Q converge to near-integer values.
+where V_μν is the sum of the two staples in the ν direction. The SU(3) projection uses Gram-Schmidt reunitarisation (`su3_proj`). Typical production values are set in the input/topcharge parameter files; SU(2) often records multiple smearing checkpoints through `smear_interval`, while SU(3) currently writes the final smearing level. Smearing removes UV noise, making periodic-boundary Q converge to near-integer values.
 
 **Important**: smearing is applied to the gauge field. You cannot smear Q values directly. The pipeline is always: gauge field → smear → compute Q.
 
@@ -1134,7 +1185,7 @@ $$\tau_{\text{int}}(Q) \propto a^{-z}, \quad z \approx 5 \text{ (SU(3) pure gaug
 
 $$\chi_t = \frac{\langle Q^2 \rangle}{V}, \quad \chi_t^{1/4} \approx 200 \text{ MeV (SU(2))}, \quad \approx 180 \text{ MeV (SU(3))}$$
 
-where V = T·L³ is the lattice volume. In code, χ_t is computed from the rescaled integer charges Q_re (see §6).
+where V = T·L³ is the lattice volume. In code, full-lattice periodic-boundary χ_t is computed from the rescaled integer charges Q_re (see §6). For open temporal boundaries or any measurement with temporal boundary slices excluded, Q is a subvolume charge and is not integer-quantized, so the analysis uses the continuous rescaled charge αQ rather than integer rounding.
 
 ---
 
@@ -1144,11 +1195,11 @@ Raw smeared Q values are close to but not exactly integers due to residual discr
 
 $$\alpha^* = \arg\min_\alpha \langle (\alpha Q - \text{round}(\alpha Q))^2 \rangle$$
 
-This is solved via **golden-section search** on [0.8, 1.2]. The rescaled integer charge is then:
+This is solved via **golden-section search** on [0.8, 1.2]. For full-lattice periodic-boundary runs, the rescaled integer charge is then:
 
 $$Q_{\text{re}} = \text{round}(\alpha^* Q)$$
 
-α ≈ 1 for well-smeared configurations. This is only meaningful when Q is close to integers (i.e., after sufficient smearing). Applying it to unsmeared thermalization Q is not physically meaningful.
+α ≈ 1 for well-smeared configurations. This is only meaningful as an integer estimator when Q is close to integers (i.e., after sufficient smearing and with full-lattice periodic measurements). Open-boundary and temporal-subvolume analysis keeps αQ continuous because the measured Q is not a global topological-sector charge. Applying the estimator to unsmeared thermalization Q is not physically meaningful.
 
 The Rust extension (`rust_analysis/`) provides a parallel implementation of this search via rayon.
 
@@ -1200,9 +1251,12 @@ Both programs:
 - Apply N APE smearing steps to a temporary copy of the gauge field
 - Measure Q on the smeared copy
 - Write `conf smear_step Q` to `topcharge_su3.dat` (SU3) or `smear_step conf Q plaquette` to `topcharge.dat` (SU2)
+- Write per-timeslice density rows to `topcharge_timeslice.dat`
 - Display a progress bar during the run
 
 The smearing does **not** modify the stored configurations — it operates on an in-memory copy.
+
+The fused SU(2) binary (`src/heatbath_topcharge_su2.cc`) skips the on-disk configuration stage: at each `save_interval`, it copies the live field to scratch memory, APE-smears the scratch copy, records Q and q(t) at each `smear_interval` checkpoint plus the final smearing step, and writes no raw gauge configurations.
 
 ---
 
@@ -1218,15 +1272,19 @@ Thermalization plot per gauge group (saved to `output/figures_analysis/`):
 ## 12. Analysis Pipeline
 
 `analysis/analysis.py --su2/--su3`:
-1. Scans `data/results/T*_L*_b*_*_seed*/` for completed runs
+1. Scans explicit `--results-dir` roots, or by default the synced cluster roots `data/results_home/` and `data/results_work/`, for completed runs
 2. Loads `topcharge[_su3].dat` — auto-detects SU2 (4-col) or SU3 (3-col) format
-3. Applies alpha rescaling to get Q_re
+3. Applies alpha rescaling to get integer Q_re for full-lattice periodic runs and continuous αQ for open/subvolume runs
 4. Computes χ_t = ⟨Q²_re⟩/V and τ_int via Gamma method
 5. Generates plots — histogram and Q-vs-mctime grids use a **shared axis range** across all β panels so narrowing of distributions with increasing β is visually apparent
+6. Adds action-density summaries/plots and timeslice-density/susceptibility/tau_int plots when those files exist
 
 `analysis/calculations.py` — data loading, QEstimator, jackknife, autocorrelation
 `analysis/plotting_code.py` — all matplotlib figures
 `analysis/autocorrelation.py` — Gamma method wrapper
+`analysis/action_density_analysis.py` — action-density loading, summaries, and plots
+`analysis/analysis_per_smear.py` — reruns the plotting pipeline per detected smearing level
+`analysis/result_paths.py` — local/synced results-root discovery
 
 ---
 
@@ -1238,6 +1296,8 @@ Thermalization plot per gauge group (saved to `output/figures_analysis/`):
 | `topcharge_su3.dat` | `conf smear_step Q` | 3 columns |
 | `topcharge_timeslice.dat` | `smear_step conf t q_t` | per-timeslice topological charge density |
 | `plaquette[_su3].dat` | `sweep plaquette action_density` | every heatbath sweep; `s = 6 beta (1 - &lt;P&gt;)` |
+| `action_density[_su3].dat` | `sweep action_density` | every heatbath sweep; same action-density value as column 3 of the plaquette file |
+| `action_density_bulk.dat` | `config plaquette_bulk action_density_bulk t_min t_max_exclusive` | optional output from `meas_action_density_su2` |
 
 ---
 
@@ -1260,18 +1320,69 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
 5. **Cabibbo, Marinari (1982)** — SU(3) heatbath via SU(2) subgroups. Phys. Lett. B 119.
 </pre>
             </details>
-            
+
+            <details class="doc-card search-card" open>
+              <summary>
+                <span>Minimal cl2qcd Open Temporal Boundary Patch</span>
+                <a href="../su3_static_potential_check/README.md">su3_static_potential_check/README.md</a>
+              </summary>
+              <div class="doc-outline"><p>No section outline found.</p></div>
+              <pre class="doc-pre"># Minimal cl2qcd Open Temporal Boundary Patch
+
+This directory contains only the code patch needed to add open temporal gauge
+boundary support to an existing `cl2qcd` checkout for the pure-gauge
+`su3heatbath` workflow.
+
+Patch:
+
+```text
+obc_patch/obc_runtime_minimal.patch
+```
+
+Apply it inside a clean/base `cl2qcd` source tree:
+
+```bash
+cd /path/to/cl2qcd
+git apply /path/to/SU23_freezing/su3_static_potential_check/obc_patch/obc_runtime_minimal.patch
+```
+
+Then rebuild `su3heatbath`.
+
+Enable OBC in the input file:
+
+```text
+useOpenTemporalGaugeBoundary=true
+```
+
+or on the command line:
+
+```bash
+./su3heatbath input_file --useOpenTemporalGaugeBoundary=true
+```
+
+The patch contains only:
+
+- parameter parsing for `useOpenTemporalGaugeBoundary`
+- forwarding that option into OpenCL kernel parameters
+- the `_OPEN_TEMPORAL_GAUGE_BC_` kernel define
+- temporal-boundary plaquette/staple guards
+- skipping final-time temporal-link updates
+- open-boundary plaquette normalization
+- a sample input line documenting the option
+</pre>
+            </details>
+
     </section>
 
     <section id="workflow">
       <h2>Workflow</h2>
       <div class="grid">
-        <div class="stat"><b>5</b>Markdown documentation files</div>
-        <div class="stat"><b>35</b>input text files</div>
+        <div class="stat"><b>6</b>Markdown documentation files</div>
+        <div class="stat"><b>36</b>input text files</div>
         <div class="stat"><b>28</b>SU2 analysis runs loaded or discovered</div>
         <div class="stat"><b>107</b>PNG figures</div>
         <div class="stat"><b>5</b>text or data outputs</div>
-        <div class="stat"><b>42</b>scripts and docs indexed</div>
+        <div class="stat"><b>45</b>scripts and docs indexed</div>
       </div>
       <div class="panel">
         <p>The synced data roots are <code>data/results_home</code> and <code>data/results_work</code>. The sync script copies only <code>.dat</code> files from both cluster locations into these roots.</p>
@@ -1319,14 +1430,14 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
       <h3>Analysis Summary</h3>
       <p class="note">Values are recomputed from the currently loaded result files when this overview is generated.</p>
       <div class="panel">
-        <table class="interactive-table"><thead><tr><th>run</th><th>source</th><th>beta</th><th>boundary</th><th>volume</th><th>seed</th><th>N conf</th><th>&lt;Q^2&gt;</th><th>tau_int</th><th>alpha</th></tr></thead><tbody><tr class="search-row"><td><a href="../data/results_home/T22_L16_b2.5_open_seed101631635_su2">T22_L16_b2.5_open_seed101631635_su2</a></td><td>results_home</td><td>2.50</td><td>open</td><td>22x16^3</td><td>101631635</td><td>400</td><td>2.764</td><td>0.549</td><td>0.984</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L16_b2.5_open_seed2133559185_su2">T22_L16_b2.5_open_seed2133559185_su2</a></td><td>results_home</td><td>2.50</td><td>open</td><td>22x16^3</td><td>2133559185</td><td>400</td><td>3.491</td><td>0.502</td><td>1.13</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L22_b2.6_open_seed1720270345_su2">T30_L22_b2.6_open_seed1720270345_su2</a></td><td>results_home</td><td>2.60</td><td>open</td><td>30x22^3</td><td>1720270345</td><td>400</td><td>3.958</td><td>0.508</td><td>1.04</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L22_b2.6_open_seed1835695113_su2">T30_L22_b2.6_open_seed1835695113_su2</a></td><td>results_home</td><td>2.60</td><td>open</td><td>30x22^3</td><td>1835695113</td><td>400</td><td>3.019</td><td>0.542</td><td>0.941</td></tr><tr class="search-row"><td><a href="../data/results_home/T42_L30_b2.7_open_seed1624488965_su2">T42_L30_b2.7_open_seed1624488965_su2</a></td><td>results_home</td><td>2.70</td><td>open</td><td>42x30^3</td><td>1624488965</td><td>400</td><td>4.566</td><td>1.76</td><td>1.12</td></tr><tr class="search-row"><td><a href="../data/results_home/T42_L30_b2.7_open_seed1739959301_su2">T42_L30_b2.7_open_seed1739959301_su2</a></td><td>results_home</td><td>2.70</td><td>open</td><td>42x30^3</td><td>1739959301</td><td>400</td><td>2.331</td><td>1.58</td><td>0.819</td></tr><tr class="search-row"><td><a href="../data/results_home/T57_L41_b2.8_open_seed1882700213_su2">T57_L41_b2.8_open_seed1882700213_su2</a></td><td>results_home</td><td>2.80</td><td>open</td><td>57x41^3</td><td>1882700213</td><td>400</td><td>4.808</td><td>1.71</td><td>1.2</td></tr><tr class="search-row"><td><a href="../data/results_home/T57_L41_b2.8_open_seed1998022069_su2">T57_L41_b2.8_open_seed1998022069_su2</a></td><td>results_home</td><td>2.80</td><td>open</td><td>57x41^3</td><td>1998022069</td><td>400</td><td>4.398</td><td>1.45</td><td>1.09</td></tr><tr class="search-row"><td><a href="../data/results_home/T89_L65_b2.95_open_seed1483978919_su2">T89_L65_b2.95_open_seed1483978919_su2</a></td><td>results_home</td><td>2.95</td><td>open</td><td>89x65^3</td><td>1483978919</td><td>400</td><td>3.861</td><td>10.3</td><td>0.879</td></tr><tr class="search-row"><td><a href="../data/results_home/T89_L65_b2.95_open_seed469074389_su2">T89_L65_b2.95_open_seed469074389_su2</a></td><td>results_home</td><td>2.95</td><td>open</td><td>89x65^3</td><td>469074389</td><td>400</td><td>4.884</td><td>4.85</td><td>1.07</td></tr><tr class="search-row"><td><a href="../data/results_home/T159_L108_b3.15_open_seed1208018241_su2">T159_L108_b3.15_open_seed1208018241_su2</a></td><td>results_home</td><td>3.15</td><td>open</td><td>159x108^3</td><td>1208018241</td><td>50</td><td>2.854</td><td>0.539</td><td>1.15</td></tr><tr class="search-row"><td><a href="../data/results_home/T160_L80_b3.15_open_seed825666065_su2">T160_L80_b3.15_open_seed825666065_su2</a></td><td>results_home</td><td>3.15</td><td>open</td><td>160x80^3</td><td>825666065</td><td>50</td><td>0.9216</td><td>0.626</td><td>1.1</td></tr><tr class="search-row"><td><a href="../data/results_work/T160_L80_b3.15_open_seed857952899_su2">T160_L80_b3.15_open_seed857952899_su2</a></td><td>results_work</td><td>3.15</td><td>open</td><td>160x80^3</td><td>857952899</td><td>100</td><td>99.26</td><td>1.44</td><td>1.07</td></tr><tr class="search-row"><td><a href="../data/results_home/T159_L108_b3.15_open_seed999060221_su2">T159_L108_b3.15_open_seed999060221_su2</a></td><td>results_home</td><td>3.15</td><td>open</td><td>159x108^3</td><td>999060221</td><td>50</td><td>3.09</td><td>0.902</td><td>0.988</td></tr><tr class="search-row"><td><a href="../data/results_home/T16_L16_b2.5_periodic_seed1902689425_su2">T16_L16_b2.5_periodic_seed1902689425_su2</a></td><td>results_home</td><td>2.50</td><td>periodic</td><td>16x16^3</td><td>1902689425</td><td>400</td><td>3.928</td><td>0.505</td><td>1.16</td></tr><tr class="search-row"><td><a href="../data/results_home/T16_L16_b2.5_periodic_seed2018065041_su2">T16_L16_b2.5_periodic_seed2018065041_su2</a></td><td>results_home</td><td>2.50</td><td>periodic</td><td>16x16^3</td><td>2018065041</td><td>400</td><td>3.48</td><td>0.502</td><td>1.18</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L22_b2.6_periodic_seed1488952329_su2">T22_L22_b2.6_periodic_seed1488952329_su2</a></td><td>results_home</td><td>2.60</td><td>periodic</td><td>22x22^3</td><td>1488952329</td><td>400</td><td>4.03</td><td>0.534</td><td>1.16</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L22_b2.6_periodic_seed1604860937_su2">T22_L22_b2.6_periodic_seed1604860937_su2</a></td><td>results_home</td><td>2.60</td><td>periodic</td><td>22x22^3</td><td>1604860937</td><td>400</td><td>4.44</td><td>0.563</td><td>1.15</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L30_b2.7_periodic_seed1231330499_su2">T30_L30_b2.7_periodic_seed1231330499_su2</a></td><td>results_home</td><td>2.70</td><td>periodic</td><td>30x30^3</td><td>1231330499</td><td>400</td><td>3.618</td><td>1.75</td><td>1.08</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L30_b2.7_periodic_seed1346372035_su2">T30_L30_b2.7_periodic_seed1346372035_su2</a></td><td>results_home</td><td>2.70</td><td>periodic</td><td>30x30^3</td><td>1346372035</td><td>400</td><td>4.353</td><td>2.27</td><td>1.11</td></tr><tr class="search-row"><td><a href="../data/results_home/T41_L41_b2.8_periodic_seed144114837_su2">T41_L41_b2.8_periodic_seed144114837_su2</a></td><td>results_home</td><td>2.80</td><td>periodic</td><td>41x41^3</td><td>144114837</td><td>400</td><td>2.82</td><td>3.9</td><td>1.08</td></tr><tr class="search-row"><td><a href="../data/results_home/T41_L41_b2.8_periodic_seed259336341_su2">T41_L41_b2.8_periodic_seed259336341_su2</a></td><td>results_home</td><td>2.80</td><td>periodic</td><td>41x41^3</td><td>259336341</td><td>400</td><td>5.59</td><td>9.58</td><td>1.06</td></tr><tr class="search-row"><td><a href="../data/results_home/T65_L65_b2.95_periodic_seed1348947599_su2">T65_L65_b2.95_periodic_seed1348947599_su2</a></td><td>results_home</td><td>2.95</td><td>periodic</td><td>65x65^3</td><td>1348947599</td><td>400</td><td>1.623</td><td>23.7</td><td>1.05</td></tr><tr class="search-row"><td><a href="../data/results_home/T65_L65_b2.95_periodic_seed560401647_su2">T65_L65_b2.95_periodic_seed560401647_su2</a></td><td>results_home</td><td>2.95</td><td>periodic</td><td>65x65^3</td><td>560401647</td><td>400</td><td>1.22</td><td>6.66</td><td>1.07</td></tr><tr class="search-row"><td><a href="../data/results_work/T80_L80_b3.15_periodic_seed1099260755_su2">T80_L80_b3.15_periodic_seed1099260755_su2</a></td><td>results_work</td><td>3.15</td><td>periodic</td><td>80x80^3</td><td>1099260755</td><td>100</td><td>0.03</td><td>1.69</td><td>0.88</td></tr><tr class="search-row"><td><a href="../data/results_home/T115_L108_b3.15_periodic_seed275974907_su2">T115_L108_b3.15_periodic_seed275974907_su2</a></td><td>results_home</td><td>3.15</td><td>periodic</td><td>115x108^3</td><td>275974907</td><td>50</td><td>0</td><td>0.5</td><td>0.8</td></tr><tr class="search-row"><td><a href="../data/results_home/T160_L80_b3.15_periodic_seed785195877_su2">T160_L80_b3.15_periodic_seed785195877_su2</a></td><td>results_home</td><td>3.15</td><td>periodic</td><td>160x80^3</td><td>785195877</td><td>50</td><td>0.02</td><td>0.52</td><td>0.8</td></tr><tr class="search-row"><td><a href="../data/results_work/qtarget_T80_L80_b3.15_periodic_20260527_145728_su2">qtarget_T80_L80_b3.15_periodic_20260527_145728_su2</a></td><td>qtarget</td><td>3.15</td><td>periodic</td><td>80x80^3</td><td>combined</td><td>9</td><td>7937</td><td>0.6</td><td>0.86</td></tr></tbody></table>
+        <table class="interactive-table"><thead><tr><th>run</th><th>source</th><th>beta</th><th>boundary</th><th>volume</th><th>seed</th><th>N conf</th><th>&lt;Q^2&gt;</th><th>tau_int</th><th>alpha</th></tr></thead><tbody><tr class="search-row"><td><a href="../data/results_home/T22_L16_b2.5_open_seed101631635_su2">T22_L16_b2.5_open_seed101631635_su2</a></td><td>results_home</td><td>2.50</td><td>open</td><td>22x16^3</td><td>101631635</td><td>400</td><td>2.764</td><td>0.549</td><td>0.984</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L16_b2.5_open_seed2133559185_su2">T22_L16_b2.5_open_seed2133559185_su2</a></td><td>results_home</td><td>2.50</td><td>open</td><td>22x16^3</td><td>2133559185</td><td>400</td><td>3.491</td><td>0.502</td><td>1.13</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L22_b2.6_open_seed1720270345_su2">T30_L22_b2.6_open_seed1720270345_su2</a></td><td>results_home</td><td>2.60</td><td>open</td><td>30x22^3</td><td>1720270345</td><td>400</td><td>3.958</td><td>0.508</td><td>1.04</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L22_b2.6_open_seed1835695113_su2">T30_L22_b2.6_open_seed1835695113_su2</a></td><td>results_home</td><td>2.60</td><td>open</td><td>30x22^3</td><td>1835695113</td><td>400</td><td>3.019</td><td>0.542</td><td>0.941</td></tr><tr class="search-row"><td><a href="../data/results_home/T42_L30_b2.7_open_seed1624488965_su2">T42_L30_b2.7_open_seed1624488965_su2</a></td><td>results_home</td><td>2.70</td><td>open</td><td>42x30^3</td><td>1624488965</td><td>400</td><td>4.566</td><td>1.76</td><td>1.12</td></tr><tr class="search-row"><td><a href="../data/results_home/T42_L30_b2.7_open_seed1739959301_su2">T42_L30_b2.7_open_seed1739959301_su2</a></td><td>results_home</td><td>2.70</td><td>open</td><td>42x30^3</td><td>1739959301</td><td>400</td><td>2.331</td><td>1.58</td><td>0.819</td></tr><tr class="search-row"><td><a href="../data/results_home/T57_L41_b2.8_open_seed1882700213_su2">T57_L41_b2.8_open_seed1882700213_su2</a></td><td>results_home</td><td>2.80</td><td>open</td><td>57x41^3</td><td>1882700213</td><td>400</td><td>4.808</td><td>1.71</td><td>1.2</td></tr><tr class="search-row"><td><a href="../data/results_home/T57_L41_b2.8_open_seed1998022069_su2">T57_L41_b2.8_open_seed1998022069_su2</a></td><td>results_home</td><td>2.80</td><td>open</td><td>57x41^3</td><td>1998022069</td><td>400</td><td>4.398</td><td>1.45</td><td>1.09</td></tr><tr class="search-row"><td><a href="../data/results_home/T89_L65_b2.95_open_seed1483978919_su2">T89_L65_b2.95_open_seed1483978919_su2</a></td><td>results_home</td><td>2.95</td><td>open</td><td>89x65^3</td><td>1483978919</td><td>400</td><td>3.861</td><td>10.3</td><td>0.879</td></tr><tr class="search-row"><td><a href="../data/results_home/T89_L65_b2.95_open_seed469074389_su2">T89_L65_b2.95_open_seed469074389_su2</a></td><td>results_home</td><td>2.95</td><td>open</td><td>89x65^3</td><td>469074389</td><td>400</td><td>4.884</td><td>4.85</td><td>1.07</td></tr><tr class="search-row"><td><a href="../data/results_home/T159_L108_b3.15_open_seed1208018241_su2">T159_L108_b3.15_open_seed1208018241_su2</a></td><td>results_home</td><td>3.15</td><td>open</td><td>159x108^3</td><td>1208018241</td><td>50</td><td>2.854</td><td>0.539</td><td>1.15</td></tr><tr class="search-row"><td><a href="../data/results_home/T160_L80_b3.15_open_seed825666065_su2">T160_L80_b3.15_open_seed825666065_su2</a></td><td>results_home</td><td>3.15</td><td>open</td><td>160x80^3</td><td>825666065</td><td>50</td><td>0.9216</td><td>0.626</td><td>1.1</td></tr><tr class="search-row"><td><a href="../data/results_work/T160_L80_b3.15_open_seed857952899_su2">T160_L80_b3.15_open_seed857952899_su2</a></td><td>results_work</td><td>3.15</td><td>open</td><td>160x80^3</td><td>857952899</td><td>100</td><td>99.26</td><td>1.44</td><td>1.07</td></tr><tr class="search-row"><td><a href="../data/results_home/T159_L108_b3.15_open_seed999060221_su2">T159_L108_b3.15_open_seed999060221_su2</a></td><td>results_home</td><td>3.15</td><td>open</td><td>159x108^3</td><td>999060221</td><td>50</td><td>3.09</td><td>0.902</td><td>0.988</td></tr><tr class="search-row"><td><a href="../data/results_home/T16_L16_b2.5_periodic_seed1902689425_su2">T16_L16_b2.5_periodic_seed1902689425_su2</a></td><td>results_home</td><td>2.50</td><td>periodic</td><td>16x16^3</td><td>1902689425</td><td>400</td><td>3.928</td><td>0.505</td><td>1.16</td></tr><tr class="search-row"><td><a href="../data/results_home/T16_L16_b2.5_periodic_seed2018065041_su2">T16_L16_b2.5_periodic_seed2018065041_su2</a></td><td>results_home</td><td>2.50</td><td>periodic</td><td>16x16^3</td><td>2018065041</td><td>400</td><td>3.48</td><td>0.502</td><td>1.18</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L22_b2.6_periodic_seed1488952329_su2">T22_L22_b2.6_periodic_seed1488952329_su2</a></td><td>results_home</td><td>2.60</td><td>periodic</td><td>22x22^3</td><td>1488952329</td><td>400</td><td>4.03</td><td>0.534</td><td>1.16</td></tr><tr class="search-row"><td><a href="../data/results_home/T22_L22_b2.6_periodic_seed1604860937_su2">T22_L22_b2.6_periodic_seed1604860937_su2</a></td><td>results_home</td><td>2.60</td><td>periodic</td><td>22x22^3</td><td>1604860937</td><td>400</td><td>4.44</td><td>0.563</td><td>1.15</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L30_b2.7_periodic_seed1231330499_su2">T30_L30_b2.7_periodic_seed1231330499_su2</a></td><td>results_home</td><td>2.70</td><td>periodic</td><td>30x30^3</td><td>1231330499</td><td>400</td><td>3.618</td><td>1.75</td><td>1.08</td></tr><tr class="search-row"><td><a href="../data/results_home/T30_L30_b2.7_periodic_seed1346372035_su2">T30_L30_b2.7_periodic_seed1346372035_su2</a></td><td>results_home</td><td>2.70</td><td>periodic</td><td>30x30^3</td><td>1346372035</td><td>400</td><td>4.353</td><td>2.27</td><td>1.11</td></tr><tr class="search-row"><td><a href="../data/results_home/T41_L41_b2.8_periodic_seed144114837_su2">T41_L41_b2.8_periodic_seed144114837_su2</a></td><td>results_home</td><td>2.80</td><td>periodic</td><td>41x41^3</td><td>144114837</td><td>400</td><td>2.82</td><td>3.9</td><td>1.08</td></tr><tr class="search-row"><td><a href="../data/results_home/T41_L41_b2.8_periodic_seed259336341_su2">T41_L41_b2.8_periodic_seed259336341_su2</a></td><td>results_home</td><td>2.80</td><td>periodic</td><td>41x41^3</td><td>259336341</td><td>400</td><td>5.59</td><td>9.58</td><td>1.06</td></tr><tr class="search-row"><td><a href="../data/results_home/T65_L65_b2.95_periodic_seed1348947599_su2">T65_L65_b2.95_periodic_seed1348947599_su2</a></td><td>results_home</td><td>2.95</td><td>periodic</td><td>65x65^3</td><td>1348947599</td><td>400</td><td>1.623</td><td>23.7</td><td>1.05</td></tr><tr class="search-row"><td><a href="../data/results_home/T65_L65_b2.95_periodic_seed560401647_su2">T65_L65_b2.95_periodic_seed560401647_su2</a></td><td>results_home</td><td>2.95</td><td>periodic</td><td>65x65^3</td><td>560401647</td><td>400</td><td>1.22</td><td>6.66</td><td>1.07</td></tr><tr class="search-row"><td><a href="../data/results_work/T80_L80_b3.15_periodic_seed1099260755_su2">T80_L80_b3.15_periodic_seed1099260755_su2</a></td><td>results_work</td><td>3.15</td><td>periodic</td><td>80x80^3</td><td>1099260755</td><td>100</td><td>0.03</td><td>1.69</td><td>0.88</td></tr><tr class="search-row"><td><a href="../data/results_home/T115_L108_b3.15_periodic_seed275974907_su2">T115_L108_b3.15_periodic_seed275974907_su2</a></td><td>results_home</td><td>3.15</td><td>periodic</td><td>115x108^3</td><td>275974907</td><td>50</td><td>0</td><td>0.5</td><td>0.8</td></tr><tr class="search-row"><td><a href="../data/results_home/T160_L80_b3.15_periodic_seed785195877_su2">T160_L80_b3.15_periodic_seed785195877_su2</a></td><td>results_home</td><td>3.15</td><td>periodic</td><td>160x80^3</td><td>785195877</td><td>50</td><td>0.4863</td><td>0.561</td><td>0.82</td></tr><tr class="search-row"><td><a href="../data/results_work/qtarget_T80_L80_b3.15_periodic_20260527_145728_su2">qtarget_T80_L80_b3.15_periodic_20260527_145728_su2</a></td><td>qtarget</td><td>3.15</td><td>periodic</td><td>80x80^3</td><td>combined</td><td>9</td><td>7937</td><td>0.6</td><td>0.86</td></tr></tbody></table>
       </div>
     </section>
 
     <section id="inputs">
       <h2>Input Configurations</h2>
       <div class="panel">
-        <table class="interactive-table"><thead><tr><th>file</th><th>group</th><th>T</th><th>L</th><th>boundary</th><th>start_type</th><th>num_sweeps</th><th>save_interval</th><th>beta</th><th>smear_steps</th><th>smear_interval</th><th>smear_alpha</th><th>exclude_boundary_slices</th></tr></thead><tbody><tr class="search-row"><td><a href="../input/heatbath_input/setup_115x115_periodic_su2_finished.txt">input/heatbath_input/setup_115x115_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>115</td><td>115</td><td>periodic</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_159x115_open_su2_finished.txt">input/heatbath_input/setup_159x115_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>159</td><td>115</td><td>open</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_160x80_open_su2.txt">input/heatbath_input/setup_160x80_open_su2.txt</a></td><td>input/heatbath_input</td><td>160</td><td>80</td><td>open</td><td>hot</td><td>10000</td><td>100</td><td>3.15</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_16x16_periodic_su2_finished.txt">input/heatbath_input/setup_16x16_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>16</td><td>16</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.5</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_22x16_open_su2_finished.txt">input/heatbath_input/setup_22x16_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>22</td><td>16</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.5</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_22x22_periodic_su2_finished.txt">input/heatbath_input/setup_22x22_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>22</td><td>22</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.6</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_30x22_open_su2_finished.txt">input/heatbath_input/setup_30x22_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>30</td><td>22</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.6</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_30x30_periodic_su2_finished.txt">input/heatbath_input/setup_30x30_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>30</td><td>30</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.7</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_41x41_periodic_su2_finished.txt">input/heatbath_input/setup_41x41_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>41</td><td>41</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.8</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_42x30_open_su2_finished.txt">input/heatbath_input/setup_42x30_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>42</td><td>30</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.7</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_57x41_open_su2_finished.txt">input/heatbath_input/setup_57x41_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>57</td><td>41</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.8</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_65x65_periodic_su2_finished.txt">input/heatbath_input/setup_65x65_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>65</td><td>65</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.95</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_89x65_open_su2_finished.txt">input/heatbath_input/setup_89x65_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>89</td><td>65</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.95</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/topcharge_params_su2_finished.txt">input/heatbath_input/topcharge_params_su2_finished.txt</a></td><td>input/heatbath_input</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>15 # Total smearing steps applied before measuring Q</td><td>15 # Output Q every N smearing steps</td><td>0.3 # APE smearing parameter alpha</td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/topcharge_params_su3_finished.txt">input/heatbath_input/topcharge_params_su3_finished.txt</a></td><td>input/heatbath_input</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>20 # Total smearing steps applied before measuring Q</td><td></td><td>0.3 # APE smearing parameter alpha</td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_115x108_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_115x108_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>115</td><td>108</td><td>periodic</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_159x108_open_su2_finished.txt">input/heatbath_topcharge_input/setup_159x108_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>159</td><td>108</td><td>open</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td>15</td><td>15</td><td>0.3</td><td>22</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_160x80_open_su2_finished.txt">input/heatbath_topcharge_input/setup_160x80_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>160</td><td>80</td><td>open</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td>15</td><td>15</td><td>0.3</td><td>40</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_160x80_periodic_su2.txt">input/heatbath_topcharge_input/setup_160x80_periodic_su2.txt</a></td><td>input/heatbath_topcharge_input</td><td>160</td><td>80</td><td>periodic</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td>15</td><td>15</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_16x16_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_16x16_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>16</td><td>16</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.5</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_22x16_open_su2_finished.txt">input/heatbath_topcharge_input/setup_22x16_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>22</td><td>16</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.5</td><td>15</td><td>5</td><td>0.3</td><td>3</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_22x22_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_22x22_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>22</td><td>22</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.6</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_30x22_open_su2_finished.txt">input/heatbath_topcharge_input/setup_30x22_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>30</td><td>22</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.6</td><td>15</td><td>5</td><td>0.3</td><td>4</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_30x30_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_30x30_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>30</td><td>30</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.7</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_41x41_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_41x41_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>41</td><td>41</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.8</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_42x30_open_su2_finished.txt">input/heatbath_topcharge_input/setup_42x30_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>42</td><td>30</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.7</td><td>15</td><td>5</td><td>0.3</td><td>6</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_57x41_open_su2_finished.txt">input/heatbath_topcharge_input/setup_57x41_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>57</td><td>41</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.8</td><td>15</td><td>5</td><td>0.3</td><td>8</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_65x65_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_65x65_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>65</td><td>65</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.95</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_80x80_periodic_su2.txt">input/heatbath_topcharge_input/setup_80x80_periodic_su2.txt</a></td><td>input/heatbath_topcharge_input</td><td>80</td><td>80</td><td>periodic</td><td>hot</td><td>10000</td><td>100</td><td>3.15</td><td>15</td><td>15</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_89x65_open_su2_finished.txt">input/heatbath_topcharge_input/setup_89x65_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>89</td><td>65</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.95</td><td>15</td><td>5</td><td>0.3</td><td>12</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_su2_example.txt">input/heatbath_topcharge_su2_example.txt</a></td><td>input</td><td>8</td><td>8</td><td>periodic # periodic | open</td><td>cold # cold | hot</td><td>400</td><td>20 # measure Q every N sweeps</td><td>2.4</td><td>20</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/instanton.txt">input/instanton.txt</a></td><td>input</td><td>16 # Temporal extent</td><td>16 # Spatial extent (L^3 x T lattice)</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/run_input.txt">input/run_input.txt</a></td><td>input</td><td>8</td><td>8</td><td>periodic</td><td>cold</td><td>1000</td><td>10</td><td>2.5</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/tests_input/setup_test_16x16_open_su2.txt">input/tests_input/setup_test_16x16_open_su2.txt</a></td><td>input/tests_input</td><td>16</td><td>16</td><td>open</td><td>cold</td><td>1000</td><td>10</td><td>2.5</td><td>15</td><td>15</td><td>0.3</td><td>2</td></tr><tr class="search-row"><td><a href="../input/tests_input/setup_test_16x16_periodic_su2.txt">input/tests_input/setup_test_16x16_periodic_su2.txt</a></td><td>input/tests_input</td><td>16</td><td>16</td><td>periodic</td><td>cold</td><td>500</td><td>50</td><td>2.5</td><td>15</td><td>15</td><td>0.3</td><td>0</td></tr></tbody></table>
+        <table class="interactive-table"><thead><tr><th>file</th><th>group</th><th>T</th><th>L</th><th>boundary</th><th>start_type</th><th>num_sweeps</th><th>save_interval</th><th>beta</th><th>smear_steps</th><th>smear_interval</th><th>smear_alpha</th><th>exclude_boundary_slices</th></tr></thead><tbody><tr class="search-row"><td><a href="../input/heatbath_input/action_density_T160_L80_open_su2.txt">input/heatbath_input/action_density_T160_L80_open_su2.txt</a></td><td>input/heatbath_input</td><td>160</td><td>80</td><td>open</td><td></td><td></td><td></td><td>3.15</td><td></td><td></td><td></td><td>40</td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_115x115_periodic_su2_finished.txt">input/heatbath_input/setup_115x115_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>115</td><td>115</td><td>periodic</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_159x115_open_su2_finished.txt">input/heatbath_input/setup_159x115_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>159</td><td>115</td><td>open</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_160x80_open_su2.txt">input/heatbath_input/setup_160x80_open_su2.txt</a></td><td>input/heatbath_input</td><td>160</td><td>80</td><td>open</td><td>hot</td><td>10000</td><td>100</td><td>3.15</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_16x16_periodic_su2_finished.txt">input/heatbath_input/setup_16x16_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>16</td><td>16</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.5</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_22x16_open_su2_finished.txt">input/heatbath_input/setup_22x16_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>22</td><td>16</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.5</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_22x22_periodic_su2_finished.txt">input/heatbath_input/setup_22x22_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>22</td><td>22</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.6</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_30x22_open_su2_finished.txt">input/heatbath_input/setup_30x22_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>30</td><td>22</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.6</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_30x30_periodic_su2_finished.txt">input/heatbath_input/setup_30x30_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>30</td><td>30</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.7</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_41x41_periodic_su2_finished.txt">input/heatbath_input/setup_41x41_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>41</td><td>41</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.8</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_42x30_open_su2_finished.txt">input/heatbath_input/setup_42x30_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>42</td><td>30</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.7</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_57x41_open_su2_finished.txt">input/heatbath_input/setup_57x41_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>57</td><td>41</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.8</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_65x65_periodic_su2_finished.txt">input/heatbath_input/setup_65x65_periodic_su2_finished.txt</a></td><td>input/heatbath_input</td><td>65</td><td>65</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.95</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/setup_89x65_open_su2_finished.txt">input/heatbath_input/setup_89x65_open_su2_finished.txt</a></td><td>input/heatbath_input</td><td>89</td><td>65</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.95</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/topcharge_params_su2_finished.txt">input/heatbath_input/topcharge_params_su2_finished.txt</a></td><td>input/heatbath_input</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>15 # Total smearing steps applied before measuring Q</td><td>15 # Output Q every N smearing steps</td><td>0.3 # APE smearing parameter alpha</td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_input/topcharge_params_su3_finished.txt">input/heatbath_input/topcharge_params_su3_finished.txt</a></td><td>input/heatbath_input</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>20 # Total smearing steps applied before measuring Q</td><td></td><td>0.3 # APE smearing parameter alpha</td><td></td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_115x108_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_115x108_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>115</td><td>108</td><td>periodic</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_159x108_open_su2_finished.txt">input/heatbath_topcharge_input/setup_159x108_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>159</td><td>108</td><td>open</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td>15</td><td>15</td><td>0.3</td><td>22</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_160x80_open_su2_finished.txt">input/heatbath_topcharge_input/setup_160x80_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>160</td><td>80</td><td>open</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td>15</td><td>15</td><td>0.3</td><td>40</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_160x80_periodic_su2.txt">input/heatbath_topcharge_input/setup_160x80_periodic_su2.txt</a></td><td>input/heatbath_topcharge_input</td><td>160</td><td>80</td><td>periodic</td><td>cold</td><td>5000</td><td>100</td><td>3.15</td><td>15</td><td>15</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_16x16_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_16x16_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>16</td><td>16</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.5</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_22x16_open_su2_finished.txt">input/heatbath_topcharge_input/setup_22x16_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>22</td><td>16</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.5</td><td>15</td><td>5</td><td>0.3</td><td>3</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_22x22_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_22x22_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>22</td><td>22</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.6</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_30x22_open_su2_finished.txt">input/heatbath_topcharge_input/setup_30x22_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>30</td><td>22</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.6</td><td>15</td><td>5</td><td>0.3</td><td>4</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_30x30_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_30x30_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>30</td><td>30</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.7</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_41x41_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_41x41_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>41</td><td>41</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.8</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_42x30_open_su2_finished.txt">input/heatbath_topcharge_input/setup_42x30_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>42</td><td>30</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.7</td><td>15</td><td>5</td><td>0.3</td><td>6</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_57x41_open_su2_finished.txt">input/heatbath_topcharge_input/setup_57x41_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>57</td><td>41</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.8</td><td>15</td><td>5</td><td>0.3</td><td>8</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_65x65_periodic_su2_finished.txt">input/heatbath_topcharge_input/setup_65x65_periodic_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>65</td><td>65</td><td>periodic</td><td>cold</td><td>40000</td><td>100</td><td>2.95</td><td>15</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_80x80_periodic_su2.txt">input/heatbath_topcharge_input/setup_80x80_periodic_su2.txt</a></td><td>input/heatbath_topcharge_input</td><td>80</td><td>80</td><td>periodic</td><td>hot</td><td>10000</td><td>100</td><td>3.15</td><td>15</td><td>15</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_input/setup_89x65_open_su2_finished.txt">input/heatbath_topcharge_input/setup_89x65_open_su2_finished.txt</a></td><td>input/heatbath_topcharge_input</td><td>89</td><td>65</td><td>open</td><td>cold</td><td>40000</td><td>100</td><td>2.95</td><td>15</td><td>5</td><td>0.3</td><td>12</td></tr><tr class="search-row"><td><a href="../input/heatbath_topcharge_su2_example.txt">input/heatbath_topcharge_su2_example.txt</a></td><td>input</td><td>8</td><td>8</td><td>periodic # periodic | open</td><td>cold # cold | hot</td><td>400</td><td>20 # measure Q every N sweeps</td><td>2.4</td><td>20</td><td>5</td><td>0.3</td><td>0</td></tr><tr class="search-row"><td><a href="../input/instanton.txt">input/instanton.txt</a></td><td>input</td><td>16 # Temporal extent</td><td>16 # Spatial extent (L^3 x T lattice)</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/run_input.txt">input/run_input.txt</a></td><td>input</td><td>8</td><td>8</td><td>periodic</td><td>cold</td><td>1000</td><td>10</td><td>2.5</td><td></td><td></td><td></td><td></td></tr><tr class="search-row"><td><a href="../input/tests_input/setup_test_16x16_open_su2.txt">input/tests_input/setup_test_16x16_open_su2.txt</a></td><td>input/tests_input</td><td>16</td><td>16</td><td>open</td><td>cold</td><td>1000</td><td>10</td><td>2.5</td><td>15</td><td>15</td><td>0.3</td><td>2</td></tr><tr class="search-row"><td><a href="../input/tests_input/setup_test_16x16_periodic_su2.txt">input/tests_input/setup_test_16x16_periodic_su2.txt</a></td><td>input/tests_input</td><td>16</td><td>16</td><td>periodic</td><td>cold</td><td>500</td><td>50</td><td>2.5</td><td>15</td><td>15</td><td>0.3</td><td>0</td></tr></tbody></table>
       </div>
     </section>
 
@@ -1334,14 +1445,14 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
       <h2>Scripts And Project Tools</h2>
       <p class="note">This index links to the local scripts and docs that generate, sync, analyze, and document the project.</p>
       <div class="panel">
-        <table class="interactive-table"><thead><tr><th>file</th><th>category</th><th>description</th></tr></thead><tbody><tr class="search-row"><td><a href="../CLAUDE.md">CLAUDE.md</a></td><td>project</td><td>CLAUDE.md</td></tr><tr class="search-row"><td><a href="../README.md">README.md</a></td><td>project</td><td>SU(2)/SU(3) Topological Charge Freezing Study</td></tr><tr class="search-row"><td><a href="../additional_infos.md">additional_infos.md</a></td><td>project</td><td>Additional Notes: Bug Findings &amp; Implementation Details</td></tr><tr class="search-row"><td><a href="../analysis/action_density_analysis.py">analysis/action_density_analysis.py</a></td><td>analysis</td><td>Action-density loading, summary, and plotting helpers.</td></tr><tr class="search-row"><td><a href="../analysis/analysis.py">analysis/analysis.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/analysis_per_smear.py">analysis/analysis_per_smear.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/analyze_topcharge.py">analysis/analyze_topcharge.py</a></td><td>analysis</td><td>Paths</td></tr><tr class="search-row"><td><a href="../analysis/autocorrelation.py">analysis/autocorrelation.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/calculations.py">analysis/calculations.py</a></td><td>analysis</td><td>---------------------------------------------------------------------------</td></tr><tr class="search-row"><td><a href="../analysis/generate_project_overview.py">analysis/generate_project_overview.py</a></td><td>analysis</td><td>Generate a static HTML overview of project inputs, results, and figures.</td></tr><tr class="search-row"><td><a href="../analysis/plot_topcharge.py">analysis/plot_topcharge.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/plotting_code.py">analysis/plotting_code.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/result_paths.py">analysis/result_paths.py</a></td><td>analysis</td><td>Helpers for locating synced result directories.</td></tr><tr class="search-row"><td><a href="../analysis/tauint_fit.py">analysis/tauint_fit.py</a></td><td>analysis</td><td>Power-law fit  tau_int(a) = c * a^(-z)  for hand-picked ensembles.</td></tr><tr class="search-row"><td><a href="../analysis/timeslice_analysis.py">analysis/timeslice_analysis.py</a></td><td>analysis</td><td>smear_steps  config_number  t  q_t</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_continue.sh">cluster/fuchs_continue.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_heatbath.sh">cluster/fuchs_heatbath.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_heatbath_thread_test.sh">cluster/fuchs_heatbath_thread_test.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_heatbath_topcharge.sh">cluster/fuchs_heatbath_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_topcharge.sh">cluster/fuchs_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_continue.sh">cluster/hhlr_continue.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_heatbath.sh">cluster/hhlr_heatbath.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_heatbath_topcharge.sh">cluster/hhlr_heatbath_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_loop_hot_ensemble.sh">cluster/hhlr_loop_hot_ensemble.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_topcharge.sh">cluster/hhlr_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_topcharge_b315_ensembles.sh">cluster/hhlr_topcharge_b315_ensembles.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/sync_results.sh">cluster/sync_results.sh</a></td><td>cluster</td><td>sync_results.sh — Sync analysis data from Fuchs cluster to local machine</td></tr><tr class="search-row"><td><a href="../context.md">context.md</a></td><td>project</td><td>Project Context: Topological Charge Freezing in SU(2)/SU(3) Lattice Gauge Theory</td></tr><tr class="search-row"><td><a href="../install.sh">install.sh</a></td><td>project</td><td>!/bin/sh</td></tr><tr class="search-row"><td><a href="../run_heatbath_scan.sh">run_heatbath_scan.sh</a></td><td>project</td><td>run_heatbath_scan.sh  —  Phase 1: generate gauge configs for all beta values</td></tr><tr class="search-row"><td><a href="../run_heatbath_topcharge_scan.sh">run_heatbath_topcharge_scan.sh</a></td><td>project</td><td>run_heatbath_topcharge_scan.sh  —  Fused SU(2) heatbath + in-memory topcharge</td></tr><tr class="search-row"><td><a href="../run_simulation.sh">run_simulation.sh</a></td><td>project</td><td>Lattice QCD Simulation - Main Entry Point</td></tr><tr class="search-row"><td><a href="../run_topcharge_scan.sh">run_topcharge_scan.sh</a></td><td>project</td><td>run_topcharge_scan.sh  —  Phase 2: measure topological charge on existing configs</td></tr><tr class="search-row"><td><a href="../scripts/build.sh">scripts/build.sh</a></td><td>scripts</td><td>build.sh</td></tr><tr class="search-row"><td><a href="../scripts/loop_hot_ensemble.sh">scripts/loop_hot_ensemble.sh</a></td><td>scripts</td><td>loop_hot_ensemble.sh</td></tr><tr class="search-row"><td><a href="../scripts/run_beta_scan.sh">scripts/run_beta_scan.sh</a></td><td>scripts</td><td>Beta Scan Job Script for Lattice QCD Simulations</td></tr><tr class="search-row"><td><a href="../scripts/run_heatbath.sh">scripts/run_heatbath.sh</a></td><td>scripts</td><td>run_heatbath.sh</td></tr><tr class="search-row"><td><a href="../scripts/run_instanton_Q.sh">scripts/run_instanton_Q.sh</a></td><td>scripts</td><td>run_instanton_Q.sh</td></tr><tr class="search-row"><td><a href="../scripts/run_tests.sh">scripts/run_tests.sh</a></td><td>scripts</td><td>run_tests.sh</td></tr><tr class="search-row"><td><a href="../scripts/run_topcharge.sh">scripts/run_topcharge.sh</a></td><td>scripts</td><td>run_topcharge.sh</td></tr><tr class="search-row"><td><a href="../scripts/test_parity_heatbath_topcharge.sh">scripts/test_parity_heatbath_topcharge.sh</a></td><td>scripts</td><td>test_parity_heatbath_topcharge.sh</td></tr><tr class="search-row"><td><a href="../scripts/test_su3_plaquette.sh">scripts/test_su3_plaquette.sh</a></td><td>scripts</td><td>Test SU(3) plaquette against literature values</td></tr></tbody></table>
+        <table class="interactive-table"><thead><tr><th>file</th><th>category</th><th>description</th></tr></thead><tbody><tr class="search-row"><td><a href="../CLAUDE.md">CLAUDE.md</a></td><td>project</td><td>CLAUDE.md</td></tr><tr class="search-row"><td><a href="../README.md">README.md</a></td><td>project</td><td>SU(2)/SU(3) Topological Charge Freezing Study</td></tr><tr class="search-row"><td><a href="../additional_infos.md">additional_infos.md</a></td><td>project</td><td>Additional Notes: Bug Findings &amp; Implementation Details</td></tr><tr class="search-row"><td><a href="../analysis/action_density_analysis.py">analysis/action_density_analysis.py</a></td><td>analysis</td><td>Action-density loading, summary, and plotting helpers.</td></tr><tr class="search-row"><td><a href="../analysis/analysis.py">analysis/analysis.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/analysis_per_smear.py">analysis/analysis_per_smear.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/analyze_topcharge.py">analysis/analyze_topcharge.py</a></td><td>analysis</td><td>Paths</td></tr><tr class="search-row"><td><a href="../analysis/autocorrelation.py">analysis/autocorrelation.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/calculations.py">analysis/calculations.py</a></td><td>analysis</td><td>---------------------------------------------------------------------------</td></tr><tr class="search-row"><td><a href="../analysis/generate_project_overview.py">analysis/generate_project_overview.py</a></td><td>analysis</td><td>Generate a static HTML overview of project inputs, results, and figures.</td></tr><tr class="search-row"><td><a href="../analysis/plot_topcharge.py">analysis/plot_topcharge.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/plotting_code.py">analysis/plotting_code.py</a></td><td>analysis</td><td></td></tr><tr class="search-row"><td><a href="../analysis/result_paths.py">analysis/result_paths.py</a></td><td>analysis</td><td>Helpers for locating synced result directories.</td></tr><tr class="search-row"><td><a href="../analysis/tauint_fit.py">analysis/tauint_fit.py</a></td><td>analysis</td><td>Power-law fit  tau_int(a) = c * a^(-z)  for hand-picked ensembles.</td></tr><tr class="search-row"><td><a href="../analysis/timeslice_analysis.py">analysis/timeslice_analysis.py</a></td><td>analysis</td><td>smear_steps  config_number  t  q_t</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_action_density_T160_L80.sh">cluster/fuchs_action_density_T160_L80.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_continue.sh">cluster/fuchs_continue.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_heatbath.sh">cluster/fuchs_heatbath.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_heatbath_thread_test.sh">cluster/fuchs_heatbath_thread_test.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_heatbath_topcharge.sh">cluster/fuchs_heatbath_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/fuchs_topcharge.sh">cluster/fuchs_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=agmisc</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_continue.sh">cluster/hhlr_continue.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_heatbath.sh">cluster/hhlr_heatbath.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_heatbath_topcharge.sh">cluster/hhlr_heatbath_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_loop_hot_ensemble.sh">cluster/hhlr_loop_hot_ensemble.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_su3_cl2qcd_heatbath.sh">cluster/hhlr_su3_cl2qcd_heatbath.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_su3_topcharge.sh">cluster/hhlr_su3_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_topcharge.sh">cluster/hhlr_topcharge.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/hhlr_topcharge_b315_ensembles.sh">cluster/hhlr_topcharge_b315_ensembles.sh</a></td><td>cluster</td><td>SBATCH --account=mesonqcd</td></tr><tr class="search-row"><td><a href="../cluster/sync_results.sh">cluster/sync_results.sh</a></td><td>cluster</td><td>sync_results.sh — Sync analysis data from Fuchs cluster to local machine</td></tr><tr class="search-row"><td><a href="../context.md">context.md</a></td><td>project</td><td>Project Context: Topological Charge Freezing in SU(2)/SU(3) Lattice Gauge Theory</td></tr><tr class="search-row"><td><a href="../install.sh">install.sh</a></td><td>project</td><td>!/bin/sh</td></tr><tr class="search-row"><td><a href="../run_heatbath_scan.sh">run_heatbath_scan.sh</a></td><td>project</td><td>run_heatbath_scan.sh  —  Phase 1: generate gauge configs for all beta values</td></tr><tr class="search-row"><td><a href="../run_heatbath_topcharge_scan.sh">run_heatbath_topcharge_scan.sh</a></td><td>project</td><td>run_heatbath_topcharge_scan.sh  —  Fused SU(2) heatbath + in-memory topcharge</td></tr><tr class="search-row"><td><a href="../run_simulation.sh">run_simulation.sh</a></td><td>project</td><td>Lattice QCD Simulation - Main Entry Point</td></tr><tr class="search-row"><td><a href="../run_topcharge_scan.sh">run_topcharge_scan.sh</a></td><td>project</td><td>run_topcharge_scan.sh  —  Phase 2: measure topological charge on existing configs</td></tr><tr class="search-row"><td><a href="../scripts/build.sh">scripts/build.sh</a></td><td>scripts</td><td>build.sh</td></tr><tr class="search-row"><td><a href="../scripts/loop_hot_ensemble.sh">scripts/loop_hot_ensemble.sh</a></td><td>scripts</td><td>loop_hot_ensemble.sh</td></tr><tr class="search-row"><td><a href="../scripts/run_beta_scan.sh">scripts/run_beta_scan.sh</a></td><td>scripts</td><td>Beta Scan Job Script for Lattice QCD Simulations</td></tr><tr class="search-row"><td><a href="../scripts/run_heatbath.sh">scripts/run_heatbath.sh</a></td><td>scripts</td><td>run_heatbath.sh</td></tr><tr class="search-row"><td><a href="../scripts/run_instanton_Q.sh">scripts/run_instanton_Q.sh</a></td><td>scripts</td><td>run_instanton_Q.sh</td></tr><tr class="search-row"><td><a href="../scripts/run_tests.sh">scripts/run_tests.sh</a></td><td>scripts</td><td>run_tests.sh</td></tr><tr class="search-row"><td><a href="../scripts/run_topcharge.sh">scripts/run_topcharge.sh</a></td><td>scripts</td><td>run_topcharge.sh</td></tr><tr class="search-row"><td><a href="../scripts/test_parity_heatbath_topcharge.sh">scripts/test_parity_heatbath_topcharge.sh</a></td><td>scripts</td><td>test_parity_heatbath_topcharge.sh</td></tr><tr class="search-row"><td><a href="../scripts/test_su3_plaquette.sh">scripts/test_su3_plaquette.sh</a></td><td>scripts</td><td>Test SU(3) plaquette against literature values</td></tr></tbody></table>
       </div>
     </section>
 
     <section id="figures">
       <h2>Generated Figures</h2>
       <div class="figures">
-        
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/Q_vs_mctime_su2_open.png" class="figure-link">
                 <img src="action_density/Q_vs_mctime_su2_open.png" alt="Q vs mctime su2 open">
@@ -1352,7 +1463,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/Q_vs_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/Q_vs_mctime_su2_periodic.png" class="figure-link">
                 <img src="action_density/Q_vs_mctime_su2_periodic.png" alt="Q vs mctime su2 periodic">
@@ -1363,7 +1474,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/Q_vs_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/action_density_su2.png" class="figure-link">
                 <img src="action_density/action_density_su2.png" alt="action density su2">
@@ -1374,7 +1485,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/action_density_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/histograms_su2_open.png" class="figure-link">
                 <img src="action_density/histograms_su2_open.png" alt="histograms su2 open">
@@ -1385,7 +1496,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/histograms_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/histograms_su2_periodic.png" class="figure-link">
                 <img src="action_density/histograms_su2_periodic.png" alt="histograms su2 periodic">
@@ -1396,7 +1507,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/histograms_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/susceptibility_su2.png" class="figure-link">
                 <img src="action_density/susceptibility_su2.png" alt="susceptibility su2">
@@ -1407,7 +1518,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/susceptibility_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/tau_int_su2.png" class="figure-link">
                 <img src="action_density/tau_int_su2.png" alt="tau int su2">
@@ -1418,7 +1529,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/tau_int_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/thermalization_comparison_su2.png" class="figure-link">
                 <img src="action_density/thermalization_comparison_su2.png" alt="thermalization comparison su2">
@@ -1429,7 +1540,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/thermalization_comparison_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_density_su2_open.png" class="figure-link">
                 <img src="action_density/timeslice_density_su2_open.png" alt="timeslice density su2 open">
@@ -1440,7 +1551,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_density_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_density_su2_periodic.png" class="figure-link">
                 <img src="action_density/timeslice_density_su2_periodic.png" alt="timeslice density su2 periodic">
@@ -1451,7 +1562,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_density_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_edge_bulk_mctime_su2_open.png" class="figure-link">
                 <img src="action_density/timeslice_edge_bulk_mctime_su2_open.png" alt="timeslice edge bulk mctime su2 open">
@@ -1462,7 +1573,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_edge_bulk_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_edge_bulk_mctime_su2_periodic.png" class="figure-link">
                 <img src="action_density/timeslice_edge_bulk_mctime_su2_periodic.png" alt="timeslice edge bulk mctime su2 periodic">
@@ -1473,7 +1584,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_edge_bulk_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_mctime_su2_open.png" class="figure-link">
                 <img src="action_density/timeslice_mctime_su2_open.png" alt="timeslice mctime su2 open">
@@ -1484,7 +1595,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_mctime_su2_periodic.png" class="figure-link">
                 <img src="action_density/timeslice_mctime_su2_periodic.png" alt="timeslice mctime su2 periodic">
@@ -1495,7 +1606,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_susceptibility_cropped_su2_open.png" class="figure-link">
                 <img src="action_density/timeslice_susceptibility_cropped_su2_open.png" alt="timeslice susceptibility cropped su2 open">
@@ -1506,7 +1617,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_susceptibility_cropped_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_susceptibility_cropped_su2_periodic.png" class="figure-link">
                 <img src="action_density/timeslice_susceptibility_cropped_su2_periodic.png" alt="timeslice susceptibility cropped su2 periodic">
@@ -1517,7 +1628,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_susceptibility_cropped_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_susceptibility_su2_open.png" class="figure-link">
                 <img src="action_density/timeslice_susceptibility_su2_open.png" alt="timeslice susceptibility su2 open">
@@ -1528,7 +1639,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_susceptibility_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_susceptibility_su2_periodic.png" class="figure-link">
                 <img src="action_density/timeslice_susceptibility_su2_periodic.png" alt="timeslice susceptibility su2 periodic">
@@ -1539,7 +1650,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_susceptibility_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_tauint_cropped_su2_open.png" class="figure-link">
                 <img src="action_density/timeslice_tauint_cropped_su2_open.png" alt="timeslice tauint cropped su2 open">
@@ -1550,7 +1661,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_tauint_cropped_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_tauint_cropped_su2_periodic.png" class="figure-link">
                 <img src="action_density/timeslice_tauint_cropped_su2_periodic.png" alt="timeslice tauint cropped su2 periodic">
@@ -1561,7 +1672,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_tauint_cropped_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_tauint_su2_open.png" class="figure-link">
                 <img src="action_density/timeslice_tauint_su2_open.png" alt="timeslice tauint su2 open">
@@ -1572,7 +1683,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_tauint_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="action_density">
               <a href="action_density/timeslice_tauint_su2_periodic.png" class="figure-link">
                 <img src="action_density/timeslice_tauint_su2_periodic.png" alt="timeslice tauint su2 periodic">
@@ -1583,7 +1694,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/action_density/timeslice_tauint_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/Q_vs_mctime_su2_open.png" class="figure-link">
                 <img src="figures_analysis/Q_vs_mctime_su2_open.png" alt="Q vs mctime su2 open">
@@ -1594,7 +1705,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/Q_vs_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/Q_vs_mctime_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/Q_vs_mctime_su2_periodic.png" alt="Q vs mctime su2 periodic">
@@ -1605,7 +1716,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/Q_vs_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/action_density_su2.png" class="figure-link">
                 <img src="figures_analysis/action_density_su2.png" alt="action density su2">
@@ -1616,7 +1727,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/action_density_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/histograms_su2_open.png" class="figure-link">
                 <img src="figures_analysis/histograms_su2_open.png" alt="histograms su2 open">
@@ -1627,7 +1738,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/histograms_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/histograms_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/histograms_su2_periodic.png" alt="histograms su2 periodic">
@@ -1638,7 +1749,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/histograms_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/susceptibility_su2.png" class="figure-link">
                 <img src="figures_analysis/susceptibility_su2.png" alt="susceptibility su2">
@@ -1649,7 +1760,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/susceptibility_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/tau_int_su2.png" class="figure-link">
                 <img src="figures_analysis/tau_int_su2.png" alt="tau int su2">
@@ -1660,7 +1771,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/tau_int_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/thermalization_comparison_su2.png" class="figure-link">
                 <img src="figures_analysis/thermalization_comparison_su2.png" alt="thermalization comparison su2">
@@ -1671,7 +1782,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/thermalization_comparison_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_density_su2_open.png" class="figure-link">
                 <img src="figures_analysis/timeslice_density_su2_open.png" alt="timeslice density su2 open">
@@ -1682,7 +1793,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_density_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_density_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/timeslice_density_su2_periodic.png" alt="timeslice density su2 periodic">
@@ -1693,7 +1804,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_density_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_edge_bulk_mctime_su2_open.png" class="figure-link">
                 <img src="figures_analysis/timeslice_edge_bulk_mctime_su2_open.png" alt="timeslice edge bulk mctime su2 open">
@@ -1704,7 +1815,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_edge_bulk_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_edge_bulk_mctime_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/timeslice_edge_bulk_mctime_su2_periodic.png" alt="timeslice edge bulk mctime su2 periodic">
@@ -1715,7 +1826,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_edge_bulk_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_mctime_su2_open.png" class="figure-link">
                 <img src="figures_analysis/timeslice_mctime_su2_open.png" alt="timeslice mctime su2 open">
@@ -1726,7 +1837,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_mctime_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/timeslice_mctime_su2_periodic.png" alt="timeslice mctime su2 periodic">
@@ -1737,7 +1848,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_susceptibility_cropped_su2_open.png" class="figure-link">
                 <img src="figures_analysis/timeslice_susceptibility_cropped_su2_open.png" alt="timeslice susceptibility cropped su2 open">
@@ -1748,7 +1859,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_susceptibility_cropped_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_susceptibility_cropped_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/timeslice_susceptibility_cropped_su2_periodic.png" alt="timeslice susceptibility cropped su2 periodic">
@@ -1759,7 +1870,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_susceptibility_cropped_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_susceptibility_su2_open.png" class="figure-link">
                 <img src="figures_analysis/timeslice_susceptibility_su2_open.png" alt="timeslice susceptibility su2 open">
@@ -1770,7 +1881,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_susceptibility_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_susceptibility_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/timeslice_susceptibility_su2_periodic.png" alt="timeslice susceptibility su2 periodic">
@@ -1781,7 +1892,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_susceptibility_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_tauint_cropped_su2_open.png" class="figure-link">
                 <img src="figures_analysis/timeslice_tauint_cropped_su2_open.png" alt="timeslice tauint cropped su2 open">
@@ -1792,7 +1903,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_tauint_cropped_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_tauint_cropped_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/timeslice_tauint_cropped_su2_periodic.png" alt="timeslice tauint cropped su2 periodic">
@@ -1803,7 +1914,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_tauint_cropped_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_tauint_su2_open.png" class="figure-link">
                 <img src="figures_analysis/timeslice_tauint_su2_open.png" alt="timeslice tauint su2 open">
@@ -1814,7 +1925,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_tauint_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="figures_analysis">
               <a href="figures_analysis/timeslice_tauint_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/timeslice_tauint_su2_periodic.png" alt="timeslice tauint su2 periodic">
@@ -1825,7 +1936,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/timeslice_tauint_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/Q_vs_mctime_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear10/Q_vs_mctime_su2_open.png" alt="Q vs mctime su2 open (smear10)">
@@ -1836,7 +1947,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/Q_vs_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/Q_vs_mctime_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear10/Q_vs_mctime_su2_periodic.png" alt="Q vs mctime su2 periodic (smear10)">
@@ -1847,7 +1958,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/Q_vs_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/histograms_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear10/histograms_su2_open.png" alt="histograms su2 open (smear10)">
@@ -1858,7 +1969,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/histograms_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/histograms_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear10/histograms_su2_periodic.png" alt="histograms su2 periodic (smear10)">
@@ -1869,7 +1980,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/histograms_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/susceptibility_su2.png" class="figure-link">
                 <img src="figures_analysis/smear10/susceptibility_su2.png" alt="susceptibility su2 (smear10)">
@@ -1880,7 +1991,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/susceptibility_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/tau_int_su2.png" class="figure-link">
                 <img src="figures_analysis/smear10/tau_int_su2.png" alt="tau int su2 (smear10)">
@@ -1891,7 +2002,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/tau_int_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/thermalization_comparison_su2.png" class="figure-link">
                 <img src="figures_analysis/smear10/thermalization_comparison_su2.png" alt="thermalization comparison su2 (smear10)">
@@ -1902,7 +2013,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/thermalization_comparison_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_density_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_density_su2_open.png" alt="timeslice density su2 open (smear10)">
@@ -1913,7 +2024,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_density_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_density_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_density_su2_periodic.png" alt="timeslice density su2 periodic (smear10)">
@@ -1924,7 +2035,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_density_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_edge_bulk_mctime_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_edge_bulk_mctime_su2_open.png" alt="timeslice edge bulk mctime su2 open (smear10)">
@@ -1935,7 +2046,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_edge_bulk_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_edge_bulk_mctime_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_edge_bulk_mctime_su2_periodic.png" alt="timeslice edge bulk mctime su2 periodic (smear10)">
@@ -1946,7 +2057,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_edge_bulk_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_mctime_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_mctime_su2_open.png" alt="timeslice mctime su2 open (smear10)">
@@ -1957,7 +2068,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_mctime_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_mctime_su2_periodic.png" alt="timeslice mctime su2 periodic (smear10)">
@@ -1968,7 +2079,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_susceptibility_cropped_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_susceptibility_cropped_su2_open.png" alt="timeslice susceptibility cropped su2 open (smear10)">
@@ -1979,7 +2090,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_susceptibility_cropped_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_susceptibility_cropped_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_susceptibility_cropped_su2_periodic.png" alt="timeslice susceptibility cropped su2 periodic (smear10)">
@@ -1990,7 +2101,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_susceptibility_cropped_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_susceptibility_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_susceptibility_su2_open.png" alt="timeslice susceptibility su2 open (smear10)">
@@ -2001,7 +2112,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_susceptibility_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_susceptibility_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_susceptibility_su2_periodic.png" alt="timeslice susceptibility su2 periodic (smear10)">
@@ -2012,7 +2123,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_susceptibility_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_tauint_cropped_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_tauint_cropped_su2_open.png" alt="timeslice tauint cropped su2 open (smear10)">
@@ -2023,7 +2134,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_tauint_cropped_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_tauint_cropped_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_tauint_cropped_su2_periodic.png" alt="timeslice tauint cropped su2 periodic (smear10)">
@@ -2034,7 +2145,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_tauint_cropped_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_tauint_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_tauint_su2_open.png" alt="timeslice tauint su2 open (smear10)">
@@ -2045,7 +2156,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_tauint_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear10">
               <a href="figures_analysis/smear10/timeslice_tauint_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear10/timeslice_tauint_su2_periodic.png" alt="timeslice tauint su2 periodic (smear10)">
@@ -2056,7 +2167,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear10/timeslice_tauint_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/Q_vs_mctime_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear15/Q_vs_mctime_su2_open.png" alt="Q vs mctime su2 open (smear15)">
@@ -2067,7 +2178,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/Q_vs_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/Q_vs_mctime_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear15/Q_vs_mctime_su2_periodic.png" alt="Q vs mctime su2 periodic (smear15)">
@@ -2078,7 +2189,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/Q_vs_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/histograms_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear15/histograms_su2_open.png" alt="histograms su2 open (smear15)">
@@ -2089,7 +2200,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/histograms_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/histograms_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear15/histograms_su2_periodic.png" alt="histograms su2 periodic (smear15)">
@@ -2100,7 +2211,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/histograms_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/susceptibility_su2.png" class="figure-link">
                 <img src="figures_analysis/smear15/susceptibility_su2.png" alt="susceptibility su2 (smear15)">
@@ -2111,7 +2222,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/susceptibility_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/tau_int_su2.png" class="figure-link">
                 <img src="figures_analysis/smear15/tau_int_su2.png" alt="tau int su2 (smear15)">
@@ -2122,7 +2233,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/tau_int_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/thermalization_comparison_su2.png" class="figure-link">
                 <img src="figures_analysis/smear15/thermalization_comparison_su2.png" alt="thermalization comparison su2 (smear15)">
@@ -2133,7 +2244,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/thermalization_comparison_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_density_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_density_su2_open.png" alt="timeslice density su2 open (smear15)">
@@ -2144,7 +2255,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_density_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_density_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_density_su2_periodic.png" alt="timeslice density su2 periodic (smear15)">
@@ -2155,7 +2266,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_density_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_edge_bulk_mctime_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_edge_bulk_mctime_su2_open.png" alt="timeslice edge bulk mctime su2 open (smear15)">
@@ -2166,7 +2277,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_edge_bulk_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_edge_bulk_mctime_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_edge_bulk_mctime_su2_periodic.png" alt="timeslice edge bulk mctime su2 periodic (smear15)">
@@ -2177,7 +2288,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_edge_bulk_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_mctime_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_mctime_su2_open.png" alt="timeslice mctime su2 open (smear15)">
@@ -2188,7 +2299,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_mctime_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_mctime_su2_periodic.png" alt="timeslice mctime su2 periodic (smear15)">
@@ -2199,7 +2310,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_susceptibility_cropped_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_susceptibility_cropped_su2_open.png" alt="timeslice susceptibility cropped su2 open (smear15)">
@@ -2210,7 +2321,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_susceptibility_cropped_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_susceptibility_cropped_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_susceptibility_cropped_su2_periodic.png" alt="timeslice susceptibility cropped su2 periodic (smear15)">
@@ -2221,7 +2332,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_susceptibility_cropped_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_susceptibility_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_susceptibility_su2_open.png" alt="timeslice susceptibility su2 open (smear15)">
@@ -2232,7 +2343,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_susceptibility_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_susceptibility_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_susceptibility_su2_periodic.png" alt="timeslice susceptibility su2 periodic (smear15)">
@@ -2243,7 +2354,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_susceptibility_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_tauint_cropped_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_tauint_cropped_su2_open.png" alt="timeslice tauint cropped su2 open (smear15)">
@@ -2254,7 +2365,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_tauint_cropped_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_tauint_cropped_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_tauint_cropped_su2_periodic.png" alt="timeslice tauint cropped su2 periodic (smear15)">
@@ -2265,7 +2376,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_tauint_cropped_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_tauint_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_tauint_su2_open.png" alt="timeslice tauint su2 open (smear15)">
@@ -2276,7 +2387,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_tauint_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear15">
               <a href="figures_analysis/smear15/timeslice_tauint_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear15/timeslice_tauint_su2_periodic.png" alt="timeslice tauint su2 periodic (smear15)">
@@ -2287,7 +2398,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear15/timeslice_tauint_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/Q_vs_mctime_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear5/Q_vs_mctime_su2_open.png" alt="Q vs mctime su2 open (smear5)">
@@ -2298,7 +2409,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/Q_vs_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/Q_vs_mctime_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear5/Q_vs_mctime_su2_periodic.png" alt="Q vs mctime su2 periodic (smear5)">
@@ -2309,7 +2420,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/Q_vs_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/histograms_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear5/histograms_su2_open.png" alt="histograms su2 open (smear5)">
@@ -2320,7 +2431,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/histograms_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/histograms_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear5/histograms_su2_periodic.png" alt="histograms su2 periodic (smear5)">
@@ -2331,7 +2442,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/histograms_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/susceptibility_su2.png" class="figure-link">
                 <img src="figures_analysis/smear5/susceptibility_su2.png" alt="susceptibility su2 (smear5)">
@@ -2342,7 +2453,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/susceptibility_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/tau_int_su2.png" class="figure-link">
                 <img src="figures_analysis/smear5/tau_int_su2.png" alt="tau int su2 (smear5)">
@@ -2353,7 +2464,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/tau_int_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/thermalization_comparison_su2.png" class="figure-link">
                 <img src="figures_analysis/smear5/thermalization_comparison_su2.png" alt="thermalization comparison su2 (smear5)">
@@ -2364,7 +2475,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/thermalization_comparison_su2.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_density_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_density_su2_open.png" alt="timeslice density su2 open (smear5)">
@@ -2375,7 +2486,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_density_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_density_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_density_su2_periodic.png" alt="timeslice density su2 periodic (smear5)">
@@ -2386,7 +2497,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_density_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_edge_bulk_mctime_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_edge_bulk_mctime_su2_open.png" alt="timeslice edge bulk mctime su2 open (smear5)">
@@ -2397,7 +2508,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_edge_bulk_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_edge_bulk_mctime_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_edge_bulk_mctime_su2_periodic.png" alt="timeslice edge bulk mctime su2 periodic (smear5)">
@@ -2408,7 +2519,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_edge_bulk_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_mctime_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_mctime_su2_open.png" alt="timeslice mctime su2 open (smear5)">
@@ -2419,7 +2530,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_mctime_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_mctime_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_mctime_su2_periodic.png" alt="timeslice mctime su2 periodic (smear5)">
@@ -2430,7 +2541,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_mctime_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_susceptibility_cropped_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_susceptibility_cropped_su2_open.png" alt="timeslice susceptibility cropped su2 open (smear5)">
@@ -2441,7 +2552,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_susceptibility_cropped_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_susceptibility_cropped_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_susceptibility_cropped_su2_periodic.png" alt="timeslice susceptibility cropped su2 periodic (smear5)">
@@ -2452,7 +2563,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_susceptibility_cropped_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_susceptibility_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_susceptibility_su2_open.png" alt="timeslice susceptibility su2 open (smear5)">
@@ -2463,7 +2574,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_susceptibility_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_susceptibility_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_susceptibility_su2_periodic.png" alt="timeslice susceptibility su2 periodic (smear5)">
@@ -2474,7 +2585,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_susceptibility_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_tauint_cropped_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_tauint_cropped_su2_open.png" alt="timeslice tauint cropped su2 open (smear5)">
@@ -2485,7 +2596,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_tauint_cropped_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_tauint_cropped_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_tauint_cropped_su2_periodic.png" alt="timeslice tauint cropped su2 periodic (smear5)">
@@ -2496,7 +2607,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_tauint_cropped_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_tauint_su2_open.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_tauint_su2_open.png" alt="timeslice tauint su2 open (smear5)">
@@ -2507,7 +2618,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_tauint_su2_open.png</code>
               </figcaption>
             </figure>
-            
+
             <figure class="search-card" data-kind="smear5">
               <a href="figures_analysis/smear5/timeslice_tauint_su2_periodic.png" class="figure-link">
                 <img src="figures_analysis/smear5/timeslice_tauint_su2_periodic.png" alt="timeslice tauint su2 periodic (smear5)">
@@ -2518,14 +2629,14 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
                 <code>output/figures_analysis/smear5/timeslice_tauint_su2_periodic.png</code>
               </figcaption>
             </figure>
-            
+
       </div>
     </section>
 
     <section id="outputs">
       <h2>Text Outputs And Data Previews</h2>
       <p class="note">Each item links to the full file and shows the first few lines.</p>
-      
+
             <details class="search-card">
               <summary><a href="action_density/action_density_summary_su2.txt">output/action_density/action_density_summary_su2.txt</a></summary>
               <pre># Action-density summary
@@ -2534,7 +2645,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
 3.15 periodic 80 80 0 action_density.dat 10000 4.944189208558e+00 1.338399875950e-03 50 9951 4.944115001113e+00 7.623721497067e-04 global two-column input
 3.15 periodic 80 80 1099260755 action_density.dat 10001 4.943299789911e+00 5.015576571883e-02 50 9951 4.943920313606e+00 3.762953615968e-04 global two-column input</pre>
             </details>
-            
+
             <details class="search-card">
               <summary><a href="figures_analysis/action_density_summary_su2.txt">output/figures_analysis/action_density_summary_su2.txt</a></summary>
               <pre># Action-density summary
@@ -2543,7 +2654,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
 3.15 periodic 80 80 0 action_density.dat 10000 4.944189208558e+00 1.338399875950e-03 50 9951 4.944115001113e+00 7.623721497067e-04 global two-column input
 3.15 periodic 80 80 1099260755 action_density.dat 10001 4.943299789911e+00 5.015576571883e-02 50 9951 4.943920313606e+00 3.762953615968e-04 global two-column input</pre>
             </details>
-            
+
             <details class="search-card">
               <summary><a href="instanton/instanton_Q.dat">output/instanton/instanton_Q.dat</a></summary>
               <pre># Instanton topological charge computation
@@ -2552,7 +2663,7 @@ Build: `cd rust_analysis &amp;&amp; maturin develop --release`
 instanton 1.17147
 anti-instanton -1.17147</pre>
             </details>
-            
+
             <details class="search-card">
               <summary><a href="instanton/instanton_Q_anti_instanton.dat">output/instanton/instanton_Q_anti_instanton.dat</a></summary>
               <pre># Topological charge Q vs smearing steps for ANTI-INSTANTON
@@ -2560,7 +2671,7 @@ anti-instanton -1.17147</pre>
 # smear_step Q
 0 1.17147</pre>
             </details>
-            
+
             <details class="search-card">
               <summary><a href="instanton/instanton_Q_instanton.dat">output/instanton/instanton_Q_instanton.dat</a></summary>
               <pre># Topological charge Q vs smearing steps for INSTANTON
@@ -2568,7 +2679,7 @@ anti-instanton -1.17147</pre>
 # smear_step Q
 0 -1.17147</pre>
             </details>
-            
+
     </section>
 
     <section id="regenerate">

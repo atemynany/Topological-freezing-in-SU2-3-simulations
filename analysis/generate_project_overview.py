@@ -962,7 +962,8 @@ def main() -> None:
     if not output_path.is_absolute():
         output_path = base_dir / output_path
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(render_page(args.gauge, output_path), encoding="utf-8")
+    html = "\n".join(line.rstrip() for line in render_page(args.gauge, output_path).splitlines()) + "\n"
+    output_path.write_text(html, encoding="utf-8")
     print(f"Wrote {output_path}")
 
 
