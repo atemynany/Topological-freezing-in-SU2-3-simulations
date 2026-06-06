@@ -167,7 +167,7 @@ run_topcharge_beta() {
 
     # Auto-detect boundary conditions from directory name
     local EXCLUDE_BC=0
-    if [[ "$RUN_NAME" == *"_open_"* ]]; then
+    if [[ "$RUN_NAME" == *"_open_"* || "$RUN_NAME" == *"_obc_"* ]]; then
         EXCLUDE_BC=${EXCLUDE_BC_OPEN:-2}
         log_info "[$COUNT/$TOTAL] Detected open BC — exclude_boundary_slices=$EXCLUDE_BC"
     else

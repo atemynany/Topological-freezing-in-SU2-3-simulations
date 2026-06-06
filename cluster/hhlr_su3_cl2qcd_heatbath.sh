@@ -63,7 +63,7 @@ PY
 
 HOST_SEED=${HOST_SEED:-$(generate_host_seed)}
 
-BOUNDARY_LABEL=obc
+BOUNDARY_LABEL=open
 if [ "$USE_OPEN_TEMPORAL_GAUGE_BOUNDARY" != "true" ] && [ "$USE_OPEN_TEMPORAL_GAUGE_BOUNDARY" != "1" ]; then
     BOUNDARY_LABEL=periodic
 fi
@@ -154,6 +154,7 @@ echo "Starting CL2QCD SU(3) heatbath"
 echo "Run directory: $RUN_DIR"
 echo "Input file: $INPUT_FILE"
 echo "Binary: $CL2QCD_BIN"
+echo "Boundary: $BOUNDARY_LABEL"
 
 cd "$RUN_DIR"
 "$CL2QCD_BIN" "$INPUT_FILE" 2>&1 | tee heatbath.log

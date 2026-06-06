@@ -61,6 +61,33 @@ void init_neighbor_tables() {
     }
 }
 
+static std::string normalize_boundary_name(const std::string &boundary) {
+    if (boundary == "obc") return "open";
+    return boundary;
+}
+
+static int checked_site_index(int t, int x, int y, int z, bool open_bc) {
+    int tt;
+    if (open_bc) {
+        if (t < 0 || t >= T_size) return -1;
+        tt = t;
+    } else {
+        tt = (t + T_size) % T_size;
+    }
+
+    const int xx = (x + L_size) % L_size;
+    const int yy = (y + L_size) % L_size;
+    const int zz = (z + L_size) % L_size;
+    return ((tt * L_size + xx) * L_size + yy) * L_size + zz;
+}
+
+static long long checked_link_index(int t, int x, int y, int z, int mu, bool open_bc) {
+    if (open_bc && mu == 0 && t == T_size - 1) return -1;
+    const int site = checked_site_index(t, x, y, z, open_bc);
+    if (site < 0) return -1;
+    return link_index_su3[site * 4 + mu];
+}
+
 static uint32_t read_be32(const char *p) {
     const unsigned char *b = reinterpret_cast<const unsigned char *>(p);
     return (static_cast<uint32_t>(b[0]) << 24) |
@@ -178,7 +205,7 @@ bool read_su3_config_cl2qcd_lime(double *gf, const char *filename, int T, int L)
 }
 
 // Simple APE smearing for SU(3)
-void su3_ape_smear(double *gf_out, const double *gf_in, int T, int L, double alpha) {
+void su3_ape_smear(double *gf_out, const double *gf_in, int T, int L, double alpha, bool open_bc) {
     const int volume = T * L * L * L;
 
     // Double-buffered: reads gf_in, writes gf_out. Each (site, mu) writes a unique
@@ -186,40 +213,76 @@ void su3_ape_smear(double *gf_out, const double *gf_in, int T, int L, double alp
     #pragma omp parallel for schedule(static)
     for (int site = 0; site < volume; site++) {
         alignas(32) double staple[18], smeared[18], tmp[18];
+        const int iz = site % L;
+        const int iy = (site / L) % L;
+        const int ix = (site / (L * L)) % L;
+        const int it = site / (L * L * L);
+
         for (int mu = 0; mu < 4; mu++) {
+            const long long idx = link_index_su3[site * 4 + mu];
+
+            if (open_bc && mu == 0 && it == T - 1) {
+                su3_eq_su3(gf_out + idx, gf_in + idx);
+                continue;
+            }
+
             su3_eq_zero(staple);
+            int staple_count = 0;
             
             // Sum staples
             for (int nu = 0; nu < 4; nu++) {
                 if (nu == mu) continue;
                 
                 // Upper staple
-                long long idx_nu = link_index_su3[site * 4 + nu];
-                int site_pnu = neighbor_plus[nu][site];
-                long long idx_mu_pnu = link_index_su3[site_pnu * 4 + mu];
-                int site_pmu = neighbor_plus[mu][site];
-                long long idx_nu_pmu = link_index_su3[site_pmu * 4 + nu];
-                
-                su3_eq_su3_ti_su3(tmp, gf_in + idx_nu, gf_in + idx_mu_pnu);
-                su3_eq_su3_ti_su3_dag(smeared, tmp, gf_in + idx_nu_pmu);
-                su3_pl_eq_su3(staple, smeared);
+                int x_pnu[4] = {it, ix, iy, iz};
+                int x_pmu[4] = {it, ix, iy, iz};
+                x_pnu[nu] += 1;
+                x_pmu[mu] += 1;
+
+                const long long idx_nu = checked_link_index(it, ix, iy, iz, nu, open_bc);
+                const long long idx_mu_pnu =
+                    checked_link_index(x_pnu[0], x_pnu[1], x_pnu[2], x_pnu[3], mu, open_bc);
+                const long long idx_nu_pmu =
+                    checked_link_index(x_pmu[0], x_pmu[1], x_pmu[2], x_pmu[3], nu, open_bc);
+
+                if (idx_nu >= 0 && idx_mu_pnu >= 0 && idx_nu_pmu >= 0) {
+                    su3_eq_su3_ti_su3(tmp, gf_in + idx_nu, gf_in + idx_mu_pnu);
+                    su3_eq_su3_ti_su3_dag(smeared, tmp, gf_in + idx_nu_pmu);
+                    su3_pl_eq_su3(staple, smeared);
+                    staple_count++;
+                }
                 
                 // Lower staple
-                int site_mnu = neighbor_minus[nu][site];
-                long long idx_nu_mnu = link_index_su3[site_mnu * 4 + nu];
-                long long idx_mu_mnu = link_index_su3[site_mnu * 4 + mu];
-                int site_mnu_pmu = neighbor_plus[mu][site_mnu];
-                long long idx_nu_mnu_pmu = link_index_su3[site_mnu_pmu * 4 + nu];
-                
-                su3_eq_su3_dag_ti_su3(tmp, gf_in + idx_nu_mnu, gf_in + idx_mu_mnu);
-                su3_eq_su3_ti_su3(smeared, tmp, gf_in + idx_nu_mnu_pmu);
-                su3_pl_eq_su3(staple, smeared);
+                int x_mnu[4] = {it, ix, iy, iz};
+                int x_mnu_pmu[4] = {it, ix, iy, iz};
+                x_mnu[nu] -= 1;
+                x_mnu_pmu[nu] -= 1;
+                x_mnu_pmu[mu] += 1;
+
+                const long long idx_nu_mnu =
+                    checked_link_index(x_mnu[0], x_mnu[1], x_mnu[2], x_mnu[3], nu, open_bc);
+                const long long idx_mu_mnu =
+                    checked_link_index(x_mnu[0], x_mnu[1], x_mnu[2], x_mnu[3], mu, open_bc);
+                const long long idx_nu_mnu_pmu =
+                    checked_link_index(x_mnu_pmu[0], x_mnu_pmu[1], x_mnu_pmu[2], x_mnu_pmu[3], nu, open_bc);
+
+                if (idx_nu_mnu >= 0 && idx_mu_mnu >= 0 && idx_nu_mnu_pmu >= 0) {
+                    su3_eq_su3_dag_ti_su3(tmp, gf_in + idx_nu_mnu, gf_in + idx_mu_mnu);
+                    su3_eq_su3_ti_su3(smeared, tmp, gf_in + idx_nu_mnu_pmu);
+                    su3_pl_eq_su3(staple, smeared);
+                    staple_count++;
+                }
             }
-            
-            // U' = (1-alpha)*U + (alpha/6)*staple, then project
-            long long idx = link_index_su3[site * 4 + mu];
+
+            if (staple_count == 0) {
+                su3_eq_su3(gf_out + idx, gf_in + idx);
+                continue;
+            }
+
+            // Near open temporal boundaries there are fewer valid staples.
             for (int i = 0; i < 18; i++) {
-                smeared[i] = (1.0 - alpha) * gf_in[idx + i] + (alpha / 6.0) * staple[i];
+                smeared[i] = (1.0 - alpha) * gf_in[idx + i] +
+                             (alpha / static_cast<double>(staple_count)) * staple[i];
             }
             su3_proj(smeared);
             su3_eq_su3(gf_out + idx, smeared);
@@ -282,6 +345,56 @@ bool read_input(const char *filename, MeasParams &p) {
     return true;
 }
 
+bool validate_params(const MeasParams &p) {
+    if (p.config_dir.empty()) {
+        std::cerr << "Error: config_dir must not be empty" << std::endl;
+        return false;
+    }
+    if (p.output_file.empty()) {
+        std::cerr << "Error: output_file must not be empty" << std::endl;
+        return false;
+    }
+    if (p.T < 2 || p.L < 2) {
+        std::cerr << "Error: T and L must be >= 2" << std::endl;
+        return false;
+    }
+    if (p.start_conf > p.end_conf || p.conf_step < 1) {
+        std::cerr << "Error: invalid configuration range or conf_step" << std::endl;
+        return false;
+    }
+    if (p.smear_steps < 0) {
+        std::cerr << "Error: smear_steps must be >= 0" << std::endl;
+        return false;
+    }
+    if (p.smear_alpha < 0.0 || p.smear_alpha > 1.0) {
+        std::cerr << "Warning: smear_alpha=" << p.smear_alpha
+                  << " outside typical range [0, 1]" << std::endl;
+    }
+    if (p.boundary != "periodic" && p.boundary != "open") {
+        std::cerr << "Error: boundary must be periodic, open, or obc" << std::endl;
+        return false;
+    }
+    if (p.exclude_boundary_slices < 0) {
+        std::cerr << "Error: exclude_boundary_slices must be >= 0" << std::endl;
+        return false;
+    }
+    if (p.boundary == "open") {
+        if (p.exclude_boundary_slices < 1) {
+            std::cerr << "Error: open SU(3) measurements require exclude_boundary_slices >= 1 "
+                      << "to avoid temporal wraparound in the clover" << std::endl;
+            return false;
+        }
+        if (2 * p.exclude_boundary_slices >= p.T) {
+            std::cerr << "Error: exclude_boundary_slices removes the full temporal extent" << std::endl;
+            return false;
+        }
+        if (p.exclude_boundary_slices < 2) {
+            std::cerr << "Warning: exclude_boundary_slices < 2 is a very thin OBC buffer" << std::endl;
+        }
+    }
+    return true;
+}
+
 std::string config_filename(const MeasParams &params, int conf) {
     std::ostringstream path;
     path << params.config_dir;
@@ -320,6 +433,8 @@ int main(int argc, char **argv) {
     
     MeasParams params;
     if (!read_input(input_file, params)) return 1;
+    params.boundary = normalize_boundary_name(params.boundary);
+    if (!validate_params(params)) return 1;
     
     T_size = params.T;
     L_size = params.L;
@@ -360,7 +475,8 @@ int main(int argc, char **argv) {
     std::cout << "Smearing: " << params.smear_steps << " steps, alpha=" << params.smear_alpha << "\n";
     std::cout << "Boundary: " << params.boundary;
     if (params.boundary == "open" && params.exclude_boundary_slices > 0) {
-        std::cout << " (excluding " << params.exclude_boundary_slices << " slices from each end)";
+        std::cout << " (excluding " << params.exclude_boundary_slices
+                  << " slices from each end; OBC-aware smearing)";
     }
     std::cout << "\n";
     
@@ -419,7 +535,8 @@ int main(int argc, char **argv) {
             }
             
             if (step < params.smear_steps) {
-                su3_ape_smear(gf_tmp, gf_smeared, T_size, L_size, params.smear_alpha);
+                su3_ape_smear(gf_tmp, gf_smeared, T_size, L_size, params.smear_alpha,
+                              params.boundary == "open");
                 std::swap(gf_smeared, gf_tmp);
             }
         }
