@@ -212,10 +212,82 @@ def plot_action_density(series: List[ActionDensitySeries],
     print(f"Saved: {os.path.basename(path)}")
 
 
+def plot_action_density_post_thermalization(series: List[ActionDensitySeries],
+                                            output_dir: str,
+                                            gauge_group: str) -> None:
+    """Overlay action density after the thermalization cut."""
+    if not series:
+        return
+
+    lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+    series_sorted = sorted(series, key=lambda x: (x.run.beta, x.run.boundary, x.run.seed))
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    colors = {
+        "periodic": "steelblue",
+        "open": "darkorange",
+    }
+    markers = {
+        "periodic": "o",
+        "open": "s",
+    }
+    plotted = 0
+
+    def start_type_label(item: ActionDensitySeries) -> str:
+        start_type = getattr(item.run, "start_type", "unknown")
+        if start_type in {"cold", "hot", "continue"}:
+            return start_type
+        if os.path.basename(item.run.run_dir).startswith("qtarget_"):
+            return "hot"
+        if len(item.values) < 2:
+            return "unknown"
+
+        tail = item.values[max(0, int(0.9 * len(item.values))):]
+        late = float(np.median(tail)) if len(tail) else float(item.values[-1])
+        early_delta = abs(float(item.values[0]) - late)
+        scale = max(float(np.std(tail)) if len(tail) > 1 else 0.0, 0.05)
+        return "cold" if early_delta > max(0.5, 10.0 * scale) else "hot"
+
+    for item in series_sorted:
+        run = item.run
+        post_mask = item.sweeps >= run.start_conf
+        if not np.any(post_mask):
+            continue
+
+        sweeps = item.sweeps[post_mask] - run.start_conf
+        values = item.values[post_mask]
+        a = lattice_spacing(run.beta)
+        color = colors.get(run.boundary, "black")
+        marker = markers.get(run.boundary, "o")
+        label = f"$a={a:.4f}$ fm, {run.boundary}, {start_type_label(item)} start"
+
+        ax.plot(sweeps, values, color=color, lw=0.9, alpha=0.8, label=label)
+        step = max(1, len(sweeps) // 180)
+        ax.scatter(sweeps[::step], values[::step], color=color, marker=marker,
+                   s=8, alpha=0.65, linewidth=0)
+        plotted += 1
+
+    if plotted == 0:
+        plt.close(fig)
+        return
+
+    ax.set_xlabel("MC sweeps after thermalization")
+    ax.set_ylabel(r"$s = S/V$")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=8, frameon=False)
+
+    plt.tight_layout()
+    path = os.path.join(output_dir, f"action_density_post_thermalization_{gauge_group}.png")
+    plt.savefig(path, dpi=200, bbox_inches="tight")
+    plt.close()
+    print(f"Saved: {os.path.basename(path)}")
+
+
 def analyze_action_density(runs: List[RunData], output_dir: str, gauge_group: str) -> None:
     series = collect_action_density(runs)
     if not series:
         print("No action-density files found.")
         return
     plot_action_density(series, output_dir, gauge_group)
+    plot_action_density_post_thermalization(series, output_dir, gauge_group)
     write_action_density_summary(series, output_dir, gauge_group)

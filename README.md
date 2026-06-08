@@ -235,8 +235,11 @@ python3 analysis/analysis.py --su3 --results-dir data/results
 ```
 
 Without `--results-dir`, the analysis looks for synced cluster roots
-`data/results_home` and `data/results_work`. Pass `--results-dir` repeatedly to
-combine several roots, and use `--output-dir` to redirect plots and summaries.
+`data/results_home` and `data/results_work` and analyzes them separately into
+`output/figures_analysis/results_home/` and
+`output/figures_analysis/results_work/`. Pass `--results-dir` repeatedly to
+intentionally combine several roots, and use `--output-dir` to redirect plots
+and summaries.
 
 Or generate one figure set per detected APE smearing level:
 
@@ -252,7 +255,7 @@ Key outputs:
 - **q(t) timeslice density** — Temporal topcharge density, susceptibility contribution, and τ_int(t) grids via `timeslice_analysis.py`
 - **Action density** — `action_density_{su2,su3}.png` plus `action_density_summary_{su2,su3}.txt` when action-density files are present
 
-`analysis_per_smear.py` auto-detects every APE smearing level present in `topcharge.dat` or `topcharge_su3.dat` and writes each set of figures into `output/figures_analysis/smear<N>/`. Useful when comparing how the susceptibility plateau and τ_int depend on smearing depth. Its timeslice binning scales with the coarsest lattice spacing so subvolumes remain approximately fixed in physical units.
+`analysis_per_smear.py` auto-detects every APE smearing level present in `topcharge.dat` or `topcharge_su3.dat` and writes each set of figures into `smear<N>/` below each dataset output folder, for example `output/figures_analysis/results_home/smear15/`. Useful when comparing how the susceptibility plateau and τ_int depend on smearing depth. Its timeslice binning scales with the coarsest lattice spacing so subvolumes remain approximately fixed in physical units.
 
 Standalone helpers (do not need the full pipeline):
 - `analysis/plot_topcharge.py` — Q vs smearing steps / MC time from a raw `topcharge.dat`

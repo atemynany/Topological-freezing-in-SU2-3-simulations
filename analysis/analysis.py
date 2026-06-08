@@ -20,6 +20,7 @@ from calculations import (
 )
 from plotting_code import (
     plot_Q_vs_mctime_grid, plot_histograms_grid,
+    plot_Q_vs_mctime_concatenated, plot_histograms_concatenated,
     plot_susceptibility_combined, plot_tau_int_combined,
     plot_thermalization_comparison
 )
@@ -31,7 +32,7 @@ from timeslice_analysis import (
     plot_timeslice_susceptibility_cropped, plot_timeslice_tauint_cropped,
 )
 from action_density_analysis import analyze_action_density
-from result_paths import find_run_dirs, resolve_results_dirs
+from result_paths import default_results_dirs, find_run_dirs, resolve_results_dirs
 
 
 def print_table(results: List[AnalysisResult], gauge_group: str):
@@ -53,22 +54,29 @@ def print_table(results: List[AnalysisResult], gauge_group: str):
     print(f"{'='*95}\n")
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--su2", action="store_true")
-    parser.add_argument("--su3", action="store_true")
-    parser.add_argument("--results-dir", type=str, action="append", default=None)
-    parser.add_argument("--output-dir", type=str, default=None)
-    args = parser.parse_args()
-    
-    gauge_group = "su3" if args.su3 else "su2"
-    
-    base_dir = os.path.dirname(script_dir)
-    results_dirs = resolve_results_dirs(base_dir, args.results_dir)
-    output_dir = args.output_dir or os.path.join(base_dir, "output", "figures_analysis")
+def _result_root_label(results_dir: str) -> str:
+    return os.path.basename(os.path.normpath(results_dir))
+
+
+def _analysis_jobs(base_dir: str, args) -> List[tuple[str, List[str], str]]:
+    output_root = args.output_dir or os.path.join(base_dir, "output", "figures_analysis")
+    if args.results_dir:
+        results_dirs = resolve_results_dirs(base_dir, args.results_dir)
+        return [("combined", results_dirs, output_root)]
+
+    jobs = []
+    for results_dir in default_results_dirs(base_dir):
+        if not os.path.isdir(results_dir):
+            continue
+        label = _result_root_label(results_dir)
+        jobs.append((label, [results_dir], os.path.join(output_root, label)))
+    return jobs
+
+
+def run_analysis(results_dirs: List[str], output_dir: str, gauge_group: str, label: str) -> bool:
     os.makedirs(output_dir, exist_ok=True)
-    
-    print(f"\n{gauge_group.upper()} Analysis")
+
+    print(f"\n{gauge_group.upper()} Analysis [{label}]")
     print("Results:")
     for results_dir in results_dirs:
         print(f"  {results_dir}")
@@ -108,12 +116,16 @@ def main():
     if runs_open:
         plot_Q_vs_mctime_grid(runs_open, output_dir, gauge_group, "open")
         plot_histograms_grid(runs_open, output_dir, gauge_group, "open")
+
+    all_runs = runs_periodic + runs_open
+    if all_runs:
+        plot_Q_vs_mctime_concatenated(all_runs, output_dir, gauge_group)
+        plot_histograms_concatenated(all_runs, output_dir, gauge_group)
     
     plot_susceptibility_combined(results_periodic, results_open, output_dir, gauge_group)
     plot_tau_int_combined(results_periodic, results_open, output_dir, gauge_group)
     
     # Thermalization comparison plot (plaquette, all runs)
-    all_runs = runs_periodic + runs_open
     if all_runs:
         plot_thermalization_comparison(all_runs, output_dir, gauge_group)
         analyze_action_density(all_runs, output_dir, gauge_group)
@@ -156,6 +168,35 @@ def main():
             plot_timeslice_tauint_cropped(ts_results, ts_runs, output_dir, gauge_group, boundary)
 
     print(f"\nDone! Plots in: {output_dir}")
+    return True
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--su2", action="store_true")
+    parser.add_argument("--su3", action="store_true")
+    parser.add_argument("--results-dir", type=str, action="append", default=None)
+    parser.add_argument("--output-dir", type=str, default=None)
+    args = parser.parse_args()
+
+    gauge_group = "su3" if args.su3 else "su2"
+
+    base_dir = os.path.dirname(script_dir)
+    jobs = _analysis_jobs(base_dir, args)
+
+    if not jobs:
+        print("No result roots found.")
+        return
+
+    finished_outputs = []
+    for label, results_dirs, output_dir in jobs:
+        if run_analysis(results_dirs, output_dir, gauge_group, label):
+            finished_outputs.append(output_dir)
+
+    if len(finished_outputs) > 1:
+        print("\nFinished output folders:")
+        for output_dir in finished_outputs:
+            print(f"  {output_dir}")
 
 
 if __name__ == "__main__":

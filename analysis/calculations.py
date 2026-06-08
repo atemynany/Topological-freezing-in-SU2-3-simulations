@@ -330,6 +330,7 @@ class RunData:
     plaq_data: np.ndarray
     mc_time: np.ndarray
     start_conf: int
+    start_type: str
     exclude_boundary_slices: int
 
 
@@ -510,6 +511,7 @@ def load_run_data(run_dir: str, gauge_group: str = "su2") -> Optional[RunData]:
     T = int(info.get('T', dir_info.get('T', 16)))
     L = int(info.get('L', dir_info.get('L', 16)))
     start_conf = int(info.get('start_conf', 50))
+    start_type = info.get('start_type', dir_info.get('start_type', 'unknown'))
     exclude_boundary_slices = int(info.get('exclude_boundary_slices', 0))
 
     timeslice_file = topcharge_timeslice_file_path(run_dir, gauge_group)
@@ -583,6 +585,7 @@ def load_run_data(run_dir: str, gauge_group: str = "su2") -> Optional[RunData]:
         beta=beta, seed=seed, run_dir=run_dir, T=T, L=L,
         boundary=boundary, Q_raw=Q_raw, Q_rescaled=q_rescaled, alpha=alpha,
         plaq_data=plaq_data, mc_time=mc_time, start_conf=start_conf,
+        start_type=start_type,
         exclude_boundary_slices=exclude_boundary_slices
     )
 

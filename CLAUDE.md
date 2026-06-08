@@ -112,7 +112,7 @@ python3 analysis/analysis.py --su3 --results-dir data/results
 python3 analysis/analysis_per_smear.py --su2 --results-dir data/results
 ```
 
-Requires Python 3 with `numpy`, `matplotlib`, `pyerrors` (Conda env `master_thesis`). Without `--results-dir`, analysis defaults to synced cluster roots `data/results_home` and `data/results_work`. Output goes to `output/figures_analysis/` unless `--output-dir` is set.
+Requires Python 3 with `numpy`, `matplotlib`, `pyerrors` (Conda env `master_thesis`). Without `--results-dir`, analysis defaults to synced cluster roots `data/results_home` and `data/results_work` and writes separate output folders below `output/figures_analysis/`. Output root can be changed with `--output-dir`.
 
 ## Architecture
 
