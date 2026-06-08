@@ -356,29 +356,50 @@ def gaussian(x, mu, sigma, A):
 
 
 def parse_input_file(run_dir: str) -> dict:
-    """Parse input.txt file from a run directory."""
+    """Parse run metadata from local and CL2QCD run files."""
     info = {}
-    input_file = os.path.join(run_dir, "input.txt")
-    if os.path.exists(input_file):
+    metadata_files = [
+        "input.txt",
+        "run_info.txt",
+        "input_su3_topcharge.txt",
+        "input_su3heatbath.txt",
+    ]
+
+    for filename in metadata_files:
+        input_file = os.path.join(run_dir, filename)
+        if not os.path.exists(input_file):
+            continue
         with open(input_file, 'r') as f:
             for line in f:
                 if line.startswith('#') or not line.strip():
                     continue
-                parts = line.split()
-                if len(parts) >= 2:
-                    info[parts[0]] = parts[1]
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    value = value.strip().split()[0] if value.strip() else ""
+                    info[key.strip()] = value
+                else:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        info[parts[0]] = parts[1]
     return info
+
+
+def normalize_boundary(boundary: str) -> str:
+    """Normalize boundary labels used by the local code and CL2QCD scripts."""
+    return "open" if boundary in {"open", "obc"} else boundary
 
 
 def parse_run_dir_metadata(run_dir: str) -> dict:
     """Parse run metadata encoded in directory names."""
     dirname = os.path.basename(run_dir)
     match = re.search(
-        r'T(?P<T>\d+)_L(?P<L>\d+)_b(?P<beta>\d+(?:\.\d+)?)_(?P<boundary>open|periodic)_seed(?P<seed>\d+)',
+        r'T(?P<T>\d+)_L(?P<L>\d+)_b(?P<beta>\d+(?:\.\d+)?)_(?P<boundary>open|obc|periodic)_seed(?P<seed>\d+)',
         dirname,
     )
     if match:
-        return match.groupdict()
+        info = match.groupdict()
+        info["boundary"] = normalize_boundary(info["boundary"])
+        return info
 
     parts = run_dir.split(os.sep)
     qtarget_dir = next((part for part in reversed(parts) if part.startswith("qtarget_")), None)
@@ -386,13 +407,14 @@ def parse_run_dir_metadata(run_dir: str) -> dict:
         return {}
 
     match = re.search(
-        r'qtarget_T(?P<T>\d+)_L(?P<L>\d+)_b(?P<beta>\d+(?:\.\d+)?)_(?P<boundary>open|periodic)_',
+        r'qtarget_T(?P<T>\d+)_L(?P<L>\d+)_b(?P<beta>\d+(?:\.\d+)?)_(?P<boundary>open|obc|periodic)_',
         qtarget_dir,
     )
     if not match:
         return {}
 
     info = match.groupdict()
+    info["boundary"] = normalize_boundary(info["boundary"])
     seed_match = re.search(r'_seed(?P<seed>\d+)$', dirname)
     if seed_match:
         info["seed"] = seed_match.group("seed")
@@ -498,13 +520,22 @@ def load_run_data(run_dir: str, gauge_group: str = "su2") -> Optional[RunData]:
     info = parse_input_file(run_dir)
     dir_info = parse_run_dir_metadata(run_dir)
 
+    if 'nTime' in info and 'T' not in info:
+        info['T'] = info['nTime']
+    if 'nSpace' in info and 'L' not in info:
+        info['L'] = info['nSpace']
+    if 'hostSeed' in info and 'seed' not in info:
+        info['seed'] = info['hostSeed']
+    if info.get('useOpenTemporalGaugeBoundary', '').lower() in {'true', '1'}:
+        info['boundary'] = 'open'
+
     dirname = os.path.basename(run_dir)
-    if '_open_' in dirname:
+    if '_open_' in dirname or '_obc_' in dirname:
         boundary = 'open'
     elif '_periodic_' in dirname:
         boundary = 'periodic'
     else:
-        boundary = info.get('boundary', dir_info.get('boundary', 'periodic'))
+        boundary = normalize_boundary(info.get('boundary', dir_info.get('boundary', 'periodic')))
 
     beta = float(info.get('beta', dir_info.get('beta', 0)))
     seed = int(info.get('seed', dir_info.get('seed', 0)))

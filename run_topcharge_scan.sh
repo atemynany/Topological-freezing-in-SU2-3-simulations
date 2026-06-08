@@ -170,7 +170,7 @@ run_topcharge_beta() {
     # open-boundary default for open runs and the full lattice for periodic runs.
     if [ -n "$EXCLUDE_BC" ]; then
         log_info "[$COUNT/$TOTAL] Preserving exclude_boundary_slices=$EXCLUDE_BC from input.txt"
-    elif [[ "$RUN_NAME" == *"_open_"* ]]; then
+    elif [[ "$RUN_NAME" == *"_open_"* || "$RUN_NAME" == *"_obc_"* ]]; then
         EXCLUDE_BC=${EXCLUDE_BC_OPEN:-2}
         log_info "[$COUNT/$TOTAL] Detected open BC — exclude_boundary_slices=$EXCLUDE_BC"
     else

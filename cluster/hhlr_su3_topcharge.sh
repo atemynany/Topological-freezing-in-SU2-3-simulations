@@ -115,6 +115,79 @@ normalize_boundary() {
     esac
 }
 
+read_heatbath_input_flag() {
+    local run_dir="$1"
+    local input_file
+    input_file=$(read_run_info input_file "$run_dir")
+    input_file=${input_file:-$run_dir/input_su3heatbath.txt}
+
+    [ -f "$input_file" ] || return 0
+    awk -F= '$1 == "useOpenTemporalGaugeBoundary" {gsub(/[[:space:]]/, "", $2); print tolower($2); exit}' "$input_file"
+}
+
+infer_boundary() {
+    local run_dir="$1"
+    local boundary run_name input_flag
+
+    boundary=$(read_run_info boundary "$run_dir")
+    if [ -n "$boundary" ]; then
+        normalize_boundary "$boundary"
+        return
+    fi
+
+    run_name=${run_dir##*/}
+    case "$run_name" in
+        *_open_*|*_obc_*) echo "open"; return ;;
+        *_periodic_*)     echo "periodic"; return ;;
+    esac
+
+    input_flag=$(read_heatbath_input_flag "$run_dir")
+    case "$input_flag" in
+        true|1) echo "open" ;;
+        *)      echo "periodic" ;;
+    esac
+}
+
+validate_open_boundary_run() {
+    local run_dir="$1"
+    local boundary="$2"
+    local exclude_bc="$3"
+    local ntime="$4"
+    local input_flag log_file
+
+    [ "$boundary" = "open" ] || return 0
+
+    if ! [[ "$exclude_bc" =~ ^[0-9]+$ ]]; then
+        echo "Open SU(3) topcharge exclusion must be an integer: $exclude_bc" >&2
+        return 1
+    fi
+    if [ "$exclude_bc" -lt 1 ]; then
+        echo "Open SU(3) topcharge requires EXCLUDE_BOUNDARY_SLICES >= 1" >&2
+        return 1
+    fi
+    if [ $((2 * exclude_bc)) -ge "$ntime" ]; then
+        echo "Open SU(3) topcharge exclusion removes the full temporal extent: T=$ntime, exclude=$exclude_bc" >&2
+        return 1
+    fi
+    if [ "$exclude_bc" -lt 2 ]; then
+        echo "Warning: EXCLUDE_BOUNDARY_SLICES=$exclude_bc is a very thin OBC buffer" >&2
+    fi
+
+    input_flag=$(read_heatbath_input_flag "$run_dir")
+    if [ -z "$input_flag" ]; then
+        echo "Warning: could not verify useOpenTemporalGaugeBoundary in heatbath input for $run_dir" >&2
+    elif [ "$input_flag" != "true" ] && [ "$input_flag" != "1" ]; then
+        echo "Run is marked open, but heatbath input has useOpenTemporalGaugeBoundary=$input_flag" >&2
+        return 1
+    fi
+
+    log_file="$run_dir/heatbath.log"
+    if [ -f "$log_file" ] && ! grep -q "temporal gauge boundary = open" "$log_file"; then
+        echo "Run is marked open, but heatbath.log does not confirm 'temporal gauge boundary = open'" >&2
+        return 1
+    fi
+}
+
 measure_run() {
     local run_dir="$1"
     local config_dir="$run_dir/configs"
@@ -137,10 +210,10 @@ measure_run() {
         return 1
     fi
 
-    local nspace ntime boundary exclude_bc start_conf end_conf conf_step checkpoint_every
+    local nspace ntime boundary exclude_bc run_exclude_bc start_conf end_conf conf_step checkpoint_every
     nspace=$(read_run_info nSpace "$run_dir")
     ntime=$(read_run_info nTime "$run_dir")
-    boundary=$(normalize_boundary "$(read_run_info boundary "$run_dir")")
+    boundary=$(infer_boundary "$run_dir")
 
     nspace=${nspace:-${NSPACE:-16}}
     ntime=${ntime:-${NTIME:-16}}
@@ -159,13 +232,16 @@ measure_run() {
         conf_step=1
     fi
 
+    run_exclude_bc=$(read_run_info excludeBoundarySlices "$run_dir")
     if [ -n "$EXCLUDE_BOUNDARY_SLICES" ]; then
         exclude_bc=$EXCLUDE_BOUNDARY_SLICES
     elif [ "$boundary" = "open" ]; then
-        exclude_bc=2
+        exclude_bc=${run_exclude_bc:-2}
     else
         exclude_bc=0
     fi
+
+    validate_open_boundary_run "$run_dir" "$boundary" "$exclude_bc" "$ntime"
 
     mkdir -p "$output_dir"
 
@@ -197,6 +273,8 @@ EOF_INPUT
     echo "Input file: $input_file"
     echo "Output file: $output_dir/topcharge_su3.dat"
     echo "Binary: $TOPCHARGE_BIN"
+    echo "Boundary: $boundary"
+    echo "Exclude boundary slices: $exclude_bc"
     echo "OMP_NUM_THREADS: $OMP_NUM_THREADS"
 
     "$TOPCHARGE_BIN" -i "$input_file" 2>&1 | tee "$log_file"
@@ -215,6 +293,7 @@ topcharge_end_conf=$end_conf
 topcharge_conf_step=$conf_step
 topcharge_smear_steps=$SMEAR_STEPS
 topcharge_smear_alpha=$SMEAR_ALPHA
+topcharge_boundary=$boundary
 topcharge_exclude_boundary_slices=$exclude_bc
 EOF_INFO
 }
