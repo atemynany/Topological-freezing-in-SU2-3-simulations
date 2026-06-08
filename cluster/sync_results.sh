@@ -16,6 +16,9 @@ set -euo pipefail
 REMOTE="barros@fuchs.hhlr-gu.de"
 REMOTE_HOME_DIR="/home/mesonqcd/barros/SU2_Calc/Topological-freezing-in-SU2-3-simulations/data/results"
 REMOTE_WORK_DIR="/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/data/results"
+REMOTE_WORK_EXTRA_DAT_FILES=(
+  "qtarget_T80_L80_b3.15_periodic_20260527_145728_su2/hot_list_-2to-1to0to1to2/output/topcharge.dat"
+)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -53,5 +56,27 @@ sync_dat_results_dir() {
     "$local_dir/"
 }
 
+sync_extra_dat_files() {
+  local remote_dir="$1"
+  local local_dir="$2"
+  local label="$3"
+  shift 3
+
+  if [ "$#" -eq 0 ]; then
+    return 0
+  fi
+
+  echo "Syncing explicit $label .dat files:"
+  for relative_file in "$@"; do
+    mkdir -p "$local_dir/$(dirname "$relative_file")"
+    echo "  $REMOTE:$remote_dir/$relative_file -> $local_dir/$relative_file"
+    rsync -av \
+      $RSYNC_EXISTING_FLAG \
+      "$REMOTE:$remote_dir/$relative_file" \
+      "$local_dir/$relative_file"
+  done
+}
+
 sync_dat_results_dir "$REMOTE_HOME_DIR" "$LOCAL_HOME_DIR" "home"
 sync_dat_results_dir "$REMOTE_WORK_DIR" "$LOCAL_WORK_DIR" "work"
+sync_extra_dat_files "$REMOTE_WORK_DIR" "$LOCAL_WORK_DIR" "work" "${REMOTE_WORK_EXTRA_DAT_FILES[@]}"

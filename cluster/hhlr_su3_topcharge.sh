@@ -210,7 +210,7 @@ measure_run() {
         return 1
     fi
 
-    local nspace ntime boundary exclude_bc start_conf end_conf conf_step checkpoint_every
+    local nspace ntime boundary exclude_bc run_exclude_bc start_conf end_conf conf_step checkpoint_every
     nspace=$(read_run_info nSpace "$run_dir")
     ntime=$(read_run_info nTime "$run_dir")
     boundary=$(infer_boundary "$run_dir")
@@ -232,10 +232,11 @@ measure_run() {
         conf_step=1
     fi
 
+    run_exclude_bc=$(read_run_info excludeBoundarySlices "$run_dir")
     if [ -n "$EXCLUDE_BOUNDARY_SLICES" ]; then
         exclude_bc=$EXCLUDE_BOUNDARY_SLICES
     elif [ "$boundary" = "open" ]; then
-        exclude_bc=2
+        exclude_bc=${run_exclude_bc:-2}
     else
         exclude_bc=0
     fi

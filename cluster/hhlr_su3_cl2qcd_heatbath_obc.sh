@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=mesonqcd
-#SBATCH --job-name=su3_E_pbc_b680
+#SBATCH --job-name=su3_E_obc_b680
 #SBATCH --partition=general2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -8,15 +8,15 @@
 #SBATCH --mem=0
 #SBATCH --time=14-00:00:00
 #SBATCH --array=0-3
-#SBATCH --output=/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs/su3_E_pbc_b680_%A_%a.out
-#SBATCH --error=/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs/su3_E_pbc_b680_%A_%a.err
+#SBATCH --output=/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs/su3_E_obc_b680_%A_%a.out
+#SBATCH --error=/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/logs/su3_E_obc_b680_%A_%a.err
 
 set -euo pipefail
 
-# Pure-gauge SU(3) CL2QCD heatbath setup for ensemble E(PBC):
-#   beta=6.80, a=0.0307 fm, lattice=40^3 x 80
+# Pure-gauge SU(3) CL2QCD heatbath setup for ensemble E(OBC):
+#   beta=6.80, a=0.0307 fm, lattice=40^3 x 140
 #   N_sim=4, N_total=80000, N_or=15, N_therm=40000,
-#   N_sep=100, N_meas=400.
+#   N_sep=100, N_meas=400, exclude=30 time slices per side.
 #
 # Important: this wrapper deliberately does not use CL2QCD's
 # nThermalizationSteps loop. That loop measures gauge observables every
@@ -28,10 +28,10 @@ set -euo pipefail
 #   2. production: continue from that checkpoint, save/measure every N_sep.
 #
 # Submit with:
-#   sbatch cluster/hhlr_su3_cl2qcd_heatbath.sh
+#   sbatch cluster/hhlr_su3_cl2qcd_heatbath_obc.sh
 #
 # Override parameters with:
-#   sbatch --export=ALL,NAME=value cluster/hhlr_su3_cl2qcd_heatbath.sh
+#   sbatch --export=ALL,NAME=value cluster/hhlr_su3_cl2qcd_heatbath_obc.sh
 
 module purge
 
@@ -41,16 +41,17 @@ CL2QCD_BIN=${CL2QCD_BIN:-$CL2QCD_DIR/build/su3heatbath}
 RESULTS_ROOT=${RESULTS_ROOT:-$PROJECT_DIR/data/results_su3_ensembles}
 LOG_DIR=$PROJECT_DIR/logs
 
-ENSEMBLE_LABEL=${ENSEMBLE_LABEL:-E_PBC_b6p80_L40_T80}
+ENSEMBLE_LABEL=${ENSEMBLE_LABEL:-E_OBC_b6p80_L40_T140}
 N_SIM=${N_SIM:-4}
 STREAM_ID=${SLURM_ARRAY_TASK_ID:-${STREAM_ID:-0}}
 
 NSPACE=${NSPACE:-40}
-NTIME=${NTIME:-80}
+NTIME=${NTIME:-140}
 BETA=${BETA:-6.80}
 LATTICE_SPACING_FM=${LATTICE_SPACING_FM:-0.0307}
 START_CONDITION=${START_CONDITION:-hot}
-USE_OPEN_TEMPORAL_GAUGE_BOUNDARY=${USE_OPEN_TEMPORAL_GAUGE_BOUNDARY:-false}
+USE_OPEN_TEMPORAL_GAUGE_BOUNDARY=${USE_OPEN_TEMPORAL_GAUGE_BOUNDARY:-true}
+EXCLUDE_BOUNDARY_SLICES=${EXCLUDE_BOUNDARY_SLICES:-30}
 
 N_TOTAL=${N_TOTAL:-80000}
 N_THERM_TOTAL=${N_THERM_TOTAL:-40000}
@@ -96,6 +97,18 @@ if [ $((N_TOTAL % N_SIM)) -ne 0 ]; then
 fi
 if [ $((N_THERM_TOTAL % N_SIM)) -ne 0 ]; then
     echo "N_THERM_TOTAL=$N_THERM_TOTAL must be divisible by N_SIM=$N_SIM" >&2
+    exit 1
+fi
+if ! [[ "$EXCLUDE_BOUNDARY_SLICES" =~ ^[0-9]+$ ]]; then
+    echo "EXCLUDE_BOUNDARY_SLICES must be a non-negative integer, got: $EXCLUDE_BOUNDARY_SLICES" >&2
+    exit 1
+fi
+if [ "$EXCLUDE_BOUNDARY_SLICES" -lt 1 ]; then
+    echo "EXCLUDE_BOUNDARY_SLICES must be positive for open boundaries" >&2
+    exit 1
+fi
+if [ $((2 * EXCLUDE_BOUNDARY_SLICES)) -ge "$NTIME" ]; then
+    echo "EXCLUDE_BOUNDARY_SLICES=$EXCLUDE_BOUNDARY_SLICES removes the full temporal extent T=$NTIME" >&2
     exit 1
 fi
 
@@ -152,6 +165,10 @@ BOUNDARY_LABEL=open
 if [ "$USE_OPEN_TEMPORAL_GAUGE_BOUNDARY" != "true" ] && [ "$USE_OPEN_TEMPORAL_GAUGE_BOUNDARY" != "1" ]; then
     BOUNDARY_LABEL=periodic
 fi
+if [ "$BOUNDARY_LABEL" != "open" ]; then
+    echo "This OBC setup requires USE_OPEN_TEMPORAL_GAUGE_BOUNDARY=true" >&2
+    exit 1
+fi
 
 RUN_LABEL=${RUN_LABEL:-T${NTIME}_L${NSPACE}_b${BETA}_${BOUNDARY_LABEL}_seed${HOST_SEED}_stream${STREAM_ID}_su3_cl2qcd}
 RUN_DIR=$RESULTS_ROOT/$RUN_LABEL
@@ -190,6 +207,7 @@ write_input_file() {
 # Ensemble: $ENSEMBLE_LABEL
 # Stream: $STREAM_ID / $N_SIM
 # Phase: $phase
+# Topcharge boundary exclusion per side: $EXCLUDE_BOUNDARY_SLICES
 # CL2QCD thermalization is disabled intentionally; warmup uses normal heatbath generation.
 
 nSpace=$NSPACE
@@ -292,6 +310,7 @@ nSpace=$NSPACE
 nTime=$NTIME
 beta=$BETA
 boundary=$BOUNDARY_LABEL
+excludeBoundarySlices=$EXCLUDE_BOUNDARY_SLICES
 hostSeed=$HOST_SEED
 startCondition=$START_CONDITION
 thermalizationMode=normal_heatbath_warmup_no_cl2qcd_thermalize
@@ -315,6 +334,7 @@ echo "Warmup input file: $WARMUP_INPUT_FILE"
 echo "Production input file: $PRODUCTION_INPUT_FILE"
 echo "Binary: $CL2QCD_BIN"
 echo "Boundary: $BOUNDARY_LABEL"
+echo "Exclude boundary slices per side: $EXCLUDE_BOUNDARY_SLICES"
 echo "Ensemble: $ENSEMBLE_LABEL"
 echo "Stream: $STREAM_ID / $N_SIM"
 echo "Per-stream total sweeps: $N_TOTAL_PER_STREAM"

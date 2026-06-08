@@ -5,7 +5,7 @@
 #SBATCH --qos=fuchs
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=20
+#SBATCH --cpus-per-task=40
 #SBATCH --mem=0
 #SBATCH --time=48:00:00
 #SBATCH --output=logs/action_density_T160_L80_%j.out
@@ -16,7 +16,7 @@ set -euo pipefail
 cd /work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations
 mkdir -p logs
 
-export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-20}"
+export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-40}"
 export OMP_PROC_BIND=spread
 export OMP_PLACES=cores
 
