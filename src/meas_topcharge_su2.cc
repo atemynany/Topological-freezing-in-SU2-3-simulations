@@ -81,7 +81,7 @@ struct SimulationParams {
     double smear_alpha;            // APE smearing parameter
     int seed;                      // Random seed
     std::string boundary;          // Boundary conditions: "periodic" or "open"
-    int exclude_boundary_slices;   // Time slices to exclude from each boundary (for open BC)
+    int exclude_boundary_slices;   // Time slices to exclude from each temporal end
     
     // MC parameters (read but not used here, for unified file)
     int num_sweeps;
@@ -198,6 +198,10 @@ bool validate_params(const SimulationParams &params) {
         std::cerr << "Error: start_conf > end_conf" << std::endl;
         return false;
     }
+    if (params.exclude_boundary_slices < 0 || 2 * params.exclude_boundary_slices >= params.T) {
+        std::cerr << "Error: exclude_boundary_slices must leave at least one temporal slice" << std::endl;
+        return false;
+    }
     if (params.smear_alpha < 0.0 || params.smear_alpha > 1.0) {
         std::cerr << "Warning: smear_alpha=" << params.smear_alpha << " outside typical range [0, 1]" << std::endl;
     }
@@ -221,7 +225,7 @@ void print_params(const SimulationParams &params) {
     std::cout << "Smearing output interval:" << params.smear_interval << std::endl;
     std::cout << "Smearing alpha:          " << params.smear_alpha << std::endl;
     std::cout << "Boundary conditions:     " << params.boundary << std::endl;
-    if (params.boundary == "open" && params.exclude_boundary_slices > 0) {
+    if (params.exclude_boundary_slices > 0) {
         std::cout << "Exclude boundary slices: " << params.exclude_boundary_slices << " (from each end)" << std::endl;
     }
     std::cout << "========================================" << std::endl;
@@ -334,10 +338,10 @@ int main(int argc, char *argv[]) {
             APE_Smearing_all(smeared_gauge_field, T, L, params.smear_alpha);
         }
         
-        // Compute topological charge at final smearing
-        // Use boundary-excluded version for open BC if exclude_boundary_slices > 0
+        // Compute topological charge at final smearing. A positive temporal
+        // exclusion means this is a subvolume charge, even with periodic links.
         double Q;
-        if (params.boundary == "open" && params.exclude_boundary_slices > 0) {
+        if (params.exclude_boundary_slices > 0) {
             Q = compute_topological_charge_open(smeared_gauge_field, T, L, params.exclude_boundary_slices);
         } else {
             Q = compute_topological_charge(smeared_gauge_field, T, L);
@@ -356,9 +360,9 @@ int main(int argc, char *argv[]) {
         // Compute and output topological charge density per timeslice q(t)
         // q(t) = (1/4pi^2) * sum_{x,y,z} q_local(t,x,y,z)
         {
-            const int t_min = (params.boundary == "open" && params.exclude_boundary_slices > 0)
+            const int t_min = (params.exclude_boundary_slices > 0)
                               ? params.exclude_boundary_slices : 0;
-            const int t_max = (params.boundary == "open" && params.exclude_boundary_slices > 0)
+            const int t_max = (params.exclude_boundary_slices > 0)
                               ? params.T - params.exclude_boundary_slices : params.T;
             const int t_count = t_max - t_min;
 

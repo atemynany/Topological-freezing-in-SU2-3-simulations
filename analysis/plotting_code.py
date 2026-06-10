@@ -29,6 +29,41 @@ def _smooth(y: np.ndarray, window: int = None) -> np.ndarray:
     return np.convolve(y, np.ones(w) / w, mode='same')
 
 
+def _is_qtarget_run(run_data: RunData) -> bool:
+    return os.path.basename(run_data.run_dir).startswith("qtarget_")
+
+
+def _concat_groups(runs: List[RunData]) -> list[tuple[tuple, list[RunData]]]:
+    """Group normal runs whose independent seeds should be concatenated."""
+    groups = {}
+    for run_data in runs:
+        if _is_qtarget_run(run_data):
+            continue
+        key = (
+            run_data.beta,
+            run_data.T,
+            run_data.L,
+            run_data.boundary,
+            run_data.exclude_boundary_slices,
+        )
+        groups.setdefault(key, []).append(run_data)
+
+    return [
+        (key, sorted(group, key=lambda x: x.seed))
+        for key, group in sorted(groups.items(), key=lambda item: (item[0][0], item[0][3], item[0][1], item[0][2]))
+    ]
+
+
+def _concat_label(key: tuple, group: List[RunData], gauge_group: str) -> str:
+    beta, T, L, boundary, exclude = key
+    spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+    title = f'$a = {spacing(beta):.4f}$ fm, {boundary}, {T}x{L}^3'
+    if exclude > 0:
+        title += f', cut {exclude}'
+    title += '\n' + f'{len(group)} seed' + ('' if len(group) == 1 else 's')
+    return title
+
+
 def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str, boundary: str):
     """Plot Q vs MC time grid for one boundary type."""
     n = len(runs)
@@ -45,10 +80,14 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
 
     sorted_runs = sorted(runs, key=lambda x: x.beta)
 
-    # Global y-range across all runs so panels are comparable.
-    # Use floor/ceil (not int, which truncates toward zero and clips negative open-BC values).
-    raw_min = min(r.Q_rescaled.min() for r in sorted_runs)
-    raw_max = max(r.Q_rescaled.max() for r in sorted_runs)
+    # Global y-range across production runs so panels are comparable. qtarget
+    # diagnostic runs can have intentionally extreme Q values and should not
+    # flatten ordinary ensembles into an apparently integer-valued line.
+    range_runs = [r for r in sorted_runs if not os.path.basename(r.run_dir).startswith("qtarget_")]
+    if not range_runs:
+        range_runs = sorted_runs
+    raw_min = min(r.Q_rescaled.min() for r in range_runs)
+    raw_max = max(r.Q_rescaled.max() for r in range_runs)
     global_min = int(np.floor(raw_min))
     global_max = int(np.ceil(raw_max))
     pad = 0.5
@@ -58,17 +97,24 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
 
         Q = run_data.Q_rescaled
         mc_time = np.arange(len(Q))
+        panel_min, panel_max = global_min, global_max
+        if Q.min() < global_min or Q.max() > global_max:
+            panel_min = int(np.floor(Q.min()))
+            panel_max = int(np.ceil(Q.max()))
 
         ax.plot(mc_time, Q.astype(float), color='steelblue', lw=0.8, alpha=0.25, zorder=2)
         ax.scatter(mc_time, Q, s=3, color='steelblue', alpha=0.8, zorder=3)
 
-        for q_int in range(global_min, global_max + 1):
+        for q_int in range(panel_min, panel_max + 1):
             ax.axhline(y=q_int, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)
 
-        ax.set_ylim(global_min - pad, global_max + pad)
+        ax.set_ylim(panel_min - pad, panel_max + pad)
 
         a = lattice_spacing(run_data.beta)
-        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        title = f'$a = {a:.4f}$ fm'
+        if run_data.exclude_boundary_slices > 0:
+            title += f', cut {run_data.exclude_boundary_slices}'
+        ax.set_title(title, fontsize=10)
         ax.set_xlabel('MC time', fontsize=9)
         ax.set_ylabel(r'$Q_{\rm re}$', fontsize=9)
         ax.tick_params(labelsize=8)
@@ -80,6 +126,58 @@ def plot_Q_vs_mctime_grid(runs: List[RunData], output_dir: str, gauge_group: str
 
     plt.tight_layout()
     filepath = os.path.join(output_dir, f"Q_vs_mctime_{gauge_group}_{boundary}.png")
+    plt.savefig(filepath, dpi=200)
+    plt.close()
+    print(f"Saved: {os.path.basename(filepath)}")
+
+
+def plot_Q_vs_mctime_concatenated(runs: List[RunData], output_dir: str, gauge_group: str):
+    """Plot Q vs MC sample after concatenating independent normal-run seeds."""
+    groups = _concat_groups(runs)
+    if not groups:
+        return
+
+    n = len(groups)
+    n_cols = 2 if n >= 2 else 1
+    n_rows = (n + n_cols - 1) // n_cols
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7 * n_cols, 3 * n_rows))
+    axes = np.array(axes).flatten()
+
+    pad = 0.5
+
+    for idx, (key, group) in enumerate(groups):
+        ax = axes[idx]
+        q_concat = np.concatenate([run.Q_rescaled.astype(float) for run in group])
+        x = np.arange(len(q_concat))
+
+        panel_min = int(np.floor(q_concat.min()))
+        panel_max = int(np.ceil(q_concat.max()))
+
+        ax.plot(x, q_concat, color='steelblue', lw=0.8, alpha=0.3, zorder=2)
+        ax.scatter(x, q_concat, s=4, color='steelblue', alpha=0.8, zorder=3)
+
+        offset = 0
+        for run_data in group[:-1]:
+            offset += len(run_data.Q_rescaled)
+            ax.axvline(offset - 0.5, color='black', linestyle=':', linewidth=1.0, alpha=0.65)
+
+        for q_int in range(panel_min, panel_max + 1):
+            ax.axhline(y=q_int, color='gray', linestyle='--', linewidth=0.5, alpha=0.45)
+
+        ax.set_ylim(panel_min - pad, panel_max + pad)
+        ax.set_title(_concat_label(key, group, gauge_group), fontsize=10)
+        ax.set_xlabel('MC sample (concatenated seeds)', fontsize=9)
+        ax.set_ylabel(r'$Q_{\rm re}$', fontsize=9)
+        ax.tick_params(labelsize=8)
+        ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
+                fontsize=11, va='top', ha='left')
+
+    for j in range(n, len(axes)):
+        axes[j].set_visible(False)
+
+    plt.tight_layout()
+    filepath = os.path.join(output_dir, f"Q_vs_mctime_concatenated_{gauge_group}.png")
     plt.savefig(filepath, dpi=200)
     plt.close()
     print(f"Saved: {os.path.basename(filepath)}")
@@ -106,65 +204,92 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
 
     sorted_runs = sorted(runs, key=lambda x: x.beta)
 
-    # Global x-range across all runs so panels are comparable.
-    # For periodic, Q_rescaled is already rounded; for open, Q_rescaled is continuous.
-    # Include the unrounded alpha*Q_raw in the range so rug lines are never clipped.
-    q_mins = [min(r.Q_rescaled.min(), (r.alpha * r.Q_raw).min()) for r in sorted_runs]
-    q_maxs = [max(r.Q_rescaled.max(), (r.alpha * r.Q_raw).max()) for r in sorted_runs]
-    global_min = int(np.floor(min(q_mins))) - 1
-    global_max = int(np.ceil(max(q_maxs))) + 1
+    # Keep the shared range representative of production ensembles. qtarget
+    # diagnostic runs can have intentionally extreme Q values and should not
+    # compress every ordinary panel into a thin line around Q=0.
+    range_runs = [r for r in sorted_runs if not os.path.basename(r.run_dir).startswith("qtarget_")]
+    if not range_runs:
+        range_runs = sorted_runs
 
-    int_bins  = np.arange(global_min - 0.5, global_max + 1.5, 1)   # periodic
-    fine_bins = np.linspace(global_min - 0.5, global_max + 0.5, 40)  # open
+    def q_values_for_plot(run_data: RunData) -> np.ndarray:
+        return run_data.Q_rescaled.astype(float)
+
+    q_mins = [q_values_for_plot(r).min() for r in range_runs]
+    q_maxs = [q_values_for_plot(r).max() for r in range_runs]
+    shared_min = int(np.floor(min(q_mins))) - 1
+    shared_max = int(np.ceil(max(q_maxs))) + 1
+
+    have_rounded_label = False
+    have_continuous_label = False
+    have_fit_label = False
 
     for idx, run_data in enumerate(sorted_runs):
         row, col = idx // n_cols, idx % n_cols
         ax = axes[row, col]
 
         Q_cont = run_data.alpha * run_data.Q_raw
+        continuous_q = (run_data.boundary == 'open') or (getattr(run_data, "exclude_boundary_slices", 0) > 0)
+        Q_plot = q_values_for_plot(run_data)
+        panel_min, panel_max = shared_min, shared_max
+        if Q_plot.min() < shared_min or Q_plot.max() > shared_max:
+            panel_min = int(np.floor(Q_plot.min())) - 1
+            panel_max = int(np.ceil(Q_plot.max())) + 1
 
-        if boundary == 'periodic':
+        int_bins = np.arange(panel_min - 0.5, panel_max + 1.5, 1)
+        fine_bins = np.linspace(panel_min - 0.5, panel_max + 0.5, 40)
+
+        if not continuous_q:
             Q_rounded = run_data.Q_rescaled
-            rounded_label = r'$Q_{\rm rounded}$' if idx == 0 else None
+            rounded_label = None if have_rounded_label else r'$Q_{\rm rounded}$'
+            have_rounded_label = True
             counts, bin_edges, _ = ax.hist(Q_rounded, bins=int_bins, density=False,
                 color='steelblue', edgecolor='steelblue', linewidth=0.5, alpha=0.3,
                 label=rounded_label)
 
-            # Fine-binned histogram of unrounded alpha*Q_raw — same style as open
-            cont_label = r'$\alpha \hat{Q}$ (unrounded)' if idx == 0 else None
-            ax.hist(Q_cont, bins=fine_bins, density=False,
-                color='steelblue', edgecolor='steelblue', linewidth=1.2, alpha=0.7,
-                label=cont_label)
+            # Show unrounded alpha*Q_raw as rug ticks. A second count histogram
+            # with different bin widths would put incompatible quantities on the
+            # same y-axis and distort the apparent Gaussian fit.
+            cont_label = None if have_continuous_label else r'$\alpha \hat{Q}$ (unrounded)'
+            have_continuous_label = True
+            ax.plot(Q_cont, np.full_like(Q_cont, 0.02), '|', color='steelblue',
+                    alpha=0.45, markersize=4, transform=ax.get_xaxis_transform(),
+                    label=cont_label)
 
             bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            fit_x_min, fit_x_max = global_min - 1, global_max + 1
+            fit_x_min, fit_x_max = panel_min - 1, panel_max + 1
             fit_Q_for_mean = Q_rounded
-        else:  # open — continuous Q, no rounding
-            cont_label = r'$\alpha \hat{Q}$' if idx == 0 else None
-            counts, bin_edges, _ = ax.hist(Q_cont, bins=fine_bins, density=False,
+        else:  # continuous Q, no rounding (open BC or temporal subvolume)
+            cont_label = None if have_continuous_label else r'$\alpha \hat{Q}$'
+            have_continuous_label = True
+            counts, bin_edges, _ = ax.hist(Q_plot, bins=fine_bins, density=False,
                 color='steelblue', edgecolor='steelblue', linewidth=1.2, alpha=0.7,
                 label=cont_label)
 
             bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            fit_x_min, fit_x_max = global_min - 1, global_max + 1
-            fit_Q_for_mean = Q_cont
+            fit_x_min, fit_x_max = panel_min - 1, panel_max + 1
+            fit_Q_for_mean = Q_plot
 
         try:
             sigma0 = max(np.std(fit_Q_for_mean), 0.5)
-            if np.sum(counts > 0) >= 3 and sigma0 > 0.1:
+            occupied_bins = np.sum(counts > 0)
+            if len(fit_Q_for_mean) >= 20 and occupied_bins >= 3 and sigma0 > 0.1:
                 popt, _ = curve_fit(gaussian, bin_centers, counts,
                     p0=[np.mean(fit_Q_for_mean), sigma0, counts.max()],
                     bounds=([-np.inf, 0.1, 0], [np.inf, np.inf, np.inf]))
                 x_fit = np.linspace(fit_x_min, fit_x_max, 200)
-                fit_label = 'Gaussian fit' if idx == 0 else None
+                fit_label = None if have_fit_label else 'Gaussian fit'
+                have_fit_label = True
                 ax.plot(x_fit, gaussian(x_fit, *popt), 'r-', linewidth=1.5, label=fit_label)
         except:
             pass
 
-        ax.set_xlim(global_min - 0.5, global_max + 0.5)
+        ax.set_xlim(panel_min - 0.5, panel_max + 0.5)
 
         a = lattice_spacing(run_data.beta)
-        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        title = f'$a = {a:.4f}$ fm'
+        if run_data.exclude_boundary_slices > 0:
+            title += f', cut {run_data.exclude_boundary_slices}'
+        ax.set_title(title, fontsize=10)
         ax.set_xlabel(r'$Q$', fontsize=9)
         ax.set_ylabel(r'$N$', fontsize=9)
         ax.tick_params(labelsize=8)
@@ -178,12 +303,111 @@ def plot_histograms_grid(runs: List[RunData], output_dir: str, gauge_group: str,
         row, col = idx // n_cols, idx % n_cols
         axes[row, col].set_visible(False)
     
-    handles, labels = axes[0, 0].get_legend_handles_labels()
+    handles, labels = [], []
+    for ax in axes.flatten():
+        ax_handles, ax_labels = ax.get_legend_handles_labels()
+        for handle, label in zip(ax_handles, ax_labels):
+            if label and label not in labels:
+                handles.append(handle)
+                labels.append(label)
     if handles:
-        fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.78, 0.98), frameon=False, fontsize=10)
+        fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.78, 0.98),
+                   frameon=False, fontsize=10)
     
     plt.tight_layout(rect=[0, 0, 0.77, 1])
     filepath = os.path.join(output_dir, f"histograms_{gauge_group}_{boundary}.png")
+    plt.savefig(filepath, dpi=200)
+    plt.close()
+    print(f"Saved: {os.path.basename(filepath)}")
+
+
+def plot_histograms_concatenated(runs: List[RunData], output_dir: str, gauge_group: str):
+    """Plot histograms after concatenating independent normal-run seeds."""
+    groups = _concat_groups(runs)
+    if not groups:
+        return
+
+    n = len(groups)
+    n_cols = min(3, n)
+    n_rows = (n + n_cols - 1) // n_cols
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4*n_cols, 3.5*n_rows))
+    if n == 1:
+        axes = np.array([[axes]])
+    elif n_rows == 1:
+        axes = axes.reshape(1, -1)
+    elif n_cols == 1:
+        axes = axes.reshape(-1, 1)
+
+    q_arrays = [np.concatenate([run.Q_rescaled.astype(float) for run in group])
+                for _, group in groups]
+
+    have_fit_label = False
+    have_q_label = False
+
+    for idx, ((key, group), q_concat) in enumerate(zip(groups, q_arrays)):
+        row, col = idx // n_cols, idx % n_cols
+        ax = axes[row, col]
+
+        boundary = key[3]
+        exclude = key[4]
+        continuous_q = (boundary == 'open') or (exclude > 0)
+
+        panel_min = int(np.floor(q_concat.min())) - 1
+        panel_max = int(np.ceil(q_concat.max())) + 1
+
+        if continuous_q:
+            bins = np.linspace(panel_min - 0.5, panel_max + 0.5, 40)
+            q_label = None if have_q_label else r'concatenated $\alpha \hat{Q}$'
+        else:
+            bins = np.arange(panel_min - 0.5, panel_max + 1.5, 1)
+            q_label = None if have_q_label else r'concatenated $Q_{\rm rounded}$'
+        have_q_label = True
+
+        counts, bin_edges, _ = ax.hist(q_concat, bins=bins, density=False,
+            color='steelblue', edgecolor='steelblue', linewidth=0.7,
+            alpha=0.45 if not continuous_q else 0.7, label=q_label)
+
+        try:
+            sigma0 = max(np.std(q_concat), 0.5)
+            occupied_bins = np.sum(counts > 0)
+            if len(q_concat) >= 20 and occupied_bins >= 3 and sigma0 > 0.1:
+                bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+                popt, _ = curve_fit(gaussian, bin_centers, counts,
+                    p0=[np.mean(q_concat), sigma0, counts.max()],
+                    bounds=([-np.inf, 0.1, 0], [np.inf, np.inf, np.inf]))
+                x_fit = np.linspace(panel_min - 1, panel_max + 1, 200)
+                fit_label = None if have_fit_label else 'Gaussian fit'
+                have_fit_label = True
+                ax.plot(x_fit, gaussian(x_fit, *popt), 'r-', linewidth=1.5, label=fit_label)
+        except Exception:
+            pass
+
+        ax.set_xlim(panel_min - 0.5, panel_max + 0.5)
+        ax.set_title(_concat_label(key, group, gauge_group), fontsize=10)
+        ax.set_xlabel(r'$Q$', fontsize=9)
+        ax.set_ylabel(r'$N$', fontsize=9)
+        ax.tick_params(labelsize=8)
+        ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
+                fontsize=11, va='top', ha='left')
+
+    for idx in range(n, n_rows * n_cols):
+        row, col = idx // n_cols, idx % n_cols
+        axes[row, col].set_visible(False)
+
+    handles, labels = [], []
+    for ax in axes.flatten():
+        ax_handles, ax_labels = ax.get_legend_handles_labels()
+        for handle, label in zip(ax_handles, ax_labels):
+            if label and label not in labels:
+                handles.append(handle)
+                labels.append(label)
+    if handles:
+        fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.78, 0.98),
+                   frameon=False, fontsize=10)
+
+    plt.tight_layout(rect=[0, 0, 0.77, 1])
+    filepath = os.path.join(output_dir, f"histograms_concatenated_{gauge_group}.png")
     plt.savefig(filepath, dpi=200)
     plt.close()
     print(f"Saved: {os.path.basename(filepath)}")
@@ -230,7 +454,9 @@ def plot_susceptibility_combined(results_periodic: List[AnalysisResult],
     
     ax.set_xlabel(r'$a$ (fm)')
     ax.set_ylabel(r'$\chi_t^{1/4}$ (MeV)')
-    ax.legend(frameon=False)
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend(handles, labels, frameon=False)
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()

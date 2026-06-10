@@ -2,12 +2,13 @@
 """
 Topological charge density analysis per time slice.
 
-Loads topcharge_timeslice.dat produced by meas_topcharge_su2,
+Loads topcharge_timeslice.dat produced by the SU(2), SU(3), and fused
+topcharge measurement binaries,
 optionally bins over n_bin consecutive time slices to reduce noise
 (useful when the spatial volume is small), computes errors via the
 Gamma method (pyerrors), and plots q(t) vs physical time.
 
-File format expected (written by meas_topcharge_su2.cc):
+File format expected:
   # smear_steps  config_number  t  q_t
   40  100  0  0.00123456
   ...
@@ -382,7 +383,7 @@ def plot_timeslice_density_grid(ts_results: list, runs: list, output_dir: str,
 
     for idx, (res, run_data) in enumerate(pairs):
         ax = axes[idx]
-        open_bc = run_data.boundary == "open"
+        open_bc = run_data.boundary == "open" or getattr(run_data, "exclude_boundary_slices", 0) > 0
         a = lattice_spacing(run_data.beta)
 
         t_latt = res["t_centres_latt"]
@@ -764,7 +765,7 @@ def plot_timeslice_susceptibility_grid(ts_results: list, runs: list, output_dir:
         ax.errorbar(x_plot, chi_fourth, yerr=chi_fourth_err, fmt='o', capsize=3,
                     color='steelblue', zorder=3, label=r'$\tilde{\chi}(t)^{1/4}$')
 
-        open_bc = run_data.boundary == "open"
+        open_bc = run_data.boundary == "open" or getattr(run_data, "exclude_boundary_slices", 0) > 0
         if open_bc:
             ax.axvspan(-0.5, x_plot[0], alpha=0.10, color='grey')
             ax.axvspan(x_plot[-1], run_data.T - 0.5, alpha=0.10, color='grey')
@@ -822,7 +823,7 @@ def plot_timeslice_tauint_grid(ts_results: list, runs: list, output_dir: str,
         ax.errorbar(x_plot, tau, yerr=dtau, fmt='s', capsize=3,
                     color='tomato', zorder=3, label=r'$\tau_{\mathrm{int}}$')
 
-        open_bc = run_data.boundary == "open"
+        open_bc = run_data.boundary == "open" or getattr(run_data, "exclude_boundary_slices", 0) > 0
         if open_bc:
             ax.axvspan(-0.5, x_plot[0], alpha=0.10, color='grey')
             ax.axvspan(x_plot[-1], run_data.T - 0.5, alpha=0.10, color='grey')

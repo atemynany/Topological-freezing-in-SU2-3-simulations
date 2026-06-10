@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 ./scripts/build.sh release          # Release build (O3, fast-math)
+./scripts/build.sh release --march=x86-64  # Optional architecture override
 ./scripts/build.sh debug            # Debug build
 ```
 
@@ -47,15 +48,18 @@ Two-phase workflow: heatbath (config generation) then topological charge measure
 
 Input files live in three subdirs of `input/`:
 
-- `input/heatbath_input/` — two-phase pipeline setups (`setup_*_su{2,3}_finished.txt`) and topcharge params (`topcharge_params_su{2,3}.txt`); the fused pipeline also reads `topcharge_params_su2.txt` from here
-- `input/heatbath_topcharge_input/` — fused SU(2) pipeline setups (`setup_*_su2.txt`)
+- `input/heatbath_input/` — active two-phase setup files must match `setup_*_su2.txt` or `setup_*_su3.txt`; `_finished.txt` files are archived/parked and are not discovered by the scan glob. Topcharge params live here as `topcharge_params_su{2,3}.txt`, with `_finished.txt` fallback.
+- `input/heatbath_topcharge_input/` — active fused SU(2) setup files must match `setup_*_su2.txt`; `_finished.txt` files are parked
 - `input/tests_input/` — smoke-test setups for the fused binary
 
-The topcharge scan auto-detects periodic vs open BC from the run directory name and sets `exclude_boundary_slices` accordingly.
+The topcharge scan auto-detects periodic vs open BC from the run directory name,
+but preserves an explicit `exclude_boundary_slices` in `input.txt`. A periodic
+run with `exclude_boundary_slices > 0` is a temporal-subvolume measurement and
+must be analyzed with continuous αQ, not integer-rounded Q.
 
 ### Fused SU(2) pipeline (in-memory, no configs on disk)
 
-`heatbath_topcharge_su2` runs heatbath and measures Q on an APE-smeared scratch copy at every `save_interval`. Only `plaquette.dat`, `topcharge.dat`, `topcharge_timeslice.dat` are written — the gauge field never hits disk. Merges `setup_*_su2.txt` with `topcharge_params_su2.txt` automatically.
+`heatbath_topcharge_su2` runs heatbath and measures Q on an APE-smeared scratch copy at every `save_interval`. It writes `plaquette.dat`, `action_density.dat`, `topcharge.dat`, and `topcharge_timeslice.dat` — the gauge field never hits disk. Merges `setup_*_su2.txt` with `topcharge_params_su2.txt` automatically.
 
 ```bash
 ./run_heatbath_topcharge_scan.sh                 # all setup_*_su2.txt
@@ -68,18 +72,27 @@ Cluster: `cluster/fuchs_heatbath_topcharge.sh`, `cluster/hhlr_heatbath_topcharge
 
 Source: `src/heatbath_topcharge_su2.cc`. SU(3) fused variant not implemented.
 
-## Cluster (Fuchs HPC)
+## Cluster
 
 Cluster: `fuchs.hhlr-gu.de`, user `barros`, project dir `/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/`
 
+Fuchs wrappers: `cluster/fuchs_heatbath.sh`, `cluster/fuchs_topcharge.sh`,
+`cluster/fuchs_heatbath_topcharge.sh`, `cluster/fuchs_continue.sh`,
+`cluster/fuchs_action_density_T160_L80.sh`, and thread-test helpers.
+
+HHLR-Goethe wrappers: `cluster/hhlr_heatbath.sh`, `cluster/hhlr_topcharge.sh`,
+`cluster/hhlr_heatbath_topcharge.sh`, `cluster/hhlr_continue.sh`, plus
+specialized loop/qtarget scripts. HHLR jobs run binaries from `/home` and write
+large outputs to `/work` through `HEATBATH_RESULTS_DIR`.
+
 ```bash
-sbatch cluster/fuchs_heatbath.sh    # Submit heatbath scan (48h)
-sbatch cluster/fuchs_topcharge.sh   # Submit topcharge (12 parallel single-core jobs)
+sbatch cluster/fuchs_heatbath.sh
+sbatch cluster/fuchs_topcharge.sh
+sbatch cluster/hhlr_heatbath.sh
+sbatch cluster/hhlr_topcharge.sh
 tail -1 data/results/T*_su2/output/plaquette.dat  # Check sweep progress
 squeue -u barros                                   # Job status
 ```
-
-`fuchs_topcharge.sh` passes `--exclude "T65\|T81"` to skip ensembles still running heatbath. Remove the flag once those finish.
 
 **Before first submit:** build on the cluster login node:
 ```bash
@@ -94,10 +107,12 @@ rm -rf build && ./scripts/build.sh release
 ## Analysis
 
 ```bash
-python3 analysis/analysis.py --su2     # or --su3
+python3 analysis/analysis.py --su2 --results-dir data/results
+python3 analysis/analysis.py --su3 --results-dir data/results
+python3 analysis/analysis_per_smear.py --su2 --results-dir data/results
 ```
 
-Requires Python 3 with `numpy`, `matplotlib`, `pyerrors` (Conda env `master_thesis`). Output goes to `output/figures_analysis/`.
+Requires Python 3 with `numpy`, `matplotlib`, `pyerrors` (Conda env `master_thesis`). Without `--results-dir`, analysis defaults to synced cluster roots `data/results_home` and `data/results_work` and writes separate output folders below `output/figures_analysis/`. Output root can be changed with `--output-dir`.
 
 ## Architecture
 
@@ -108,6 +123,7 @@ SU(2) and SU(3) are implemented as parallel but separate codepaths. Each has its
 - Topcharge measurement: `src/meas_topcharge_su2.cc` / `src/meas_topcharge_su3.cc`
 - Linear algebra: `_Utility/include/linear_algebra.hh` (SU(2), 8 doubles/link) / `include/su3_linear_algebra.hh` (SU(3), 18 doubles/link)
 - Topcharge computation: `include/topcharge_su2.hh` / `include/topcharge_su3.hh`
+- Optional SU(2) action-density recomputation: `src/meas_action_density_su2.cc`
 
 ### Core library (`_Utility/`)
 
@@ -138,18 +154,21 @@ Open BC (Lüscher-Schaefer): temporal plaquettes at `t=0` and `t=T-1` weighted b
 
 ### Data flow
 
-Two-phase: `mc_heatbath[_su3]` → `configs/conf_*.bin` + `plaquette.dat` → `detect_thermalization.py` → `meas_topcharge[_su3]` → `topcharge[_su3].dat` → `analysis.py`
+Two-phase: `mc_heatbath[_su3]` → `configs/conf.*` + `plaquette[_su3].dat` + `action_density[_su3].dat` → `detect_thermalization.py` → `meas_topcharge[_su3]` → `topcharge[_su3].dat` + `topcharge_timeslice.dat` → `analysis.py`
 
-Fused SU(2): `heatbath_topcharge_su2` → `plaquette.dat` + `topcharge.dat` + `topcharge_timeslice.dat` → `analysis.py` (no `configs/`)
+Fused SU(2): `heatbath_topcharge_su2` → `plaquette.dat` + `action_density.dat` + `topcharge.dat` + `topcharge_timeslice.dat` → `analysis.py` (no `configs/`)
 
 Results per run: `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}/`
 
 ### Analysis pipeline (`analysis/`)
 
-- `analysis.py` — Entry point, scans `data/results/` for runs
+- `analysis.py` — Entry point; scans explicit `--results-dir` roots or synced defaults
+- `result_paths.py` — Resolves explicit results roots or synced defaults (`data/results_home`, `data/results_work`) and supports qtarget aggregate layouts
 - `calculations.py` — Core: `RunData`/`AnalysisResult` containers, `find_optimal_alpha()` for Q rescaling, `analyze_run()` for χ_t and τ_int
 - `plotting_code.py` — Publication figures (Q vs MC time, histograms, susceptibility, τ_int)
-- `timeslice_analysis.py` — Spatial topcharge density analysis
+- `timeslice_analysis.py` — Temporal topcharge density, susceptibility-contribution, and tau_int(t) analysis
+- `action_density_analysis.py` — Action-density plots and summaries
+- `analysis_per_smear.py` — Full plotting pass per detected APE smearing level
 - `autocorrelation.py` — Wraps `pyerrors` Gamma method for integrated autocorrelation time
 
-Key analysis formula: `Q_rescaled = round(α * Q_raw)` where α ≈ 0.9–1.1 found via golden-section search, then `χ_t = ⟨Q²⟩/V`.
+Key analysis formula: full-lattice periodic runs use `Q_rescaled = round(α * Q_raw)` where α is found by golden-section search, while open-boundary or temporal-subvolume runs use continuous `α * Q_raw`; then `χ_t = ⟨Q²⟩/V`.

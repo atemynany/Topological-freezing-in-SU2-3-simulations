@@ -30,6 +30,7 @@ On macOS without `libomp`, everything still compiles and runs — just without O
 
 ```bash
 ./scripts/build.sh release
+./scripts/build.sh release --march=x86-64   # optional: override -march on non-Apple platforms
 ```
 
 Or manually:
@@ -91,7 +92,7 @@ phases to a non-default results directory.
 
 ### Fused pipeline (SU(2), in-memory, no gauge configs written)
 
-For SU(2) scans where you don't need persisted gauge configs, use the fused binary `heatbath_topcharge_su2`. It runs heatbath and measures Q on an APE-smeared scratch copy at every `save_interval`, writing only `plaquette.dat`, `topcharge.dat`, and `topcharge_timeslice.dat`.
+For SU(2) scans where you don't need persisted gauge configs, use the fused binary `heatbath_topcharge_su2`. It runs heatbath and measures Q on an APE-smeared scratch copy at every `save_interval`, writing `plaquette.dat`, `action_density.dat`, `topcharge.dat`, and `topcharge_timeslice.dat`.
 
 ```bash
 ./run_heatbath_topcharge_scan.sh            # discovers input/heatbath_topcharge_input/setup_*_su2.txt
@@ -104,8 +105,8 @@ Parity with the two-phase pipeline is verified at single-thread determinism (`sc
 
 Setup files live in three subdirs of `input/`:
 
-- `input/heatbath_input/` — production setups for the two-phase pipeline (`setup_*_su{2,3}_finished.txt`) plus `topcharge_params_su{2,3}.txt`
-- `input/heatbath_topcharge_input/` — setups for the fused SU(2) pipeline (drop `setup_*_su2.txt` files here)
+- `input/heatbath_input/` — active setups for the two-phase pipeline (`setup_*_su2.txt` or `setup_*_su3.txt`) plus `topcharge_params_su{2,3}.txt` (with `_finished.txt` fallback for parameter files); setup files ending in `_finished.txt` are archived and are not picked up by the scan globs
+- `input/heatbath_topcharge_input/` — active setups for the fused SU(2) pipeline (`setup_*_su2.txt`); `_finished.txt` files are parked
 - `input/tests_input/` — small smoke-test setups (e.g. `setup_test_16x16_periodic_su2.txt`)
 
 Each setup file contains one lattice configuration; multiple `beta` lines produce multiple runs. `--su2`/`--su3` discovers all matching setup files automatically in the relevant subdir.
@@ -165,17 +166,23 @@ sacct                                              # job history
 | `mc_heatbath_su3` | SU(3) heatbath config generation (OpenMP checkerboard + overrelaxation) |
 | `meas_topcharge` | SU(2) topological charge measurement |
 | `meas_topcharge_su3` | SU(3) topological charge measurement |
+| `meas_action_density_su2` | Recompute SU(2) Wilson action density from saved configs, optionally on a temporal bulk window |
 | `heatbath_topcharge_su2` | Fused SU(2) heatbath + in-memory topcharge (no gauge configs written) |
 | `compute_instanton_Q` | Instanton topological charge computation |
 
 ## Input Files
 
-- `input/heatbath_input/setup_*_su2.txt` / `setup_*_su3.txt` — setups for the two-phase pipeline (lattice params + beta values)
-- `input/heatbath_input/topcharge_params_su2.txt` / `_su3.txt` — topcharge measurement params (smearing, boundary exclusion); also read by the fused SU(2) pipeline
-- `input/heatbath_topcharge_input/setup_*_su2.txt` — setups for the fused SU(2) pipeline
+- `input/heatbath_input/setup_*_su2.txt` / `setup_*_su3.txt` — active setups for the two-phase pipeline (lattice params + beta values)
+- `input/heatbath_input/topcharge_params_su2.txt` / `_su3.txt` — topcharge measurement params (smearing, boundary exclusion), with `_finished.txt` fallback; also read by the fused SU(2) pipeline
+- `input/heatbath_topcharge_input/setup_*_su2.txt` — active setups for the fused SU(2) pipeline
 - `input/tests_input/setup_test_*_su2.txt` — smoke-test setups for the fused binary
 
-The topcharge scan script auto-detects periodic vs open boundary conditions from the run directory name (`_periodic_` or `_open_`). For open BC runs, `exclude_boundary_slices_open` from the param file is applied; periodic runs use 0.
+The topcharge scan script auto-detects periodic vs open boundary conditions from
+the run directory name (`_periodic_` or `_open_`). It preserves an explicit
+`exclude_boundary_slices` already present in a run input; otherwise open BC runs
+use `exclude_boundary_slices_open` from the param file and periodic runs use 0.
+A periodic run with `exclude_boundary_slices > 0` is a temporal-subvolume
+measurement, so Q is not integer-quantized.
 
 Example setup file:
 ```
@@ -195,7 +202,9 @@ beta 2.7
 
 `data/results/T{T}_L{L}_b{beta}_{boundary}_seed{seed}_{su2|su3}/`:
 - `output/plaquette[_su3].dat` — Plaquette and Wilson action density history (every sweep)
+- `output/action_density[_su3].dat` — Wilson action density history only
 - `output/topcharge.dat` — Q measurements (APE-smeared)
+- `output/topcharge_su3.dat` — SU(3) Q measurements (two-phase SU(3) runs)
 - `output/topcharge_timeslice.dat` — Per-timeslice q(t)
 - `configs/` — Gauge configurations (two-phase scan only; absent in fused SU(2) runs)
 - `input.txt`, `run_info.txt`, `*.log` — Input, metadata, stdout
@@ -221,28 +230,37 @@ The shared C++ helper is `avg_action_density(beta, avg_plaquette)` in
 Run the standard analysis:
 
 ```bash
-python3 analysis/analysis.py --su2
-python3 analysis/analysis.py --su3
+python3 analysis/analysis.py --su2 --results-dir data/results
+python3 analysis/analysis.py --su3 --results-dir data/results
 ```
+
+Without `--results-dir`, the analysis looks for synced cluster roots
+`data/results_home` and `data/results_work` and analyzes them separately into
+`output/figures_analysis/results_home/` and
+`output/figures_analysis/results_work/`. Pass `--results-dir` repeatedly to
+intentionally combine several roots, and use `--output-dir` to redirect plots
+and summaries.
 
 Or generate one figure set per detected APE smearing level:
 
 ```bash
-python3 analysis/analysis_per_smear.py --su2
-python3 analysis/analysis_per_smear.py --su3 --smear 20
+python3 analysis/analysis_per_smear.py --su2 --results-dir data/results
+python3 analysis/analysis_per_smear.py --su3 --results-dir data/results --smear 20
 ```
 
 Key outputs:
 - **χ_t^(1/4) vs β** — Susceptibility (should match ~200 MeV for SU(2))
 - **τ_int(Q²) vs β** — Autocorrelation time (increases with β → freezing)
 - **Q histograms** — Distribution narrowing indicates freezing
-- **q(t) timeslice density** — Spatial topcharge density via `timeslice_analysis.py`
+- **q(t) timeslice density** — Temporal topcharge density, susceptibility contribution, and τ_int(t) grids via `timeslice_analysis.py`
+- **Action density** — `action_density_{su2,su3}.png` plus `action_density_summary_{su2,su3}.txt` when action-density files are present
 
-`analysis_per_smear.py` auto-detects every APE smearing level present in `topcharge.dat` and writes each set of figures into `output/figures_analysis/smear<N>/`. Useful when comparing how the susceptibility plateau and τ_int depend on smearing depth.
+`analysis_per_smear.py` auto-detects every APE smearing level present in `topcharge.dat` or `topcharge_su3.dat` and writes each set of figures into `smear<N>/` below each dataset output folder, for example `output/figures_analysis/results_home/smear15/`. Useful when comparing how the susceptibility plateau and τ_int depend on smearing depth. Its timeslice binning scales with the coarsest lattice spacing so subvolumes remain approximately fixed in physical units.
 
 Standalone helpers (do not need the full pipeline):
 - `analysis/plot_topcharge.py` — Q vs smearing steps / MC time from a raw `topcharge.dat`
 - `analysis/analyze_topcharge.py` — jackknife mean / error / bias on Q
+- `analysis/generate_project_overview.py` — creates `output/project_overview.html` from synced results, figures, and run metadata
 - `scale_set.ipynb` — SU(2) and SU(3) lattice-spacing scale-setting formulas (arXiv:1811.02800 and hep-lat/0108008)
 
 ### Optional: Rust analysis extension
@@ -260,11 +278,14 @@ The Python analysis falls back to its pure-Python implementations if the module 
 
 - `context.md` — physics goal, observables, and pipeline summary
 - `additional_infos.md` — bug-scan notes and design decisions worth knowing before editing the analysis
+- `CLAUDE.md` — concise operational notes for coding agents
+- `_Utility/README.md` — utility-library contents and how it is built through the root CMake project
+- `su3_static_potential_check/README.md` — minimal cl2qcd open-boundary patch notes
 
 The analysis uses the Gamma method via `pyerrors` for autocorrelation-aware
-errors. Periodic-boundary runs use integer-rounded `Q_re`; open-boundary runs use
-the continuous `alpha * Q` because global Q is not quantized with open temporal
-boundaries.
+errors. Only full-lattice periodic Q is integer-rounded to `Q_re`; open-boundary
+or temporal-subvolume measurements use continuous `alpha * Q` because those
+charges are not globally integer-quantized.
 
 ## Git and SSH Remote
 

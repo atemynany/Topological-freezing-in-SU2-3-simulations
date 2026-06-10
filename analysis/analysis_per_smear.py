@@ -3,8 +3,10 @@
 Per-smear-level analysis driver.
 
 Reuses the existing analysis/plotting functions, but runs the pipeline
-once per APE smearing level present in the data and writes each set of
-figures to its own subdirectory:  output/figures_analysis/smear<N>/
+once per APE smearing level present in the data. In the default synced-root
+mode, data/results_home and data/results_work are analyzed separately:
+output/figures_analysis/results_home/smear<N>/ and
+output/figures_analysis/results_work/smear<N>/.
 
 Smear levels are auto-detected from topcharge.dat (so this still works
 on legacy single-level data).
@@ -19,10 +21,10 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, script_dir)
 
 import timeslice_analysis as tsa
-from result_paths import find_run_dirs, resolve_results_dirs
+from result_paths import default_results_dirs, find_run_dirs, resolve_results_dirs
 from calculations import (
     RunData, AnalysisResult,
-    load_run_data, analyze_run, load_topcharge,
+    load_run_data, analyze_run, load_topcharge, load_topcharge_from_timeslices,
     find_optimal_alpha, QEstimator,
     lattice_spacing_su2, lattice_spacing_su3,
     topcharge_file_path, topcharge_timeslice_file_path,
@@ -68,16 +70,22 @@ def rebuild_for_smear(run_data: RunData, smear: int,
                       gauge_group: str) -> Optional[RunData]:
     """Return a copy of run_data with Q_raw/Q_rescaled/alpha at this smear level.
 
-    Mirrors the per-boundary logic in load_run_data so periodic runs get
-    integer-rounded Q via QEstimator, while open BC keeps continuous α·Q.
+    Mirrors load_run_data: only full periodic-lattice Q is integer-rounded.
+    Open-boundary or temporal-subvolume Q keeps continuous α·Q.
     """
+    ts_file = topcharge_timeslice_file_path(run_data.run_dir, gauge_group)
     fp = _topcharge_path(run_data.run_dir, gauge_group)
-    if fp is None:
+    if run_data.exclude_boundary_slices > 0 and ts_file is not None:
+        Q_raw = load_topcharge_from_timeslices(
+            ts_file, run_data.T, run_data.exclude_boundary_slices, smear=smear
+        )
+    elif fp is not None:
+        Q_raw = load_topcharge(fp, smear=smear)
+    else:
         return None
-    Q_raw = load_topcharge(fp, smear=smear)
     if len(Q_raw) == 0:
         return None
-    if run_data.boundary == "open":
+    if run_data.boundary == "open" or run_data.exclude_boundary_slices > 0:
         alpha = find_optimal_alpha(Q_raw)
         Q_rescaled = alpha * Q_raw
     else:
@@ -90,6 +98,8 @@ def rebuild_for_smear(run_data: RunData, smear: int,
         Q_raw=Q_raw, Q_rescaled=Q_rescaled, alpha=alpha,
         plaq_data=run_data.plaq_data, mc_time=run_data.mc_time,
         start_conf=run_data.start_conf,
+        start_type=run_data.start_type,
+        exclude_boundary_slices=run_data.exclude_boundary_slices,
     )
 
 
@@ -192,7 +202,8 @@ def run_for_smear(runs_master: List[RunData], gauge_group: str,
                         lattice_spacing_fm=a_fm,
                         n_bin=n_bin_run,
                         smear=smear,
-                        open_bc=(rd.boundary == "open"),
+                        open_bc=(rd.boundary == "open" or rd.exclude_boundary_slices > 0),
+                        n_exclude=rd.exclude_boundary_slices,
                         alpha=rd.alpha,
                         ensemble=f"b{rd.beta}_{rd.boundary}",
                     )
@@ -222,6 +233,46 @@ def run_for_smear(runs_master: List[RunData], gauge_group: str,
         tsa.load_timeslice_data = orig_loader
 
 
+def _load_runs_for_dirs(results_dirs: List[str], gauge_group: str) -> tuple[List[RunData], List[str]]:
+    run_dirs = find_run_dirs(results_dirs, gauge_group)
+
+    runs_master: List[RunData] = []
+    topcharge_files: List[str] = []
+    for run_dir in run_dirs:
+        rd = load_run_data(run_dir, gauge_group)
+        if rd is None:
+            continue
+        if gauge_group == "su2" and rd.beta > 4:
+            continue
+        if gauge_group == "su3" and rd.beta < 4:
+            continue
+        runs_master.append(rd)
+        fp = _topcharge_path(run_dir, gauge_group)
+        if fp:
+            topcharge_files.append(fp)
+
+    return runs_master, topcharge_files
+
+
+def _result_root_label(results_dir: str) -> str:
+    return os.path.basename(os.path.normpath(results_dir))
+
+
+def _analysis_jobs(base_dir: str, args) -> List[tuple[str, List[str], str]]:
+    output_root = args.output_dir or os.path.join(base_dir, "output", "figures_analysis")
+    if args.results_dir:
+        results_dirs = resolve_results_dirs(base_dir, args.results_dir)
+        return [("combined", results_dirs, output_root)]
+
+    jobs = []
+    for results_dir in default_results_dirs(base_dir):
+        if not os.path.isdir(results_dir):
+            continue
+        label = _result_root_label(results_dir)
+        jobs.append((label, [results_dir], os.path.join(output_root, label)))
+    return jobs
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run analysis once per APE smearing level present in the data.")
@@ -241,46 +292,41 @@ def main():
 
     gauge_group = "su3" if args.su3 else "su2"
     base_dir = os.path.dirname(script_dir)
-    results_dirs = resolve_results_dirs(base_dir, args.results_dir)
-    output_root = args.output_dir or os.path.join(base_dir, "output", "figures_analysis")
-    os.makedirs(output_root, exist_ok=True)
+    jobs = _analysis_jobs(base_dir, args)
 
     print(f"\n{gauge_group.upper()} per-smear analysis")
-    print("Results:")
-    for results_dir in results_dirs:
-        print(f"  {results_dir}")
-    print(f"Output root: {output_root}")
-
-    run_dirs = find_run_dirs(results_dirs, gauge_group)
-
-    runs_master: List[RunData] = []
-    topcharge_files: List[str] = []
-    for run_dir in run_dirs:
-        rd = load_run_data(run_dir, gauge_group)
-        if rd is None:
-            continue
-        if gauge_group == "su2" and rd.beta > 4:
-            continue
-        if gauge_group == "su3" and rd.beta < 4:
-            continue
-        runs_master.append(rd)
-        fp = _topcharge_path(run_dir, gauge_group)
-        if fp:
-            topcharge_files.append(fp)
-
-    if not runs_master:
-        print("No runs found.")
+    if not jobs:
+        print("No result roots found.")
         return
 
-    detected = detect_smear_levels(topcharge_files)
-    smear_levels = args.smear or detected
-    print(f"Detected smear levels: {detected}")
-    print(f"Processing: {smear_levels}\n")
+    finished_outputs = []
+    for label, results_dirs, output_root in jobs:
+        os.makedirs(output_root, exist_ok=True)
 
-    for s in smear_levels:
-        run_for_smear(runs_master, gauge_group, output_root, s, bin_ref=args.bin_ref)
+        print(f"\nDataset: {label}")
+        print("Results:")
+        for results_dir in results_dirs:
+            print(f"  {results_dir}")
+        print(f"Output root: {output_root}")
 
-    print(f"\nDone. Per-smear plots under: {output_root}/smear<level>/")
+        runs_master, topcharge_files = _load_runs_for_dirs(results_dirs, gauge_group)
+        if not runs_master:
+            print("No runs found.")
+            continue
+
+        detected = detect_smear_levels(topcharge_files)
+        smear_levels = args.smear or detected
+        print(f"Detected smear levels: {detected}")
+        print(f"Processing: {smear_levels}\n")
+
+        for s in smear_levels:
+            run_for_smear(runs_master, gauge_group, output_root, s, bin_ref=args.bin_ref)
+        finished_outputs.append(output_root)
+
+    if finished_outputs:
+        print("\nDone. Per-smear plots under:")
+        for output_root in finished_outputs:
+            print(f"  {output_root}/smear<level>/")
 
 
 if __name__ == "__main__":

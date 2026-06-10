@@ -2,8 +2,10 @@
 # SU(3) Topological Charge Parameters  —  used by run_topcharge_scan.sh
 # ==============================================================================
 # Applied to every ensemble config found in the results directory
-# exclude_boundary_slices is auto-set by the scan script:
-#   periodic dirs -> 0,  open dirs -> exclude_boundary_slices_open
+# exclude_boundary_slices is patched by the scan script:
+#   explicit per-run input value is preserved
+#   otherwise periodic dirs -> 0, open dirs -> exclude_boundary_slices_open
+# A positive value means temporal-subvolume Q, even for periodic links.
 
 # Configuration range
 # start_conf is auto-detected from thermalization (set during heatbath phase)

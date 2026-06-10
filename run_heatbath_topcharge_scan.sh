@@ -73,8 +73,9 @@ create_input_file() {
     local save_interval=$(read_param "save_interval" "$setup_file")
 
     # Measurement params — prefer per-ensemble values from the setup file, fall
-    # back to the shared topcharge_params file. Convention: open setup files
-    # carry exclude_boundary_slices = (T_open - T_periodic)/2.
+    # back to the shared topcharge_params file. A positive
+    # exclude_boundary_slices means measure a temporal subvolume, independent of
+    # whether the links themselves are periodic or open.
     local smear_steps=$(read_param "smear_steps" "$setup_file")
     [ -z "$smear_steps" ] && smear_steps=$(read_param "smear_steps" "$TOPCHARGE_PARAMS")
     local smear_interval=$(read_param "smear_interval" "$setup_file")
@@ -83,14 +84,12 @@ create_input_file() {
     [ -z "$smear_alpha" ] && smear_alpha=$(read_param "smear_alpha" "$TOPCHARGE_PARAMS")
     local exclude_boundary_slices_open=$(read_param "exclude_boundary_slices_open" "$TOPCHARGE_PARAMS")
 
+    local setup_exclude=$(read_param "exclude_boundary_slices" "$setup_file")
     local exclude_boundary_slices=0
-    if [ "$boundary" = "open" ]; then
-        local setup_exclude=$(read_param "exclude_boundary_slices" "$setup_file")
-        if [ -n "$setup_exclude" ]; then
-            exclude_boundary_slices="$setup_exclude"
-        else
-            exclude_boundary_slices="${exclude_boundary_slices_open:-0}"
-        fi
+    if [ -n "$setup_exclude" ]; then
+        exclude_boundary_slices="$setup_exclude"
+    elif [ "$boundary" = "open" ]; then
+        exclude_boundary_slices="${exclude_boundary_slices_open:-0}"
     fi
 
     cat > "$output_file" << EOF

@@ -248,6 +248,51 @@ def load_topcharge(filepath: str, smear: int = None) -> np.ndarray:
     return np.array(Q_vals)[idx]
 
 
+def load_topcharge_from_timeslices(filepath: str, T: int, exclude_boundary_slices: int,
+                                   smear: int = None) -> np.ndarray:
+    """Load Q by summing q(t) from topcharge_timeslice.dat.
+
+    This is the authoritative path for temporal-subvolume measurements. It also
+    repairs legacy periodic-subvolume runs where topcharge.dat contains the
+    full-lattice Q but topcharge_timeslice.dat still has enough information to
+    reconstruct the intended cropped Q.
+    """
+    rows = []
+    smears = []
+    with open(filepath, 'r') as f:
+        for line in f:
+            if line.startswith('#') or not line.strip():
+                continue
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            try:
+                s = int(parts[0])
+                c = int(parts[1])
+                t = int(parts[2])
+                q_t = float(parts[3])
+            except ValueError:
+                continue
+            rows.append((s, c, t, q_t))
+            smears.append(s)
+
+    if not rows:
+        return np.array([])
+    if smear is None:
+        smear = max(smears)
+
+    t_min = max(0, exclude_boundary_slices)
+    t_max = T - max(0, exclude_boundary_slices)
+    by_conf = {}
+    for s, c, t, q_t in rows:
+        if s != smear:
+            continue
+        if t_min <= t < t_max:
+            by_conf[c] = by_conf.get(c, 0.0) + q_t
+
+    return np.array([by_conf[c] for c in sorted(by_conf)])
+
+
 # =============================================================================
 # Topological Susceptibility
 # =============================================================================
@@ -285,6 +330,8 @@ class RunData:
     plaq_data: np.ndarray
     mc_time: np.ndarray
     start_conf: int
+    start_type: str
+    exclude_boundary_slices: int
 
 
 @dataclass
@@ -490,29 +537,37 @@ def load_run_data(run_dir: str, gauge_group: str = "su2") -> Optional[RunData]:
     else:
         boundary = normalize_boundary(info.get('boundary', dir_info.get('boundary', 'periodic')))
 
+    beta = float(info.get('beta', dir_info.get('beta', 0)))
+    seed = int(info.get('seed', dir_info.get('seed', 0)))
+    T = int(info.get('T', dir_info.get('T', 16)))
+    L = int(info.get('L', dir_info.get('L', 16)))
+    start_conf = int(info.get('start_conf', 50))
+    start_type = info.get('start_type', dir_info.get('start_type', 'unknown'))
+    exclude_boundary_slices = int(info.get('exclude_boundary_slices', 0))
+
+    timeslice_file = topcharge_timeslice_file_path(run_dir, gauge_group)
     topcharge_file = topcharge_file_path(run_dir, gauge_group)
-    if topcharge_file:
+    if exclude_boundary_slices > 0 and timeslice_file:
+        Q_raw = load_topcharge_from_timeslices(timeslice_file, T, exclude_boundary_slices)
+    elif topcharge_file:
         Q_raw = load_topcharge(topcharge_file)
     else:
         Q_raw = load_qtarget_topcharge(run_dir, gauge_group)
 
     if len(Q_raw) == 0:
         return None
-    
-    if boundary == 'open':
-        # For open boundaries, keep alpha optimization but do not round to integers.
+
+    continuous_q = (boundary == 'open') or (exclude_boundary_slices > 0)
+
+    if continuous_q:
+        # Open-boundary or temporal-subvolume charges are not globally
+        # integer-quantized, so keep the alpha-rescaled continuous value.
         alpha = find_optimal_alpha(Q_raw)
         q_rescaled = alpha * Q_raw
     else:
         estimator = QEstimator(Q_raw)
         q_rescaled = estimator.Q_rescaled
         alpha = estimator.alpha
-    
-    beta = float(info.get('beta', dir_info.get('beta', 0)))
-    seed = int(info.get('seed', dir_info.get('seed', 0)))
-    T = int(info.get('T', dir_info.get('T', 16)))
-    L = int(info.get('L', dir_info.get('L', 16)))
-    start_conf = int(info.get('start_conf', 50))
     
     # Load plaquette data
     plaq_candidates = [
@@ -560,7 +615,9 @@ def load_run_data(run_dir: str, gauge_group: str = "su2") -> Optional[RunData]:
     return RunData(
         beta=beta, seed=seed, run_dir=run_dir, T=T, L=L,
         boundary=boundary, Q_raw=Q_raw, Q_rescaled=q_rescaled, alpha=alpha,
-        plaq_data=plaq_data, mc_time=mc_time, start_conf=start_conf
+        plaq_data=plaq_data, mc_time=mc_time, start_conf=start_conf,
+        start_type=start_type,
+        exclude_boundary_slices=exclude_boundary_slices
     )
 
 

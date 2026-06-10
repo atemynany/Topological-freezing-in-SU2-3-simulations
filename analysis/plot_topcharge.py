@@ -23,6 +23,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, script_dir)
+
+from calculations import find_optimal_alpha
+
 # ==============================================================================
 # Plot Configuration
 # ==============================================================================
@@ -85,6 +90,99 @@ def load_topcharge_data(filename: str) -> dict:
     return data
 
 
+def parse_input_file(input_file: str) -> dict:
+    """Parse simple key-value input files from run directories."""
+    info = {}
+    if not input_file or not os.path.isfile(input_file):
+        return info
+    with open(input_file) as f:
+        for line in f:
+            if line.startswith('#') or not line.strip():
+                continue
+            parts = line.split()
+            if len(parts) >= 2:
+                info[parts[0]] = parts[1]
+    return info
+
+
+def infer_run_dir(input_path: str) -> str:
+    """Infer run directory from .../output/topcharge.dat paths."""
+    path = os.path.abspath(input_path)
+    parent = os.path.dirname(path)
+    if os.path.basename(parent) in {"output", "topcharge"}:
+        return os.path.dirname(parent)
+    return parent
+
+
+def timeslice_file_for_input(input_path: str, explicit_path: str = None) -> str:
+    if explicit_path:
+        return explicit_path
+    run_dir = infer_run_dir(input_path)
+    for candidate in [
+        os.path.join(run_dir, "output", "topcharge_timeslice.dat"),
+        os.path.join(run_dir, "topcharge", "topcharge_timeslice.dat"),
+    ]:
+        if os.path.isfile(candidate):
+            return candidate
+    return ""
+
+
+def load_temporal_subvolume_data(timeslice_file: str, reference_data: dict,
+                                 T: int, exclude_boundary_slices: int,
+                                 alpha_rescale: bool = True) -> dict:
+    """Load continuous temporal-subvolume Q from topcharge_timeslice.dat."""
+    plaquette_by_key = {
+        (int(s), int(c)): float(p)
+        for s, c, p in zip(reference_data['smear_steps'],
+                           reference_data['config'],
+                           reference_data['plaquette'])
+    }
+    t_min = max(0, exclude_boundary_slices)
+    t_max = T - max(0, exclude_boundary_slices)
+    by_key = {}
+
+    with open(timeslice_file) as f:
+        for line in f:
+            if line.startswith('#') or not line.strip():
+                continue
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            try:
+                smear = int(parts[0])
+                conf = int(parts[1])
+                t = int(parts[2])
+                q_t = float(parts[3])
+            except ValueError:
+                continue
+            if t_min <= t < t_max:
+                by_key[(smear, conf)] = by_key.get((smear, conf), 0.0) + q_t
+
+    if not by_key:
+        return reference_data
+
+    rows = []
+    alpha_by_smear = {}
+    for smear in sorted({key[0] for key in by_key}):
+        configs = sorted(conf for s, conf in by_key if s == smear)
+        q_raw = np.array([by_key[(smear, conf)] for conf in configs], dtype=float)
+        alpha = find_optimal_alpha(q_raw) if alpha_rescale and len(q_raw) else 1.0
+        alpha_by_smear[smear] = alpha
+        for conf, q_val in zip(configs, alpha * q_raw):
+            rows.append((smear, conf, q_val, plaquette_by_key.get((smear, conf), np.nan)))
+
+    data = {
+        'smear_steps': np.array([row[0] for row in rows]),
+        'config': np.array([row[1] for row in rows]),
+        'Q': np.array([row[2] for row in rows], dtype=float),
+        'plaquette': np.array([row[3] for row in rows], dtype=float),
+        'continuous_q': True,
+        'alpha_by_smear': alpha_by_smear,
+        'source': 'temporal_subvolume',
+    }
+    return data
+
+
 def extract_metadata(filename: str) -> dict:
     """Extract metadata from header comments."""
     metadata = {}
@@ -132,7 +230,8 @@ def plot_Q_vs_smearing(data: dict, output_dir: str, title: str = None):
         ax.axhline(y=q_int, color='gray', linestyle='--', alpha=0.3, linewidth=0.5)
     
     ax.set_xlabel('APE Smearing Steps')
-    ax.set_ylabel('Topological Charge Q')
+    ylabel = r'Topological Charge $\alpha Q$' if data.get('continuous_q') else 'Topological Charge Q'
+    ax.set_ylabel(ylabel)
     ax.set_title(title or 'Topological Charge vs Smearing Steps')
     
     if len(configs) <= 10:
@@ -175,7 +274,8 @@ def plot_Q_vs_mctime(data: dict, output_dir: str, smear_level: int = None, title
         ax.axhline(y=q_int, color='gray', linestyle='--', alpha=0.3, linewidth=0.5)
     
     ax.set_xlabel('Monte Carlo Time (Configuration Number)')
-    ax.set_ylabel('Topological Charge Q')
+    ylabel = r'Topological Charge $\alpha Q$' if data.get('continuous_q') else 'Topological Charge Q'
+    ax.set_ylabel(ylabel)
     ax.set_title(title or f'Topological Charge vs MC Time (smear={smear_level})')
     ax.grid(True, alpha=0.3)
     
@@ -210,14 +310,19 @@ def plot_Q_histogram(data: dict, output_dir: str, smear_level: int = None, title
     mask = data['smear_steps'] == smear_level
     Q_values = data['Q'][mask]
     
-    # Create histogram with integer bins
-    Q_min = np.floor(Q_values.min()) - 0.5
-    Q_max = np.ceil(Q_values.max()) + 0.5
-    bins = np.arange(Q_min, Q_max + 1, 1)
+    if data.get('continuous_q'):
+        Q_min = np.floor(Q_values.min()) - 0.5
+        Q_max = np.ceil(Q_values.max()) + 0.5
+        bins = np.linspace(Q_min, Q_max, 40)
+    else:
+        Q_min = np.floor(Q_values.min()) - 0.5
+        Q_max = np.ceil(Q_values.max()) + 0.5
+        bins = np.arange(Q_min, Q_max + 1, 1)
     
     ax.hist(Q_values, bins=bins, color='steelblue', edgecolor='black', alpha=0.7)
     
-    ax.set_xlabel('Topological Charge Q')
+    xlabel = r'Topological Charge $\alpha Q$' if data.get('continuous_q') else 'Topological Charge Q'
+    ax.set_xlabel(xlabel)
     ax.set_ylabel('Count')
     ax.set_title(title or f'Topological Charge Distribution (smear={smear_level})')
     
@@ -298,12 +403,20 @@ def plot_Q_smearing_heatmap(data: dict, output_dir: str, title: str = None):
     
     fig, ax = plt.subplots(figsize=(10, 6))
     
+    x_min, x_max = configs[0], configs[-1]
+    y_min, y_max = smear_steps[0], smear_steps[-1]
+    if x_min == x_max:
+        x_min, x_max = x_min - 0.5, x_max + 0.5
+    if y_min == y_max:
+        y_min, y_max = y_min - 0.5, y_max + 0.5
+
     im = ax.imshow(Q_matrix, aspect='auto', origin='lower',
-                   extent=[configs[0], configs[-1], smear_steps[0], smear_steps[-1]],
+                   extent=[x_min, x_max, y_min, y_max],
                    cmap='RdBu_r')
     
     cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label('Topological Charge Q')
+    cbar_label = r'Topological Charge $\alpha Q$' if data.get('continuous_q') else 'Topological Charge Q'
+    cbar.set_label(cbar_label)
     
     ax.set_xlabel('Monte Carlo Time (Configuration Number)')
     ax.set_ylabel('APE Smearing Steps')
@@ -380,6 +493,14 @@ def main():
                         help='Base title for plots')
     parser.add_argument('--smear-level', type=int, default=None,
                         help='Specific smearing level for MC time plots')
+    parser.add_argument('--timeslice-input', default=None,
+                        help='Optional topcharge_timeslice.dat for temporal-subvolume Q reconstruction')
+    parser.add_argument('--T', type=int, default=None,
+                        help='Temporal lattice extent; inferred from input.txt when possible')
+    parser.add_argument('--exclude-boundary-slices', type=int, default=None,
+                        help='Use continuous temporal-subvolume Q by excluding this many slices at each edge')
+    parser.add_argument('--no-alpha-rescale', action='store_true',
+                        help='For temporal subvolume plots, show raw cropped Q instead of alpha*Q')
     
     args = parser.parse_args()
     
@@ -394,6 +515,7 @@ def main():
     # Load data
     print(f"Loading data from: {args.input}")
     data = load_topcharge_data(args.input)
+    data['continuous_q'] = False
     
     if len(data['Q']) == 0:
         print("Error: No data found in input file")
@@ -402,6 +524,35 @@ def main():
     print(f"Loaded {len(data['Q'])} data points")
     print(f"Configurations: {len(np.unique(data['config']))}")
     print(f"Smearing levels: {len(np.unique(data['smear_steps']))}")
+
+    run_dir = infer_run_dir(args.input)
+    input_info = parse_input_file(os.path.join(run_dir, "input.txt"))
+    T = args.T if args.T is not None else int(input_info.get("T", 0) or 0)
+    exclude_boundary_slices = (
+        args.exclude_boundary_slices
+        if args.exclude_boundary_slices is not None
+        else int(input_info.get("exclude_boundary_slices", 0) or 0)
+    )
+    timeslice_file = timeslice_file_for_input(args.input, args.timeslice_input)
+    if exclude_boundary_slices > 0:
+        if T <= 0:
+            print("Error: --T is required for temporal-subvolume plots when input.txt is unavailable")
+            sys.exit(1)
+        if not timeslice_file or not os.path.isfile(timeslice_file):
+            print("Error: topcharge_timeslice.dat is required for temporal-subvolume plots")
+            sys.exit(1)
+        print(f"Using temporal subvolume from: {timeslice_file}")
+        print(f"Excluding t < {exclude_boundary_slices} and t >= {T - exclude_boundary_slices}")
+        data = load_temporal_subvolume_data(
+            timeslice_file,
+            data,
+            T=T,
+            exclude_boundary_slices=exclude_boundary_slices,
+            alpha_rescale=not args.no_alpha_rescale,
+        )
+        print("Plotting continuous alpha*Q values (not integer-rounded)")
+        for smear, alpha in data.get('alpha_by_smear', {}).items():
+            print(f"  smear {smear}: alpha={alpha:.6f}")
     
     # Generate plots
     print("\nGenerating plots...")

@@ -36,6 +36,11 @@ The build already produced SU(3) executables, but the project name, install
 targets, and build-script executable list were stale. Updated them to include
 SU(2) and SU(3) binaries consistently.
 
+Follow-up documentation pass: README, context notes, agent notes, and the
+utility-library README now describe the SU(2)/SU(3) codepaths, active setup-file
+globs, synced analysis roots, action-density files, and timeslice outputs
+consistently.
+
 **chi_t used `Q_raw²` instead of `Q_rescaled²`** (`analysis/calculations.py`)
 
 `Q_raw` is the smeared but not-yet-rescaled float value (e.g. −2.71). `Q_rescaled = round(α · Q_raw)` is the integer-rounded charge (e.g. −2). The susceptibility, tau_int, and histograms must all use the same Q. Since `Q_raw ≈ Q_rescaled / α`, using `Q_raw²` inflated chi_t by `1/α²` (≈ +24% for α = 0.898) and chi_t^(1/4) by ≈ +6%. Fixed to use `Q_rescaled²` everywhere in `analyze_run()`.
@@ -101,48 +106,46 @@ With **open BC**, the boundary removes the topological sector structure. Topolog
 The boundary time slices are excluded from the topological charge sum via the `exclude_boundary_slices` parameter. The gauge field near the boundary is affected by the open BC and does not represent bulk physics, so those slices are discarded to avoid contaminating the measurement.
 
 ```
-# base_params_su3.txt
-exclude_boundary_slices 0    # set > 0 for open BC runs (typically 1–2)
+# input/heatbath_input/topcharge_params_su{2,3}.txt
+exclude_boundary_slices_open 2    # used automatically for open BC runs
 ```
 
 ---
 
-## 4. Scale Setting Utilities (`scale_set.ipynb`)
+## 3. Scale Setting Utilities (`scale_set.ipynb`)
 
-Three utility functions added to the notebook for interactive use:
+The notebook mirrors the production scale-setting formulas from
+`analysis/calculations.py` and is intended for interactive lattice-size planning.
 
-### `beta_from_a_su2(a_fm)`
-Analytically inverts `lattice_spacing_su2` by solving the quadratic in `delta_beta = beta - 2.6`:
-
-```
-ln(t0/a²) = 1.285 + 6.409·x - 0.7411·x²   →   quadratic formula
-```
-
-Picks the root closest to the physical regime (beta ~ 2–3).
-
-### `beta_from_a_su3(a_fm)`
-Inverts `lattice_spacing_su3` via `numpy.roots` on the cubic in `delta_beta = beta - 6.0`:
+### `lattice_spacing_su2(beta)`
+Uses the SU(2) gradient-flow scale:
 
 ```
-ln(a/r0) = -1.6804 - 1.7331·x + 0.7849·x² - 0.4428·x³
+ln(t0/a²) = 1.285 + 6.409·(beta - 2.600) - 0.7411·(beta - 2.600)²
 ```
 
-Picks the real root closest to x = 0 (physical regime beta ~ 5.5–6.5).
+### `lattice_spacing_su3(beta)`
+Uses the Necco-Sommer interpolation:
 
-### `adjust_lattice(T_ref, L_ref, a_ref_fm, a_new_fm, open_bc, n_exclude)`
+```
+ln(a/r0) = -1.6804 - 1.7331·(beta - 6.0) + 0.7849·(beta - 6.0)² - 0.4428·(beta - 6.0)³
+```
+
+### `adjust_lattice(T_ref, L_ref, a_ref_fm, a_new_fm, open_bc, n_exclude_ref)`
 Given a reference volume at `a_ref`, computes integer `(T_new, L_new)` at `a_new` that preserve physical volume:
 
 - **Spatial**: `L_new = round(L_ref * a_ref / a_new)` (no boundary effect)
 - **Periodic temporal**: `T_new = round(T_ref * a_ref / a_new)`
-- **Open BC temporal**: physical extent is `T_eff = (T - 2*n_exclude) * a`, so `T_new = round(T_eff_ref * a_ref/a_new) + 2*n_exclude`. `n_exclude` must match `exclude_boundary_slices` in the input file.
+- **Open BC temporal**: the physical exclusion distance is kept fixed, `n_exclude_new = round(n_exclude_ref * a_ref / a_new)`, and `T_new = round(T_eff_ref * a_ref/a_new) + 2*n_exclude_new`. Use the returned `n_exclude` in the setup file's `exclude_boundary_slices` or in the topcharge parameter file's open-boundary default.
 
 ---
 
-## 5. Timeslice Topological Charge Density
+## 4. Timeslice Topological Charge Density
 
-### C++ output (`meas_topcharge_su2.cc`)
+### C++ output (`meas_topcharge_su2.cc`, `meas_topcharge_su3.cc`, `heatbath_topcharge_su2.cc`)
 
-After computing the total Q for each config, `meas_topcharge` now also writes `topcharge_timeslice.dat` in the same output directory:
+After computing the total Q for each config, the topcharge binaries also write
+`topcharge_timeslice.dat` in the same output directory:
 
 ```
 # smear_steps  config_number  t  q_t
@@ -154,13 +157,22 @@ After computing the total Q for each config, `meas_topcharge` now also writes `t
 q(t) = (1/4π²) · Σ_{x,y,z} q_local(t,x,y,z)
 ```
 
-For open BC, only timeslices `t ∈ [exclude_boundary_slices, T - exclude_boundary_slices)` are written. **No new input parameters required** — the existing `boundary` and `exclude_boundary_slices` fields control this automatically.
+When `exclude_boundary_slices > 0`, only timeslices
+`t ∈ [exclude_boundary_slices, T - exclude_boundary_slices)` enter the measured
+Q, regardless of whether the gauge links are periodic or open. Such a Q is a
+temporal-subvolume charge and should stay continuous (`alpha * Q`), not
+integer-rounded. The fused SU(2) binary records every `smear_interval`
+checkpoint and the final smearing step.
 
 ### Python analysis (`analysis/timeslice_analysis.py`)
 
 Full pipeline: load → bin → Gamma method errors → plot.
 
 **Key design choice — temporal binning**: because the spatial volume is small, individual timeslice measurements are very noisy. The `n_bin` parameter sums over `n_bin` consecutive slices per bin. Typical values: `n_bin=2` or `3`. Match `n_exclude` in the call to `analyse_timeslices` with `exclude_boundary_slices` in the input file.
+
+For legacy synced runs where `topcharge.dat` was written before periodic
+subvolume exclusion was supported, the Python analysis reconstructs Q from
+`topcharge_timeslice.dat` by summing the requested temporal window.
 
 **Error estimation**: `pyerrors` Gamma method applied independently to each time bin across MC configurations. Properly accounts for MC autocorrelation (large `tau_int` near freezing). Same `S=1.5` default as the rest of the analysis.
 
@@ -178,4 +190,23 @@ from analysis.timeslice_analysis import analyse_timeslices, plot_timeslice_densi
 res = analyse_timeslices("topcharge_timeslice.dat", lattice_spacing_fm=0.093,
                          n_bin=2, open_bc=True, n_exclude=2)
 plot_timeslice_density(res, open_bc=True)
+```
+
+## 5. Action Density
+
+Heatbath binaries write the Wilson action density in two places:
+
+- As column 3 of `plaquette.dat` or `plaquette_su3.dat`
+- As a two-column `action_density.dat` or `action_density_su3.dat`
+
+`analysis/action_density_analysis.py` loads the two-column files when present and
+adds `action_density_{su2,su3}.png` plus
+`action_density_summary_{su2,su3}.txt` to the normal analysis output.
+
+`meas_action_density_su2` can recompute SU(2) bulk action density from saved
+configurations with a configurable temporal exclusion window. Its default output
+is `action_density_bulk.dat` with columns:
+
+```
+config  plaquette_bulk  action_density_bulk  t_min  t_max_exclusive
 ```

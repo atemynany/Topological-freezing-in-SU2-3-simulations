@@ -254,6 +254,9 @@ def image_title(path: Path) -> str:
     stem = path.stem.replace("_", " ")
     parent = path.parent.name
     if parent.startswith("smear"):
+        dataset = path.parent.parent.name
+        if dataset.startswith("results_"):
+            return f"{stem} ({dataset} / {parent})"
         return f"{stem} ({parent})"
     return stem
 
@@ -284,8 +287,19 @@ def image_description(path: Path) -> str:
     if name.startswith("timeslice_tauint"):
         return "Timeslice-resolved autocorrelation estimate."
     if parent.startswith("smear"):
+        dataset = path.parent.parent.name
+        if dataset.startswith("results_"):
+            return f"Per-smear output from {dataset}/{parent}."
         return f"Per-smear output from {parent}."
     return "Generated analysis figure."
+
+
+def image_kind(path: Path) -> str:
+    parent = path.parent.name
+    dataset = path.parent.parent.name
+    if parent.startswith("smear") and dataset.startswith("results_"):
+        return f"{dataset} {parent}"
+    return parent
 
 
 def render_table(headers: Iterable[str], rows: Iterable[Iterable[object]]) -> str:
@@ -401,7 +415,7 @@ def render_page(gauge_group: str, output_path: Path) -> str:
     for path in pngs:
         figure_cards.append(
             f"""
-            <figure class="search-card" data-kind="{esc(path.parent.name)}">
+            <figure class="search-card" data-kind="{esc(image_kind(path))}">
               <a href="{esc(href(path, output_path))}" class="figure-link">
                 <img src="{esc(href(path, output_path))}" alt="{esc(image_title(path))}">
               </a>
@@ -780,7 +794,7 @@ def render_page(gauge_group: str, output_path: Path) -> str:
       <div class="panel">
         <p>The synced data roots are <code>data/results_home</code> and <code>data/results_work</code>. The sync script copies only <code>.dat</code> files from both cluster locations into these roots.</p>
         <p>Standard runs use directories named like <code>T160_L80_b3.15_open_seed857952899_su2</code>. The qtarget hot ensemble is represented by <code>data/results_work/qtarget_T80_L80_b3.15_periodic_20260527_145728_su2</code>; its <code>hot_candidates/try_*</code> measurements are combined into one analysis ensemble.</p>
-        <p>The main analysis loads topological charge, plaquette, topcharge-timeslice, and action-density files where available, then writes plots and summaries under <code>output/figures_analysis</code> or a chosen <code>--output-dir</code>.</p>
+        <p>The main analysis loads topological charge, plaquette, topcharge-timeslice, and action-density files where available, then writes default synced-root plots separately under <code>output/figures_analysis/results_home</code> and <code>output/figures_analysis/results_work</code>, or under a chosen <code>--output-dir</code>.</p>
       </div>
     </section>
 
@@ -809,7 +823,7 @@ def render_page(gauge_group: str, output_path: Path) -> str:
         </article>
         <article>
           <h3>Per-Smear Outputs</h3>
-          <p>The <code>smear5</code>, <code>smear10</code>, and <code>smear15</code> folders show the same pipeline repeated at fixed APE smearing levels.</p>
+          <p>The <code>smear5</code>, <code>smear10</code>, and <code>smear15</code> folders show the same pipeline repeated at fixed APE smearing levels. Default synced-root runs keep home and work data in separate dataset folders.</p>
         </article>
       </div>
     </section>
@@ -962,7 +976,8 @@ def main() -> None:
     if not output_path.is_absolute():
         output_path = base_dir / output_path
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(render_page(args.gauge, output_path), encoding="utf-8")
+    html = "\n".join(line.rstrip() for line in render_page(args.gauge, output_path).splitlines()) + "\n"
+    output_path.write_text(html, encoding="utf-8")
     print(f"Wrote {output_path}")
 
 
