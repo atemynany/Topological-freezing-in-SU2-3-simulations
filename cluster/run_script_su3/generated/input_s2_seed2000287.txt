@@ -1,0 +1,27 @@
+# Hardware and lattice parameters
+nSpace=40
+nTime=140
+useGPU=0
+useCPU=1
+precision=64
+hostSeed=2000287
+
+# Output parameters
+nDigitsInConfCheckpoint=5
+confPrefix=/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/data/results_su3_ensembles/run_script_su3_T140_L40_b6.80_open_2_s2_seed2000287/configs/conf.
+PRNGPrefix=/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/data/results_su3_ensembles/run_script_su3_T140_L40_b6.80_open_2_s2_seed2000287/prng/prng.
+gaugeObsInSingleFile=true
+gaugeObsPrefix=/work/mesonqcd/barros/SU23_freezing/Topological-freezing-in-SU2-3-simulations/data/results_su3_ensembles/run_script_su3_T140_L40_b6.80_open_s2_seed2000287/gaugeObs
+gaugeObsPostfix=.dat
+
+# Physics parameters
+startCondition=hot
+beta=6.80
+useOpenTemporalGaugeBoundary=true
+nThermalizationSteps=10000
+nHeatbathSteps=10000
+nOverrelaxationSteps=15
+onlineMeasureEvery=1
+createCheckpointEvery=100
+overwriteTemporaryCheckpointEvery=0
+logLevel=INFO
