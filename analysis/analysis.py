@@ -21,8 +21,7 @@ from calculations import (
 from plotting_code import (
     plot_Q_vs_mctime_grid, plot_histograms_grid,
     plot_Q_vs_mctime_concatenated, plot_histograms_concatenated,
-    plot_susceptibility_combined, plot_tau_int_combined,
-    plot_thermalization_comparison
+    plot_susceptibility_combined,
 )
 from timeslice_analysis import (
     analyse_timeslices,
@@ -33,6 +32,15 @@ from timeslice_analysis import (
 )
 from action_density_analysis import analyze_action_density
 from result_paths import default_results_dirs, find_run_dirs, resolve_results_dirs
+from tauint_fit import fit_and_plot_boundaries, plot_tau_int_with_fits
+
+
+OUTPUT_FOLDERS = {
+    "action_density": "action_density",
+    "topcharge": "topcharge_behaviour",
+    "fits": "fits",
+    "timeslice": "timeslice",
+}
 
 
 def print_table(results: List[AnalysisResult], gauge_group: str):
@@ -73,8 +81,27 @@ def _analysis_jobs(base_dir: str, args) -> List[tuple[str, List[str], str]]:
     return jobs
 
 
-def run_analysis(results_dirs: List[str], output_dir: str, gauge_group: str, label: str) -> bool:
+def _prepare_output_dirs(output_dir: str) -> dict[str, str]:
+    """Create the current output layout and remove legacy loose plot files."""
     os.makedirs(output_dir, exist_ok=True)
+    dirs = {
+        key: os.path.join(output_dir, folder)
+        for key, folder in OUTPUT_FOLDERS.items()
+    }
+    for path in dirs.values():
+        os.makedirs(path, exist_ok=True)
+
+    legacy_suffixes = (".png", ".pdf", ".txt")
+    for name in os.listdir(output_dir):
+        path = os.path.join(output_dir, name)
+        if os.path.isfile(path) and name.endswith(legacy_suffixes):
+            os.remove(path)
+
+    return dirs
+
+
+def run_analysis(results_dirs: List[str], output_dir: str, gauge_group: str, label: str) -> bool:
+    output_dirs = _prepare_output_dirs(output_dir)
 
     print(f"\n{gauge_group.upper()} Analysis [{label}]")
     print("Results:")
@@ -111,24 +138,30 @@ def run_analysis(results_dirs: List[str], output_dir: str, gauge_group: str, lab
     print_table(results_periodic + results_open, gauge_group)
     
     if runs_periodic:
-        plot_Q_vs_mctime_grid(runs_periodic, output_dir, gauge_group, "periodic")
-        plot_histograms_grid(runs_periodic, output_dir, gauge_group, "periodic")
+        plot_Q_vs_mctime_grid(runs_periodic, output_dirs["topcharge"], gauge_group, "periodic")
+        plot_histograms_grid(runs_periodic, output_dirs["topcharge"], gauge_group, "periodic")
     if runs_open:
-        plot_Q_vs_mctime_grid(runs_open, output_dir, gauge_group, "open")
-        plot_histograms_grid(runs_open, output_dir, gauge_group, "open")
+        plot_Q_vs_mctime_grid(runs_open, output_dirs["topcharge"], gauge_group, "open")
+        plot_histograms_grid(runs_open, output_dirs["topcharge"], gauge_group, "open")
 
     all_runs = runs_periodic + runs_open
     if all_runs:
-        plot_Q_vs_mctime_concatenated(all_runs, output_dir, gauge_group)
-        plot_histograms_concatenated(all_runs, output_dir, gauge_group)
+        plot_Q_vs_mctime_concatenated(all_runs, output_dirs["topcharge"], gauge_group)
+        plot_histograms_concatenated(all_runs, output_dirs["topcharge"], gauge_group)
     
-    plot_susceptibility_combined(results_periodic, results_open, output_dir, gauge_group)
-    plot_tau_int_combined(results_periodic, results_open, output_dir, gauge_group)
+    plot_susceptibility_combined(results_periodic, results_open, output_dirs["fits"], gauge_group)
+    plot_tau_int_with_fits(
+        results_periodic,
+        results_open,
+        os.path.join(output_dirs["fits"], f"tau_int_{gauge_group}.png"),
+        gauge_group,
+        exclude_largest_a=2,
+    )
+    fit_and_plot_boundaries(results_periodic, results_open, output_dir, gauge_group,
+                            exclude_largest_a=2)
     
-    # Thermalization comparison plot (plaquette, all runs)
     if all_runs:
-        plot_thermalization_comparison(all_runs, output_dir, gauge_group)
-        analyze_action_density(all_runs, output_dir, gauge_group)
+        analyze_action_density(all_runs, output_dirs["action_density"], gauge_group)
 
     # Timeslice grid plots — collect results per boundary group
     lattice_spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
@@ -159,13 +192,13 @@ def run_analysis(results_dirs: List[str], output_dir: str, gauge_group: str, lab
             ts_runs.append(run_data)
 
         if ts_runs:
-            plot_timeslice_density_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
-            plot_timeslice_mctime_grid(ts_files, ts_runs, n_bin, output_dir, gauge_group, boundary)
-            plot_timeslice_edge_bulk_mctime_grid(ts_files, ts_runs, output_dir, gauge_group, boundary)
-            plot_timeslice_susceptibility_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
-            plot_timeslice_tauint_grid(ts_results, ts_runs, output_dir, gauge_group, boundary)
-            plot_timeslice_susceptibility_cropped(ts_results, ts_runs, output_dir, gauge_group, boundary)
-            plot_timeslice_tauint_cropped(ts_results, ts_runs, output_dir, gauge_group, boundary)
+            plot_timeslice_density_grid(ts_results, ts_runs, output_dirs["timeslice"], gauge_group, boundary)
+            plot_timeslice_mctime_grid(ts_files, ts_runs, n_bin, output_dirs["timeslice"], gauge_group, boundary)
+            plot_timeslice_edge_bulk_mctime_grid(ts_files, ts_runs, output_dirs["timeslice"], gauge_group, boundary)
+            plot_timeslice_susceptibility_grid(ts_results, ts_runs, output_dirs["timeslice"], gauge_group, boundary)
+            plot_timeslice_tauint_grid(ts_results, ts_runs, output_dirs["timeslice"], gauge_group, boundary)
+            plot_timeslice_susceptibility_cropped(ts_results, ts_runs, output_dirs["timeslice"], gauge_group, boundary)
+            plot_timeslice_tauint_cropped(ts_results, ts_runs, output_dirs["timeslice"], gauge_group, boundary)
 
     print(f"\nDone! Plots in: {output_dir}")
     return True

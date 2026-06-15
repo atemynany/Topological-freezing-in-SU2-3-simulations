@@ -21,6 +21,7 @@ import pyerrors as pe
 from pathlib import Path
 from typing import Optional
 from autocorrelation import autocorrelation
+from calculations import is_t160_l80
 
 
 def _ensure_endpoint_ticks(ax):
@@ -49,6 +50,17 @@ def _apply_axis_style(ax, x_integer: bool = False, y_integer: bool = False,
         ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=y_nbins, integer=True, min_n_ticks=4))
     else:
         ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=y_nbins, min_n_ticks=4))
+
+
+def _highlight_title(title: str, run_data) -> str:
+    return title + ", T160_L80" if is_t160_l80(run_data) else title
+
+
+def _mark_highlight_panel(ax, run_data) -> None:
+    if is_t160_l80(run_data):
+        ax.text(0.98, 0.98, "T160_L80", transform=ax.transAxes,
+                fontsize=8, fontweight='bold', color='crimson',
+                va='top', ha='right')
 
 
 # ---------------------------------------------------------------------------
@@ -418,12 +430,13 @@ def plot_timeslice_density_grid(ts_results: list, runs: list, output_dir: str,
         ax.set_xticks(x_plot)
         ax.set_xticklabels(tick_labels, fontsize=7)
         ax.set_ylim(y_lim)
-        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_title(_highlight_title(f'$a = {a:.4f}$ fm', run_data), fontsize=10)
         ax.set_xlabel('distance from centre', fontsize=9)
         ax.set_ylabel(r'$q(t)$', fontsize=9)
         ax.tick_params(labelsize=8)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
+        _mark_highlight_panel(ax, run_data)
 
         if idx == 0:
             legend_handles = [h_data] + ([h_excl] if h_excl is not None else [])
@@ -535,12 +548,13 @@ def plot_timeslice_density_comparison(
         ax.set_xticks(tick_vals)
         ax.set_xticklabels(tick_labels, fontsize=7)
         ax.set_ylim(y_lim)
-        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_title(_highlight_title(f'$a = {a:.4f}$ fm', ref_run), fontsize=10)
         ax.set_xlabel('distance from centre', fontsize=9)
         ax.set_ylabel(r'$q(t)$', fontsize=9)
         ax.tick_params(labelsize=8)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
+        _mark_highlight_panel(ax, ref_run)
 
         if idx == 0:
             first_handles = legend_handles
@@ -613,12 +627,13 @@ def plot_timeslice_mctime_grid(ts_files: list, runs: list, n_bin,
         ax.set_ylim(y_lim)
         a = lattice_spacing(run_data.beta)
         title = f'$a = {a:.4f}$ fm' + (f',  $n_{{\\mathrm{{bin}}}}={nb}$' if nb != 1 else '')
-        ax.set_title(title, fontsize=10)
+        ax.set_title(_highlight_title(title, run_data), fontsize=10)
         ax.set_xlabel('MC time', fontsize=9)
         ax.set_ylabel(r'$q(t)$', fontsize=9)
         ax.tick_params(labelsize=8)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
+        _mark_highlight_panel(ax, run_data)
 
     for j in range(n, len(axes)):
         axes[j].set_visible(False)
@@ -704,12 +719,13 @@ def plot_timeslice_edge_bulk_mctime_grid(ts_files: list, runs: list, output_dir:
         ax.axhline(0, color='grey', lw=0.6, ls='--')
         ax.set_ylim(y_lim)
         a = lattice_spacing(run_data.beta)
-        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_title(_highlight_title(f'$a = {a:.4f}$ fm', run_data), fontsize=10)
         ax.set_xlabel('MC time', fontsize=9)
         ax.set_ylabel(r'$q(t)$ summed over group', fontsize=9)
         ax.tick_params(labelsize=8)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
+        _mark_highlight_panel(ax, run_data)
         if idx == 0:
             ax.legend(loc='upper left', fontsize=8, frameon=False)
 
@@ -772,12 +788,13 @@ def plot_timeslice_susceptibility_grid(ts_results: list, runs: list, output_dir:
         ax.set_xlim(-0.5, run_data.T - 0.5)
         _ensure_endpoint_ticks(ax)
 
-        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_title(_highlight_title(f'$a = {a:.4f}$ fm', run_data), fontsize=10)
         ax.set_xlabel('$t/a$', fontsize=9)
         ax.set_ylabel(r'$\tilde{\chi}(t)^{1/4}$ [MeV]', fontsize=9)
         _apply_axis_style(ax, x_integer=True)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
+        _mark_highlight_panel(ax, run_data)
         if idx == n_cols - 1:
             ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
                   fontsize=7, frameon=False, handlelength=1.4, labelspacing=0.3)
@@ -830,12 +847,13 @@ def plot_timeslice_tauint_grid(ts_results: list, runs: list, output_dir: str,
         ax.set_xlim(-0.5, run_data.T - 0.5)
         _ensure_endpoint_ticks(ax)
 
-        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_title(_highlight_title(f'$a = {a:.4f}$ fm', run_data), fontsize=10)
         ax.set_xlabel('$t/a$', fontsize=9)
         ax.set_ylabel(r'$\tau_{\mathrm{int}}(t)$', fontsize=9)
         _apply_axis_style(ax, x_integer=True)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
+        _mark_highlight_panel(ax, run_data)
         if idx == n_cols - 1:
             ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
                   fontsize=7, frameon=False, handlelength=1.4, labelspacing=0.3)
@@ -892,12 +910,13 @@ def plot_timeslice_susceptibility_cropped(ts_results: list, runs: list, output_d
 
         ax.set_xlim(-0.5, len(chi_fourth) - 0.5)
         _ensure_endpoint_ticks(ax)
-        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_title(_highlight_title(f'$a = {a:.4f}$ fm', run_data), fontsize=10)
         ax.set_xlabel('$t/a$ (evaluated only)', fontsize=9)
         ax.set_ylabel(r'$\tilde{\chi}(t)^{1/4}$ [MeV]', fontsize=9)
         _apply_axis_style(ax, x_integer=True)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
+        _mark_highlight_panel(ax, run_data)
         if idx == n_cols - 1:
             ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
                   fontsize=7, frameon=False, handlelength=1.4, labelspacing=0.3)
@@ -944,12 +963,13 @@ def plot_timeslice_tauint_cropped(ts_results: list, runs: list, output_dir: str,
 
         ax.set_xlim(-0.5, len(tau) - 0.5)
         _ensure_endpoint_ticks(ax)
-        ax.set_title(f'$a = {a:.4f}$ fm', fontsize=10)
+        ax.set_title(_highlight_title(f'$a = {a:.4f}$ fm', run_data), fontsize=10)
         ax.set_xlabel('$t/a$ (evaluated only)', fontsize=9)
         ax.set_ylabel(r'$\tau_{\mathrm{int}}(t)$', fontsize=9)
         _apply_axis_style(ax, x_integer=True)
         ax.text(0.02, 0.98, chr(ord('A') + idx), transform=ax.transAxes,
                 fontsize=11, va='top', ha='left')
+        _mark_highlight_panel(ax, run_data)
         if idx == n_cols - 1:
             ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
                   fontsize=7, frameon=False, handlelength=1.4, labelspacing=0.3)

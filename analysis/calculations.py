@@ -338,6 +338,9 @@ class RunData:
 class AnalysisResult:
     beta: float
     boundary: str
+    run_dir: str
+    T: int
+    L: int
     Q_mean: float
     Q2_mean: float
     chi_t_lattice: float
@@ -348,6 +351,14 @@ class AnalysisResult:
     dtau_int: float
     alpha: float
     n_conf: int
+
+
+def is_t160_l80(obj) -> bool:
+    """Return True for the T160_L80 ensemble metadata used in highlight plots."""
+    run_dir = getattr(obj, "run_dir", "")
+    if "results_work" in os.path.normpath(run_dir).split(os.sep):
+        return False
+    return int(getattr(obj, "T", -1)) == 160 and int(getattr(obj, "L", -1)) == 80
 
 
 def gaussian(x, mu, sigma, A):
@@ -432,6 +443,9 @@ def topcharge_file_path(run_dir: str, gauge_group: str = "su2") -> Optional[str]
     found = next((f for f in candidates if os.path.exists(f)), None)
     if found:
         return found
+    found = qtarget_hot_list_file_path(run_dir, "topcharge.dat")
+    if found:
+        return found
     return qtarget_aggregate_file_path(run_dir, gauge_group, "topcharge.dat")
 
 
@@ -446,7 +460,19 @@ def topcharge_timeslice_file_path(run_dir: str, gauge_group: str = "su2") -> Opt
     found = next((f for f in candidates if os.path.exists(f)), None)
     if found:
         return found
+    found = qtarget_hot_list_file_path(run_dir, "topcharge_timeslice.dat")
+    if found:
+        return found
     return qtarget_aggregate_file_path(run_dir, gauge_group, "topcharge_timeslice.dat")
+
+
+def qtarget_hot_list_file_path(run_dir: str, filename: str) -> Optional[str]:
+    """Return a qtarget hot-list output file, preferring it over hot candidates."""
+    if not os.path.basename(run_dir).startswith("qtarget_"):
+        return None
+    pattern = os.path.join(run_dir, "hot_list_*", "output", filename)
+    matches = sorted(glob.glob(pattern))
+    return matches[-1] if matches else None
 
 
 def qtarget_candidate_dirs(run_dir: str) -> list[str]:
@@ -575,6 +601,8 @@ def load_run_data(run_dir: str, gauge_group: str = "su2") -> Optional[RunData]:
         os.path.join(run_dir, "output", f"plaquette_{gauge_group}.dat"),
     ]
     plaq_file = next((f for f in plaq_candidates if os.path.exists(f)), None)
+    if plaq_file is None:
+        plaq_file = qtarget_hot_list_file_path(run_dir, "plaquette.dat")
     
     mc_time, plaq_data = np.array([]), np.array([])
     if plaq_file:
@@ -646,7 +674,8 @@ def analyze_run(run_data: RunData) -> AnalysisResult:
         chi_t_fourth_root_a_err = 0.0
 
     return AnalysisResult(
-        beta=run_data.beta, boundary=run_data.boundary,
+        beta=run_data.beta, boundary=run_data.boundary, run_dir=run_data.run_dir,
+        T=run_data.T, L=run_data.L,
         Q_mean=np.mean(Q), Q2_mean=Q2_mean,
         chi_t_lattice=chi_t_lattice, chi_t_lattice_err=chi_t_lattice_err,
         chi_t_fourth_root_a=chi_t_fourth_root_a,

@@ -246,6 +246,201 @@ def plot_fit(fit: FitResult, output_path: str, title: str = "") -> None:
     print(f"Saved: {output_path}")
 
 
+def fit_and_plot_boundaries(
+    results_periodic,
+    results_open,
+    output_dir: str,
+    gauge_group: str = "su2",
+    min_a: float = 0.012,
+    exclude_largest_a: int = 0,
+    n_boot: int = 4000,
+    seed: int = 42,
+) -> dict[str, FitResult]:
+    """Fit periodic/open tau_int(a) separately and save diagnostic plots.
+
+    min_a excludes the a ~= 0.01 fm points from the scaling fit.
+    exclude_largest_a removes the coarsest distinct lattice spacings.
+    Returns the fits that had enough points to run.
+    """
+    import os
+    from calculations import lattice_spacing_su2, lattice_spacing_su3
+
+    spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+    fit_dir = os.path.join(output_dir, "fits")
+    os.makedirs(fit_dir, exist_ok=True)
+    suffix = "_fine_a" if exclude_largest_a > 0 else "_no_a001"
+
+    fits = {}
+    for name, results in [("periodic", results_periodic), ("open", results_open)]:
+        rows = []
+        excluded = []
+        results_sorted = sorted(results, key=lambda r: spacing(r.beta), reverse=True)
+        unique_a_desc = np.array(sorted({spacing(r.beta) for r in results_sorted}, reverse=True))
+        excluded_large_a = unique_a_desc[:exclude_largest_a] if exclude_largest_a > 0 else np.array([])
+        for result in results_sorted:
+            a_value = spacing(result.beta)
+            row = (a_value, result.tau_int, result.dtau_int)
+            if a_value >= min_a and not np.isin(a_value, excluded_large_a):
+                rows.append(row)
+            else:
+                excluded.append(row)
+
+        if len(rows) < 3:
+            print(
+                f"  [warn] skipping {name} tau_int fit: "
+                f"need at least 3 points after excluding a < {min_a:g} fm"
+            )
+            continue
+
+        fit = fit_power_law(
+            [row[0] for row in rows],
+            [row[1] for row in rows],
+            [row[2] for row in rows],
+            n_boot=n_boot,
+            seed=seed,
+        )
+        fits[name] = fit
+
+        output_path = os.path.join(
+            fit_dir, f"tau_int_fit_{name}{suffix}_{gauge_group}.png"
+        )
+        title_extra = ", exclude coarsest 2 a" if exclude_largest_a == 2 else ""
+        plot_fit(
+            fit,
+            output_path,
+            title=fr"{gauge_group.upper()} {name}: exclude $a \simeq 0.01$ fm{title_extra}",
+        )
+        print(
+            f"  {name} fit: tau_int(a) = ({fit.c:.4g} +/- {fit.sigma_c:.2g}) "
+            f"* a^(-{fit.z:.4g} +/- {fit.sigma_z:.2g}); "
+            f"N={len(rows)}, excluded={len(excluded)}"
+        )
+
+    if fits:
+        summary_path = os.path.join(fit_dir, f"tau_int_fit_summary{suffix}_{gauge_group}.txt")
+        with open(summary_path, "w") as f:
+            f.write("# Fit form: tau_int(a) = c * a^(-z)\n")
+            f.write(f"# Excluded points with a < {min_a:g} fm\n")
+            f.write(f"# Excluded coarsest distinct lattice spacings: {exclude_largest_a}\n")
+            f.write("# boundary n_points c sigma_c z sigma_z chi2 dof chi2_red p_value\n")
+            for name, fit in fits.items():
+                f.write(
+                    f"{name} {len(fit.a)} {fit.c:.12g} {fit.sigma_c:.12g} "
+                    f"{fit.z:.12g} {fit.sigma_z:.12g} {fit.chi2:.12g} "
+                    f"{fit.dof:d} {fit.chi2_red:.12g} {fit.p_value:.12g}\n"
+                )
+        print(f"Saved: {summary_path}")
+
+    return fits
+
+
+def plot_tau_int_with_fits(
+    results_periodic,
+    results_open,
+    output_path: str,
+    gauge_group: str = "su2",
+    min_a: float = 0.012,
+    exclude_largest_a: int = 0,
+    n_boot: int = 4000,
+    seed: int = 42,
+) -> dict[str, FitResult]:
+    """Save tau_int(a) with periodic/open data and fitted scaling curves."""
+    import os
+    import matplotlib.pyplot as plt
+    from calculations import is_t160_l80, lattice_spacing_su2, lattice_spacing_su3
+
+    spacing = lattice_spacing_su2 if gauge_group == "su2" else lattice_spacing_su3
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    fits = {}
+    have_highlight_label = False
+    all_a = np.array([
+        spacing(r.beta)
+        for results in (results_periodic, results_open)
+        for r in results
+    ])
+    fit_styles = {
+        "Periodic": {"color": "firebrick", "linestyle": "-", "linewidth": 1.1},
+        "Open": {"color": "seagreen", "linestyle": "--", "linewidth": 1.1},
+    }
+    for results, label, marker, color, line_style in [
+        (results_periodic, "Periodic", "o", "steelblue", "-"),
+        (results_open, "Open", "s", "darkorange", "--"),
+    ]:
+        if not results:
+            continue
+
+        a_values = np.array([spacing(r.beta) for r in results])
+        tau = np.array([r.tau_int for r in results])
+        dtau = np.array([r.dtau_int for r in results])
+        order = np.argsort(a_values)[::-1]
+        a_values, tau, dtau = a_values[order], tau[order], dtau[order]
+        results_sorted = [results[i] for i in order]
+
+        highlight = np.array([is_t160_l80(r) for r in results_sorted])
+        normal = ~highlight
+        if np.any(normal):
+            ax.errorbar(a_values[normal], tau[normal], yerr=dtau[normal],
+                        fmt=marker, markersize=7, linestyle="none",
+                        capsize=3, color=color, label=label)
+        if np.any(highlight):
+            highlight_label = None if have_highlight_label else "T160_L80"
+            have_highlight_label = True
+            ax.errorbar(a_values[highlight], tau[highlight], yerr=dtau[highlight],
+                        fmt="^", markersize=8, linestyle="none",
+                        capsize=3, color="crimson", label=highlight_label,
+                        zorder=5)
+
+        fit_mask = a_values >= min_a
+        if exclude_largest_a > 0:
+            unique_a_desc = np.array(sorted(set(a_values), reverse=True))
+            excluded_large_a = unique_a_desc[:exclude_largest_a]
+            fit_mask &= ~np.isin(a_values, excluded_large_a)
+        excluded_mask = ~fit_mask
+        if np.any(excluded_mask):
+            normal_excluded = excluded_mask & normal
+            highlight_excluded = excluded_mask & highlight
+            if np.any(normal_excluded):
+                ax.scatter(a_values[normal_excluded], tau[normal_excluded],
+                       marker=marker, s=90, facecolors="none", edgecolors=color,
+                       linewidths=1.4, alpha=0.8)
+            if np.any(highlight_excluded):
+                ax.scatter(a_values[highlight_excluded], tau[highlight_excluded],
+                           marker="^", s=90, facecolors="none", edgecolors="crimson",
+                           linewidths=1.4, alpha=0.9, zorder=5.5)
+
+        if np.sum(fit_mask) >= 3:
+            fit = fit_power_law(
+                a_values[fit_mask], tau[fit_mask], dtau[fit_mask],
+                n_boot=n_boot, seed=seed,
+            )
+            fits[label.lower()] = fit
+
+            if all_a.size:
+                a_grid = np.linspace(all_a.min(), all_a.max(), 400)
+            else:
+                a_grid = np.linspace(a_values[fit_mask].min(), a_values[fit_mask].max(), 400)
+            style = fit_styles[label]
+            ax.plot(a_grid, power_law(a_grid, fit.c, fit.z), style["linestyle"],
+                    color=style["color"], linewidth=style["linewidth"], alpha=0.95,
+                    zorder=2.5,
+                    label=fr"{label} fit: $z={fit.z:.2f}\pm{fit.sigma_z:.2f}$")
+
+    ax.axhline(0.5, linestyle="--", color="gray", linewidth=1, alpha=0.7,
+               zorder=1, label=r"$\tau_{\rm int}=0.5$")
+    ax.set_xlabel(r"$a$ (fm)")
+    ax.set_ylabel(r"$\tau_{\rm int}(Q^2)$")
+    ax.legend(frameon=False)
+    ax.grid(True, alpha=0.3)
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=200)
+    plt.close(fig)
+    print(f"Saved: {output_path}")
+    return fits
+
+
 def _collect_results(gauge_group: str, results_dirs):
     """Mirror analysis.main()'s loader so this script runs standalone."""
     from calculations import analyze_run, load_run_data

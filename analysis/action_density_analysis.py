@@ -9,7 +9,7 @@ from typing import List, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 
-from calculations import RunData, lattice_spacing_su2, lattice_spacing_su3
+from calculations import RunData, is_t160_l80, lattice_spacing_su2, lattice_spacing_su3
 
 
 ACTION_DENSITY_FILENAMES = (
@@ -191,14 +191,23 @@ def plot_action_density(series: List[ActionDensitySeries],
         color = colors.get(run.boundary, "black")
         marker = markers.get(run.boundary, "o")
         label = f"$a={a:.4f}$ fm, {run.boundary}"
+        if is_t160_l80(run):
+            label += ", T160_L80"
 
-        ax.plot(item.sweeps, item.values, color=color, lw=0.8, alpha=0.75, label=label)
+        lw = 1.5 if is_t160_l80(run) else 0.8
+        alpha = 0.95 if is_t160_l80(run) else 0.75
+        ax.plot(item.sweeps, item.values, color=color, lw=lw, alpha=alpha, label=label)
         step = max(1, len(item.sweeps) // 160)
         ax.scatter(item.sweeps[::step], item.values[::step], color=color, marker=marker,
-                   s=8, alpha=0.65, linewidth=0)
+                   s=16 if is_t160_l80(run) else 8,
+                   alpha=0.85 if is_t160_l80(run) else 0.65, linewidth=0)
 
         if run.start_conf > 0 and item.sweeps[0] <= run.start_conf <= item.sweeps[-1]:
             ax.axvline(run.start_conf, color=color, linestyle="--", linewidth=1.0, alpha=0.65)
+            if is_t160_l80(run):
+                ax.scatter([run.start_conf], [item.values[np.searchsorted(item.sweeps, run.start_conf)]],
+                           marker="^", s=70, color="crimson", edgecolors="black",
+                           linewidth=0.5, zorder=5)
 
     ax.set_xlabel("MC sweeps")
     ax.set_ylabel(r"$s = S/V$")
@@ -260,11 +269,16 @@ def plot_action_density_post_thermalization(series: List[ActionDensitySeries],
         color = colors.get(run.boundary, "black")
         marker = markers.get(run.boundary, "o")
         label = f"$a={a:.4f}$ fm, {run.boundary}, {start_type_label(item)} start"
+        if is_t160_l80(run):
+            label += ", T160_L80"
 
-        ax.plot(sweeps, values, color=color, lw=0.9, alpha=0.8, label=label)
+        lw = 1.5 if is_t160_l80(run) else 0.9
+        alpha = 0.95 if is_t160_l80(run) else 0.8
+        ax.plot(sweeps, values, color=color, lw=lw, alpha=alpha, label=label)
         step = max(1, len(sweeps) // 180)
         ax.scatter(sweeps[::step], values[::step], color=color, marker=marker,
-                   s=8, alpha=0.65, linewidth=0)
+                   s=16 if is_t160_l80(run) else 8,
+                   alpha=0.85 if is_t160_l80(run) else 0.65, linewidth=0)
         plotted += 1
 
     if plotted == 0:
