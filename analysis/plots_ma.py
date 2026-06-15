@@ -22,6 +22,7 @@ from calculations import (  # noqa: E402
     CHI_T_FOURTH_ROOT_SU2,
     analyze_run,
     gaussian,
+    gaussian_smooth,
     is_t160_l80,
     lattice_spacing_su2,
     load_run_data,
@@ -39,8 +40,8 @@ PBC_DARK = "#224466"
 OBC_COLOR = "#EE7733"
 PBC_COMP_COLOR = "#663399"
 OBC_COMP_COLOR = "#AA3377"
-FIT_PBC_COLOR = "#CC3311"
-FIT_OBC_COLOR = "#009988"
+FIT_PBC_COLOR = "#005AB5"
+FIT_OBC_COLOR = "#D55E00"
 GRAY = "0.45"
 
 
@@ -273,9 +274,13 @@ def plot_histograms(runs: list[RunData], boundary: str, filename: str) -> None:
         for key, group in _concat_groups(runs)
         if key[3] == boundary and not _is_t160_key(key)
     ]
-    q_arrays = [
-        np.concatenate([run.Q_rescaled.astype(float) for run in group])
+    q_segments_by_group = [
+        [run.Q_rescaled.astype(float) for run in group]
         for _, group in groups
+    ]
+    q_arrays = [
+        np.concatenate(segments)
+        for segments in q_segments_by_group
     ]
     q_unrounded_arrays = [
         np.concatenate([(run.alpha * run.Q_raw).astype(float) for run in group])
@@ -351,9 +356,13 @@ def plot_q_history_concatenated(runs: list[RunData], boundary: str, filename: st
         for key, group in _concat_groups(runs)
         if key[3] == boundary and not _is_t160_key(key)
     ]
-    q_arrays = [
-        np.concatenate([run.Q_rescaled.astype(float) for run in group])
+    q_segments_by_group = [
+        [run.Q_rescaled.astype(float) for run in group]
         for _, group in groups
+    ]
+    q_arrays = [
+        np.concatenate(segments)
+        for segments in q_segments_by_group
     ]
     shared_min = int(np.floor(min(q.min() for q in q_arrays)))
     shared_max = int(np.ceil(max(q.max() for q in q_arrays)))
@@ -364,18 +373,18 @@ def plot_q_history_concatenated(runs: list[RunData], boundary: str, filename: st
     axes = np.array(axes).reshape(n_rows, n_cols)
     color = _boundary_color(boundary)
 
-    for idx, ((key, group), q_values) in enumerate(zip(groups, q_arrays)):
+    for idx, ((key, group), q_segments) in enumerate(zip(groups, q_segments_by_group)):
         row, col = divmod(idx, n_cols)
         ax = axes[row, col]
-        x = np.arange(len(q_values))
-
-        ax.plot(x, q_values, color=color, lw=0.75, alpha=0.42)
-        ax.scatter(x, q_values, s=5.5, color=color, alpha=0.82)
 
         offset = 0
-        for run_data in group[:-1]:
-            offset += len(run_data.Q_rescaled)
-            ax.axvline(offset - 0.5, color=color, ls=":", lw=0.75, alpha=0.55)
+        for segment_idx, q_segment in enumerate(q_segments):
+            x_segment = offset + np.arange(len(q_segment))
+            ax.plot(x_segment, q_segment, color=color, lw=0.75, alpha=0.42)
+            ax.scatter(x_segment, q_segment, s=5.5, color=color, alpha=0.82)
+            offset += len(q_segment)
+            if segment_idx < len(q_segments) - 1:
+                ax.axvline(offset - 0.5, color=color, ls=":", lw=0.75, alpha=0.55)
 
         for q_int in range(shared_min, shared_max + 1):
             ax.axhline(q_int, color="0.86", ls="--", lw=0.4, zorder=0)
@@ -393,7 +402,7 @@ def plot_q_history_concatenated(runs: list[RunData], boundary: str, filename: st
             ax.set_xlabel("MC sample", fontsize=8)
     for ax in axes[:, 0]:
         if ax.get_visible():
-            ax.set_ylabel(r"$Q_{\rm re}$", fontsize=8)
+            ax.set_ylabel(r"$Q$", fontsize=8)
     for ax in axes.flat:
         if ax.get_visible():
             ax.set_ylim(shared_min - 0.5, shared_max + 0.5)
@@ -408,6 +417,89 @@ def plot_q_history_concatenated(runs: list[RunData], boundary: str, filename: st
     )
     fig.tight_layout(rect=[0, 0, 1, 0.96])
     _save(fig, filename)
+
+
+def plot_q_history_concatenated_open_gaussian(runs: list[RunData]) -> None:
+    groups = [
+        (key, group)
+        for key, group in _concat_groups(runs)
+        if key[3] == "open" and not _is_t160_key(key)
+    ]
+    q_segments_by_group = [
+        [run.Q_rescaled.astype(float) for run in group]
+        for _, group in groups
+    ]
+    q_arrays = [np.concatenate(segments) for segments in q_segments_by_group]
+    shared_min = int(np.floor(min(q.min() for q in q_arrays)))
+    shared_max = int(np.ceil(max(q.max() for q in q_arrays)))
+
+    sigma_values = np.array([4.0, 10.0, 20.0, 40.0])
+    smooth_colors = ["#0072B2", "#D55E00", "#009E73", "#882255"]
+    n_cols = 2
+    n_rows = (len(groups) + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6.6, 2.1 * n_rows), sharey=True)
+    axes = np.array(axes).reshape(n_rows, n_cols)
+
+    for idx, ((key, group), q_segments) in enumerate(zip(groups, q_segments_by_group)):
+        row, col = divmod(idx, n_cols)
+        ax = axes[row, col]
+
+        offset = 0
+        for segment_idx, q_segment in enumerate(q_segments):
+            x_segment = offset + np.arange(len(q_segment), dtype=float)
+            ax.plot(x_segment, q_segment, color="0.45", lw=0.65, alpha=0.22)
+            ax.scatter(x_segment, q_segment, s=4.0, color="0.35", alpha=0.14, zorder=2)
+
+            local_x = np.arange(len(q_segment), dtype=float)
+            for sigma, smooth_color in zip(sigma_values, smooth_colors):
+                q_smooth = np.round(gaussian_smooth(local_x, q_segment, sigma))
+                ax.plot(x_segment, q_smooth, color=smooth_color, lw=1.0, zorder=3)
+
+            offset += len(q_segment)
+            if segment_idx < len(q_segments) - 1:
+                ax.axvline(offset - 0.5, color=OBC_COLOR, ls=":", lw=0.75, alpha=0.55)
+
+        for q_int in range(shared_min, shared_max + 1):
+            ax.axhline(q_int, color="0.86", ls="--", lw=0.4, zorder=0)
+
+        ax.set_title(rf"$a={lattice_spacing_su2(key[0]):.4f}\,\mathrm{{fm}}$", pad=3)
+        ax.text(0.03, 0.92, chr(ord("A") + idx), transform=ax.transAxes,
+                va="top", ha="left", fontweight="bold")
+        ax.tick_params(direction="in")
+        ax.grid(False)
+
+    for idx in range(len(groups), n_rows * n_cols):
+        axes.flat[idx].set_visible(False)
+    for ax in axes[-1, :]:
+        if ax.get_visible():
+            ax.set_xlabel("MC sample", fontsize=8)
+    for ax in axes[:, 0]:
+        if ax.get_visible():
+            ax.set_ylabel(r"$Q$", fontsize=8)
+    for ax in axes.flat:
+        if ax.get_visible():
+            ax.set_ylim(shared_min - 0.5, shared_max + 0.5)
+
+    fig.legend(
+        handles=[
+            plt.Line2D([0], [0], color="0.45", marker="o", lw=0.65,
+                       markersize=3.0, alpha=0.35),
+            *[
+                plt.Line2D([0], [0], color=color, lw=1.0)
+                for color in smooth_colors
+            ],
+        ],
+        labels=[
+            "original",
+            *[rf"$\sigma={sigma:g}$" for sigma in sigma_values],
+        ],
+        loc="upper center",
+        ncol=5,
+        frameon=False,
+        bbox_to_anchor=(0.52, 1.01),
+    )
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    _save(fig, "Q_vs_mctime_concatenated_su2_open_gaussian_rounded_sigma40.png")
 
 
 def plot_open_fine_spacing_overlay(runs: list[RunData]) -> None:
@@ -429,12 +521,17 @@ def plot_open_fine_spacing_overlay(runs: list[RunData]) -> None:
         selected.append(matches[0])
 
     series = [
-        (key, group, np.concatenate([run.Q_rescaled.astype(float) for run in group]))
+        (
+            key,
+            group,
+            [run.Q_rescaled.astype(float) for run in group],
+            np.concatenate([run.Q_rescaled.astype(float) for run in group]),
+        )
         for key, group in selected
     ]
-    q_min = int(np.floor(min(values.min() for _, _, values in series)))
-    q_max = int(np.ceil(max(values.max() for _, _, values in series)))
-    max_len = max(len(values) for _, _, values in series)
+    q_min = int(np.floor(min(values.min() for _, _, _, values in series)))
+    q_max = int(np.ceil(max(values.max() for _, _, _, values in series)))
+    max_len = max(len(values) for _, _, _, values in series)
 
     fig, ax = plt.subplots(figsize=(5.6, 3.2))
     styles = [
@@ -444,33 +541,236 @@ def plot_open_fine_spacing_overlay(runs: list[RunData]) -> None:
          "markersize": 7.0, "label_suffix": "fine"},
     ]
 
-    for (key, group, q_values), style in zip(series, styles):
+    for (key, group, q_segments, _), style in zip(series, styles):
         a_value = lattice_spacing_su2(key[0])
-        x = np.arange(len(q_values))
-
         label = rf"$a={a_value:.4f}\,\mathrm{{fm}}$"
-        ax.plot(x, q_values, color=style["color"], lw=0.9,
-                alpha=style["alpha_line"], zorder=2)
-        ax.scatter(x, q_values, s=style["markersize"], color=style["color"],
-                   alpha=style["alpha_marker"], label=label, zorder=3)
 
         offset = 0
-        for run_data in group[:-1]:
-            offset += len(run_data.Q_rescaled)
-            ax.axvline(offset - 0.5, color=style["color"], ls=":",
-                       lw=0.8, alpha=0.35)
+        for segment_idx, q_segment in enumerate(q_segments):
+            x_segment = offset + np.arange(len(q_segment))
+            ax.plot(x_segment, q_segment, color=style["color"], lw=0.9,
+                    alpha=style["alpha_line"], zorder=2)
+            ax.scatter(x_segment, q_segment, s=style["markersize"], color=style["color"],
+                       alpha=style["alpha_marker"],
+                       label=label if segment_idx == 0 else None, zorder=3)
+            offset += len(q_segment)
+            if segment_idx < len(q_segments) - 1:
+                ax.axvline(offset - 0.5, color=style["color"], ls=":",
+                           lw=0.8, alpha=0.35)
 
     for q_int in range(q_min, q_max + 1):
         ax.axhline(q_int, color="0.84", ls="--", lw=0.45, zorder=0)
 
     ax.set_xlabel("MC sample")
-    ax.set_ylabel(r"$Q_{\rm re}$")
+    ax.set_ylabel(r"$Q$")
     ax.set_xlim(-5, max_len + 5)
     ax.set_ylim(q_min - 0.5, q_max + 0.5)
-    ax.set_title(r"Open BC fine-lattice comparison", pad=4)
+    ax.set_title(r"obc fine-lattice comparison", pad=4)
     ax.legend(frameon=False, loc="upper right")
     ax.grid(False)
     _save(fig, "Q_vs_mctime_obc_a0191_a0107_su2.png")
+
+
+def plot_open_gaussian_smoothing(runs: list[RunData],
+                                 target_a: float,
+                                 a_tag: str,
+                                 rounded: bool = False) -> None:
+    groups = [
+        (key, group)
+        for key, group in _concat_groups(runs)
+        if key[3] == "open" and not _is_t160_key(key)
+    ]
+    matches = [
+        (key, group)
+        for key, group in groups
+        if abs(lattice_spacing_su2(key[0]) - target_a) < 5e-4
+    ]
+    if not matches:
+        raise RuntimeError(f"missing open ensemble with a ~= {target_a:.4f} fm")
+
+    key, group = matches[0]
+    q_segments = [run.Q_rescaled.astype(float) for run in group]
+    if rounded:
+        y_label = r"$Q$"
+        title_suffix = "Gaussian smoothing, rounded"
+        filename = f"Q_vs_mctime_obc_{a_tag}_gaussian_smoothing_rounded_su2.png"
+        original_label = "original"
+    else:
+        y_label = r"$Q$"
+        title_suffix = "Gaussian smoothing"
+        filename = f"Q_vs_mctime_obc_{a_tag}_gaussian_smoothing_su2.png"
+        original_label = "original"
+    q_values = np.concatenate(q_segments)
+    sigma_values = np.array([4.0, 10.0, 20.0, 40.0])
+    smooth_colors = ["#0072B2", "#D55E00", "#009E73", "#882255"]
+
+    fig, ax = plt.subplots(figsize=(6.8, 3.4))
+    offset = 0
+    for idx, q_segment in enumerate(q_segments):
+        x_segment = offset + np.arange(len(q_segment), dtype=float)
+        ax.plot(
+            x_segment, q_segment, color="0.45", lw=0.65, alpha=0.24,
+            label=original_label if idx == 0 else None,
+        )
+        ax.scatter(x_segment, q_segment, s=5.0, color="0.35", alpha=0.16, zorder=2)
+
+        local_x = np.arange(len(q_segment), dtype=float)
+        for sigma, color in zip(sigma_values, smooth_colors):
+            y_smooth = gaussian_smooth(local_x, q_segment, sigma)
+            if rounded:
+                y_smooth = np.round(y_smooth)
+            ax.plot(
+                x_segment, y_smooth, color=color, lw=1.25,
+                label=rf"$\sigma={sigma:g}$" if idx == 0 else None,
+                zorder=3,
+            )
+
+        offset += len(q_segment)
+        if idx < len(q_segments) - 1:
+            ax.axvline(offset - 0.5, color=OBC_COLOR, ls=":", lw=0.8, alpha=0.45)
+
+    q_min = int(np.floor(q_values.min()))
+    q_max = int(np.ceil(q_values.max()))
+    for q_int in range(q_min, q_max + 1):
+        ax.axhline(q_int, color="0.88", ls="--", lw=0.4, zorder=0)
+
+    ax.set_xlabel("MC sample")
+    ax.set_ylabel(y_label)
+    ax.set_title(
+        rf"$a={lattice_spacing_su2(key[0]):.4f}\,\mathrm{{fm}}$ obc {title_suffix}",
+        pad=4,
+    )
+    ax.set_xlim(-5, len(q_values) + 5)
+    ax.set_ylim(q_min - 0.6, q_max + 0.6)
+    ax.legend(frameon=False, loc="upper right", ncol=2)
+    ax.grid(False)
+    _save(fig, filename)
+
+
+def plot_open_gaussian_vs_periodic_rounded(runs_open: list[RunData],
+                                           runs_periodic: list[RunData]) -> None:
+    targets = (0.0299, 0.0191, 0.0107)
+    row_sigmas = np.array([4.0, 20.0, 40.0])
+    row_colors = ["#0072B2", "#009E73", "#882255"]
+
+    open_groups = [
+        (key, group)
+        for key, group in _concat_groups(runs_open)
+        if key[3] == "open" and not _is_t160_key(key)
+    ]
+    periodic_groups = [
+        (key, group)
+        for key, group in _concat_groups(runs_periodic)
+        if key[3] == "periodic" and not _is_t160_key(key)
+    ]
+
+    rows = []
+    for target_a in targets:
+        open_match = [
+            (key, group)
+            for key, group in open_groups
+            if abs(lattice_spacing_su2(key[0]) - target_a) < 5e-4
+        ]
+        periodic_match = [
+            (key, group)
+            for key, group in periodic_groups
+            if abs(lattice_spacing_su2(key[0]) - target_a) < 5e-4
+        ]
+        if not open_match or not periodic_match:
+            raise RuntimeError(f"missing obc or pbc ensemble with a ~= {target_a:.4f} fm")
+
+        open_key, open_group = open_match[0]
+        periodic_key, periodic_group = periodic_match[0]
+        open_segments = [run.Q_rescaled.astype(float) for run in open_group]
+        periodic_segments = [run.Q_rescaled.astype(float) for run in periodic_group]
+        rows.append((target_a, open_key, open_segments, periodic_key, periodic_segments))
+
+    all_values = [
+        value
+        for _, _, open_segments, _, periodic_segments in rows
+        for segment in [*open_segments, *periodic_segments]
+        for value in segment
+    ]
+    q_min = int(np.floor(min(all_values)))
+    q_max = int(np.ceil(max(all_values)))
+
+    fig, axes = plt.subplots(len(rows), 2, figsize=(6.9, 6.0), sharey=True)
+
+    for row_idx, (target_a, _, open_segments, _, periodic_segments) in enumerate(rows):
+        ax_obc = axes[row_idx, 0]
+        ax_pbc = axes[row_idx, 1]
+        sigma = row_sigmas[row_idx]
+        smooth_color = row_colors[row_idx]
+
+        offset = 0
+        for segment_idx, q_segment in enumerate(open_segments):
+            x_segment = offset + np.arange(len(q_segment), dtype=float)
+            ax_obc.plot(x_segment, q_segment, color="0.45", lw=0.55, alpha=0.18)
+            ax_obc.scatter(x_segment, q_segment, s=3.5, color="0.35", alpha=0.12, zorder=2)
+
+            local_x = np.arange(len(q_segment), dtype=float)
+            q_smooth = np.round(gaussian_smooth(local_x, q_segment, sigma))
+            ax_obc.plot(x_segment, q_smooth, color=smooth_color, lw=1.1, zorder=3)
+
+            offset += len(q_segment)
+            if segment_idx < len(open_segments) - 1:
+                ax_obc.axvline(offset - 0.5, color=OBC_COLOR, ls=":", lw=0.75, alpha=0.55)
+
+        offset = 0
+        for segment_idx, q_segment in enumerate(periodic_segments):
+            x_segment = offset + np.arange(len(q_segment), dtype=float)
+            ax_pbc.plot(x_segment, q_segment, color=PBC_COLOR, lw=0.95, alpha=0.72)
+
+            offset += len(q_segment)
+            if segment_idx < len(periodic_segments) - 1:
+                ax_pbc.axvline(offset - 0.5, color=PBC_COLOR, ls=":", lw=0.75, alpha=0.55)
+
+        for ax in (ax_obc, ax_pbc):
+            for q_int in range(q_min, q_max + 1):
+                ax.axhline(q_int, color="0.87", ls="--", lw=0.4, zorder=0)
+            ax.set_ylim(q_min - 0.5, q_max + 0.5)
+            ax.tick_params(direction="in")
+            ax.grid(False)
+
+        ax_obc.set_ylabel(r"$Q$", fontsize=8)
+        ax_obc.text(0.03, 0.90, chr(ord("A") + 2 * row_idx),
+                    transform=ax_obc.transAxes, va="top", ha="left", fontweight="bold")
+        ax_pbc.text(0.03, 0.90, chr(ord("A") + 2 * row_idx + 1),
+                    transform=ax_pbc.transAxes, va="top", ha="left", fontweight="bold")
+
+        ax_obc.set_title(rf"$a={target_a:.4f}\,\mathrm{{fm}}$", pad=3)
+        ax_pbc.set_title(rf"$a={target_a:.4f}\,\mathrm{{fm}}$", pad=3)
+
+    axes[0, 0].text(0.5, 1.26, "obc Gaussian rounded", transform=axes[0, 0].transAxes,
+                    ha="center", va="bottom")
+    axes[0, 1].text(0.5, 1.26, "pbc rounded", transform=axes[0, 1].transAxes,
+                    ha="center", va="bottom")
+    for ax in axes[-1, :]:
+        ax.set_xlabel("MC sample", fontsize=8)
+
+    fig.legend(
+        handles=[
+            plt.Line2D([0], [0], color="0.45", marker="o", lw=0.55,
+                       markersize=3.0, alpha=0.35),
+            *[
+                plt.Line2D([0], [0], color=color, lw=1.1)
+                for color in row_colors
+            ],
+            plt.Line2D([0], [0], color=PBC_COLOR, marker="o", lw=0.75,
+                       markersize=3.5, alpha=0.82),
+        ],
+        labels=[
+            "obc original",
+            *[rf"$\sigma={sigma:g}$" for sigma in row_sigmas],
+            "pbc line",
+        ],
+        loc="upper center",
+        ncol=5,
+        frameon=False,
+        bbox_to_anchor=(0.52, 1.02),
+    )
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    _save(fig, "Q_vs_mctime_obc_gaussian_pbc_rounded_fine_su2.png")
 
 
 def plot_t160_history(runs: list[RunData]) -> None:
@@ -480,32 +780,50 @@ def plot_t160_history(runs: list[RunData]) -> None:
         if _is_t160_key(key)
     ]
     groups = sorted(groups, key=lambda item: 0 if item[0][3] == "periodic" else 1)
-    q_arrays = [
-        np.concatenate([run.Q_rescaled.astype(float) for run in group])
+    q_segments_by_group = [
+        [run.Q_rescaled.astype(float) for run in group]
         for _, group in groups
     ]
+    q_arrays = [np.concatenate(segments) for segments in q_segments_by_group]
     shared_min = int(np.floor(min(q.min() for q in q_arrays)))
     shared_max = int(np.ceil(max(q.max() for q in q_arrays)))
 
+    sigma = 40.0
     fig, ax = plt.subplots(figsize=(5.6, 3.2))
-    for key, group, q_values in zip([item[0] for item in groups],
-                                    [item[1] for item in groups],
-                                    q_arrays):
+    for key, group, q_segments in zip([item[0] for item in groups],
+                                      [item[1] for item in groups],
+                                      q_segments_by_group):
         color = _boundary_color(key[3])
         label = _t160_legend_label(key)
-        x = np.arange(len(q_values))
-        ax.plot(x, q_values, color=color, lw=0.9, alpha=0.50)
-        ax.scatter(x, q_values, s=9, color=color, alpha=0.85, label=label)
+        smooth_label = rf"{label}, rounded Gaussian $\sigma={sigma:g}$"
+        raw_line_alpha = 0.26 if key[3] == "open" else 0.50
+        raw_marker_alpha = 0.42 if key[3] == "open" else 0.85
+        smooth_alpha = 0.72 if key[3] == "open" else 1.0
         offset = 0
-        for run_data in group[:-1]:
-            offset += len(run_data.Q_rescaled)
-            ax.axvline(offset - 0.5, color=color, ls=":", lw=0.8, alpha=0.55)
+        for segment_idx, q_segment in enumerate(q_segments):
+            x_segment = offset + np.arange(len(q_segment), dtype=float)
+            ax.plot(x_segment, q_segment, color=color, lw=0.9, alpha=raw_line_alpha)
+            ax.scatter(x_segment, q_segment, s=9, color=color, alpha=raw_marker_alpha,
+                       label=label if segment_idx == 0 else None)
+
+            local_x = np.arange(len(q_segment), dtype=float)
+            q_smooth = np.round(gaussian_smooth(local_x, q_segment, sigma))
+            ax.plot(
+                x_segment, q_smooth, color=color, lw=1.5, ls="--",
+                alpha=smooth_alpha,
+                label=smooth_label if segment_idx == 0 else None,
+                zorder=4,
+            )
+
+            offset += len(q_segment)
+            if segment_idx < len(q_segments) - 1:
+                ax.axvline(offset - 0.5, color=color, ls=":", lw=0.8, alpha=0.55)
 
     for q_int in range(shared_min, shared_max + 1):
         ax.axhline(q_int, color="0.82", ls="--", lw=0.45, zorder=0)
 
     ax.set_xlabel(r"MC sample")
-    ax.set_ylabel(r"$Q_{\rm re}$")
+    ax.set_ylabel(r"$Q$")
     ax.set_title(r"$160\times 80^3$ boundary-condition comparison, cut 40", pad=4)
     ax.set_ylim(shared_min - 0.5, shared_max + 0.5)
     ax.legend(frameon=False, loc="upper right", handlelength=1.6)
@@ -522,7 +840,13 @@ def main() -> None:
     plot_histograms(runs_periodic, "periodic", "histograms_concatenated_su2_periodic.png")
     plot_q_history_concatenated(runs_open, "open", "Q_vs_mctime_concatenated_su2_open.png")
     plot_q_history_concatenated(runs_periodic, "periodic", "Q_vs_mctime_concatenated_su2_periodic.png")
+    plot_q_history_concatenated_open_gaussian(runs_open)
     plot_open_fine_spacing_overlay(runs_open)
+    plot_open_gaussian_smoothing(runs_open, target_a=0.0191, a_tag="a0191")
+    plot_open_gaussian_smoothing(runs_open, target_a=0.0191, a_tag="a0191", rounded=True)
+    plot_open_gaussian_smoothing(runs_open, target_a=0.0107, a_tag="a0107")
+    plot_open_gaussian_smoothing(runs_open, target_a=0.0107, a_tag="a0107", rounded=True)
+    plot_open_gaussian_vs_periodic_rounded(runs_open, runs_periodic)
     plot_t160_history(runs_periodic + runs_open)
 
 

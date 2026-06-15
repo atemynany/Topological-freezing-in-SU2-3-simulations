@@ -366,6 +366,17 @@ def gaussian(x, mu, sigma, A):
     return A * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
 
 
+def gaussian_smooth(x, y, sigma):
+    y_smooth = np.zeros_like(y, dtype=float)
+
+    for i, xi in enumerate(x):
+        weights = np.exp(-0.5 * ((xi - x) / sigma)**2)
+        weights /= np.sum(weights)
+        y_smooth[i] = np.sum(weights * y)
+
+    return y_smooth
+
+
 def parse_input_file(run_dir: str) -> dict:
     """Parse run metadata from local and CL2QCD run files."""
     info = {}
