@@ -1209,6 +1209,130 @@ def _write_pbc_wavelength_estimates(rows: list[tuple[str, float, float, int, int
     print(f"Saved: {path}")
 
 
+def _seed_list(group: list[RunData]) -> str:
+    return ", ".join(str(run.seed) for run in sorted(group, key=lambda run: run.seed))
+
+
+def _nmc_list(group: list[RunData]) -> str:
+    lengths = [len(run.Q_rescaled) for run in group]
+    unique_lengths = sorted(set(lengths))
+    if len(unique_lengths) == 1:
+        return str(unique_lengths[0])
+    return ", ".join(str(length) for length in lengths)
+
+
+def _latex_status(status: str) -> str:
+    return status.replace("_", r"\_") if status else "--"
+
+
+def _write_latex_table(handle, caption: str, label: str, columns: str,
+                       header: str, rows: list[str]) -> None:
+    handle.write(r"\begin{table}[htbp]" "\n")
+    handle.write(r"\centering" "\n")
+    handle.write(r"\scriptsize" "\n")
+    handle.write(rf"\caption{{{caption}}}" "\n")
+    handle.write(rf"\label{{{label}}}" "\n")
+    handle.write(rf"\begin{{tabular}}{{{columns}}}" "\n")
+    handle.write(r"\hline" "\n")
+    handle.write(header + r" \\" "\n")
+    handle.write(r"\hline" "\n")
+    for row in rows:
+        handle.write(row + r" \\" "\n")
+    handle.write(r"\hline" "\n")
+    handle.write(r"\end{tabular}" "\n")
+    handle.write(r"\end{table}" "\n\n")
+
+
+def _run_parameter_rows(groups: list[tuple[tuple, list[RunData]]]) -> list[str]:
+    rows = []
+    for key, group in sorted(groups, key=lambda item: (lattice_spacing_su2(item[0][0]), item[0][3]), reverse=True):
+        beta, T, L, boundary, cut = key
+        rows.append(
+            rf"{_boundary_label(boundary)} & {beta:.3f} & {lattice_spacing_su2(beta):.4f} & "
+            rf"${T}\times {L}^3$ & {cut} & {len(group)} & {_nmc_list(group)} & {_seed_list(group)}"
+        )
+    return rows
+
+
+def _wavelength_table_rows(
+    rows: list[tuple[str, float, float, int, int, str, WavelengthEstimate | None]],
+) -> list[str]:
+    grouped: dict[tuple[str, float, float, int], dict[str, WavelengthEstimate | None]] = {}
+    for boundary, target_a, sigma, segment_idx, _, method, estimate in rows:
+        grouped.setdefault((boundary, target_a, sigma, segment_idx), {})[method] = estimate
+
+    table_rows = []
+    for boundary, target_a, sigma, segment_idx in sorted(grouped, key=lambda item: (item[1], item[0], item[3]), reverse=True):
+        estimates = grouped[(boundary, target_a, sigma, segment_idx)]
+        peak = estimates.get("peak_spacing")
+        fft = estimates.get("fft")
+        if peak is None and fft is None:
+            continue
+
+        lambda_peak = f"{peak.wavelength:.0f}" if peak is not None else "--"
+        lambda_fft = f"{fft.wavelength:.0f}" if fft is not None else "--"
+        amplitude = f"{peak.amplitude:.2f}" if peak is not None and np.isfinite(peak.amplitude) else "--"
+        edge = "yes" if peak is not None and peak.edge_sensitive else "no"
+        peak_status = _latex_status(peak.status if peak is not None else "no_estimate")
+        fft_status = _latex_status(fft.status if fft is not None else "no_estimate")
+        table_rows.append(
+            rf"{boundary.upper()} & {target_a:.4f} & {sigma:g} & {segment_idx + 1} & "
+            rf"{lambda_peak} & {lambda_fft} & {amplitude} & {edge} & "
+            rf"{peak_status} & {fft_status}"
+        )
+    return table_rows
+
+
+def _write_su2_paper_tables(
+    runs: list[RunData],
+    wavelength_rows: list[tuple[str, float, float, int, int, str, WavelengthEstimate | None]],
+) -> None:
+    groups = _concat_groups(runs)
+    main_groups = [(key, group) for key, group in groups if not _is_t160_key(key)]
+    t160_groups = [(key, group) for key, group in groups if _is_t160_key(key)]
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    path = os.path.join(OUTPUT_DIR, "su2_run_and_wavelength_tables.md")
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("# SU(2) Run And Wavelength Tables\n\n")
+        handle.write(
+            "The first table lists the SU(2) ensembles used in the main MA plots, "
+            "excluding the dedicated $160\\times80^3$ comparison runs.  The second "
+            "table lists those $160\\times80^3$ runs separately.  The third table "
+            "summarizes the smoothed wavelength and peak-to-trough amplitude "
+            "diagnostics.\n\n"
+        )
+        _write_latex_table(
+            handle,
+            r"SU(2) ensemble parameters used in the main analysis.  The $160\times80^3$ runs are excluded and listed separately.",
+            "tab:su2-main-ensembles",
+            "lccccccc",
+            r"BC & $\beta$ & $a~[\mathrm{fm}]$ & lattice & cut & $N_{\rm run}$ & $N_{\rm MC}$/run & seeds",
+            _run_parameter_rows(main_groups),
+        )
+        _write_latex_table(
+            handle,
+            r"Dedicated SU(2) $160\times80^3$ comparison ensembles.",
+            "tab:su2-t160-ensembles",
+            "lccccccc",
+            r"BC & $\beta$ & $a~[\mathrm{fm}]$ & lattice & cut & $N_{\rm run}$ & $N_{\rm MC}$/run & seeds",
+            _run_parameter_rows(t160_groups),
+        )
+        _write_latex_table(
+            handle,
+            r"Smoothed wavelength and peak-to-trough amplitude diagnostics.  The status columns label the reliability checks described in the text.",
+            "tab:su2-wavelength-diagnostics",
+            "lccccccccc",
+            (
+                r"BC & $a~[\mathrm{fm}]$ & $\sigma$ & seg. & "
+                r"$\lambda_{\rm peak}$ & $\lambda_{\rm FFT}$ & "
+                r"$\langle\Delta Q\rangle$ & edge & peak status & FFT status"
+            ),
+            _wavelength_table_rows(wavelength_rows),
+        )
+    print(f"Saved: {path}")
+
+
 def _valid_wavelength_rows(
     rows: list[tuple[str, float, float, int, int, str, WavelengthEstimate | None]],
 ) -> list[tuple[str, float, float, int, int, str, WavelengthEstimate | None]]:
@@ -1560,8 +1684,7 @@ def plot_open_gaussian_vs_periodic_gaussian_rounded(runs_open: list[RunData],
     fig.tight_layout(rect=[0, 0, 1, 0.94])
     _save(fig, "Q_vs_mctime_obc_gaussian_pbc_gaussian_rounded_fine_su2.png")
     _write_pbc_wavelength_estimates(wavelength_rows)
-    _plot_pbc_wavelength_options(wavelength_rows)
-    _plot_peak_amplitudes(wavelength_rows)
+    _write_su2_paper_tables([*runs_periodic, *runs_open], wavelength_rows)
     _plot_fft_spectra(fft_spectrum_rows)
 
 

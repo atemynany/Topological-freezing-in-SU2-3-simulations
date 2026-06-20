@@ -165,9 +165,9 @@ The reported amplitude is the average over these visible peak-to-trough pairs,
 \frac{1}{M}\sum_{m=1}^{M}\Delta Q_m .
 \]
 
-The file `amplitudes_su2.png` shows this quantity per segment.  It is a
-diagnostic size of the visible wave-like structure, not a fitted physical
-amplitude.
+The paper-style table file `su2_run_and_wavelength_tables.md` lists this
+quantity per segment.  It is a diagnostic size of the visible wave-like
+structure, not a fitted physical amplitude.
 
 ## Fourier Spectrum
 
@@ -277,25 +277,17 @@ diagnostic choices, not physical fit parameters.  In the main PBC/OBC
 comparison, common display values of \(\sigma\) are used at fixed lattice
 spacing so that PBC and OBC are filtered in the same way.
 
-## Reading The Summary Plot
+## Reading The Table Summary
 
-In `wavelengths_su2.png`:
+The file `su2_run_and_wavelength_tables.md` contains three LaTeX tables:
 
-- `o` markers are PBC estimates.
-- `x` markers are OBC estimates.
-- Blue points are PBC estimates.
-- Orange points are OBC estimates.
-- Each point is one continuous run segment.
-- Each panel is one lattice spacing.  The PBC and OBC estimates are shown in
-  the same panel with a small horizontal offset.
-- The upper row lists the wavelength-estimation method:
-  `peak` and `FFT`.
-- The plotted summary shows every finite wavelength returned by the methods.
-  The reliability interpretation is stored in the CSV status column.  In
-  particular, values marked `too_few_cycles` are diagnostic scales only: the
-  segment is too short to confirm that the scale repeats.
-- Missing estimates are left blank; lattice spacings with no plotted estimates
-  are omitted from the summary plot.
+- the main SU(2) ensemble parameters, excluding the dedicated
+  \(160\times80^3\) comparison runs;
+- the dedicated \(160\times80^3\) PBC/OBC comparison ensembles;
+- the smoothed wavelength and peak-to-trough amplitude diagnostics.
 
-In `amplitudes_su2.png`, the same PBC/OBC marker convention is used for the
-peak-to-trough amplitude diagnostic.
+The diagnostic table gives \(\lambda_{\mathrm{peak}}\),
+\(\lambda_{\mathrm{FFT}}\), \(\langle\Delta Q\rangle_{\mathrm{peak-trough}}\),
+the edge-sensitivity flag, and the reliability status for each continuous run
+segment.  Values marked `too_few_cycles` are diagnostic scales only: the
+segment is too short to confirm that the scale repeats.
