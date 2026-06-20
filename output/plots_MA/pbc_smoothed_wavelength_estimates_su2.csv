@@ -1,0 +1,17 @@
+boundary,a_fm,sigma,segment,n_samples,method,wavelength_mc,error_mc,n_features,amplitude_q,amplitude_std_q,edge_sensitive,status
+obc,0.0299,10,0,400,peak_spacing,160.5,40.3051,2,2.31197,1.20238,no,ok
+obc,0.0299,10,0,400,fft,340,0,17,,,no,too_few_cycles
+obc,0.0299,10,1,400,peak_spacing,203,29.6985,2,3.23999,1.21484,no,too_few_cycles
+obc,0.0299,10,1,400,fft,340,0,17,,,no,too_few_cycles
+pbc,0.0299,10,0,400,peak_spacing,138,65.0538,2,2.16307,0.28932,no,ok
+pbc,0.0299,10,0,400,fft,170,0,17,,,no,ok
+pbc,0.0299,10,1,400,peak_spacing,182,39.598,2,4.41982,1.675,no,too_few_cycles
+pbc,0.0299,10,1,400,fft,170,0,17,,,no,ok
+obc,0.0191,20,0,400,peak_spacing,272,0,1,3.46671,0.0131473,yes,too_few_cycles
+obc,0.0191,20,0,400,fft,280,0,7,,,no,too_few_cycles
+obc,0.0191,20,1,400,peak_spacing,191,9.89949,2,1.90293,0.548681,no,too_few_cycles
+obc,0.0191,20,1,400,fft,280,0,7,,,no,too_few_cycles
+pbc,0.0191,20,0,400,peak_spacing,168,0,1,1.60454,0.202168,no,too_few_cycles
+pbc,0.0191,20,0,400,fft,140,0,7,,,no,ok
+pbc,0.0191,20,1,400,peak_spacing,209,0,1,0.689118,0.292254,no,too_few_cycles
+pbc,0.0191,20,1,400,fft,140,0,7,,,no,ok

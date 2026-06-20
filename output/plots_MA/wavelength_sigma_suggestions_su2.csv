@@ -1,0 +1,13 @@
+boundary,a_fm,suggested_sigma,stability_score,method_spread_mc,n_methods,status
+OBC,0.0774,15.0,0.04843238903699492,9.166666666666664,2,smallest_stable_candidate
+PBC,0.0774,,0.051001384961693194,8.800000000000004,2,unstable_sigma
+OBC,0.0560,15.0,0.033579892441159484,8.0,2,smallest_stable_candidate
+PBC,0.0560,12.0,0.028488287140811527,3.583333333333343,2,smallest_stable_candidate
+OBC,0.0408,,0.08903526238070911,3.6666666666666643,2,unstable_sigma
+PBC,0.0408,,0.1767806799206071,25.25,2,unstable_sigma
+OBC,0.0299,6.0,0.04347249535513895,60.0,2,smallest_stable_candidate
+PBC,0.0299,12.0,0.026685741302402297,13.0,2,smallest_stable_candidate
+OBC,0.0191,,0.08343588994806116,67.75,2,unstable_sigma
+PBC,0.0191,6.0,0.03536292824372097,14.75,2,smallest_stable_candidate
+OBC,0.0107,,,,0,no_stable_candidate
+PBC,0.0107,,,,0,no_stable_candidate
